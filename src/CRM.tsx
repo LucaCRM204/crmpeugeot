@@ -1,5 +1,5 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
-import { Calendar, Users, Trophy, Plus, Phone, BarChart3, Settings, Home, X, Trash2, Edit3, Bell } from 'lucide-react';
+﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { Calendar, Users, Trophy, Plus, Phone, BarChart3, Settings, Home, X, Trash2, Edit3, Bell } from "lucide-react";
 
 // ===== Utilidades de datos y jerarquía =====
 function seedUsers() {
@@ -60,6 +60,7 @@ const estados: Record<string, { label: string; color: string }> = {
   perdido: { label: 'Perdido', color: 'bg-red-500' },
 };
 
+// ===== Tipos de alertas =====
 // lead_assigned -> para el vendedor asignado
 // ranking_change -> para vendedor afectado + su supervisor + su gerente
 
@@ -323,39 +324,74 @@ export default function CRM() {
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
 
+  // NUEVO: estado controlado del modal (rol y manager)
+  const [modalRole, setModalRole] =
+    useState<'owner'|'director'|'gerente'|'supervisor'|'vendedor'>('vendedor');
+  const [modalReportsTo, setModalReportsTo] = useState<number | null>(null);
+
   const validManagersByRole = (role: string) => {
     switch (role) {
-      case 'director': return users.filter(u => u.role === 'owner');
-      case 'gerente': return users.filter(u => u.role === 'director');
+      case 'owner':      return []; // Dueño no reporta a nadie
+      case 'director':   return users.filter(u => u.role === 'owner');
+      case 'gerente':    return users.filter(u => u.role === 'director');
       case 'supervisor': return users.filter(u => u.role === 'gerente');
-      case 'vendedor': return users.filter(u => u.role === 'supervisor');
-      default: return [];
+      case 'vendedor':   return users.filter(u => u.role === 'supervisor');
+      default:           return [];
     }
   };
 
-  const openCreateUser = () => { setEditingUser(null); setShowUserModal(true); };
-  const openEditUser = (u: any) => { setEditingUser(u); setShowUserModal(true); };
+  const openCreateUser = () => {
+    setEditingUser(null);
+    const roleDefault: typeof modalRole = 'vendedor';
+    const managers = validManagersByRole(roleDefault);
+    setModalRole(roleDefault);
+    setModalReportsTo(managers[0]?.id ?? null);
+    setShowUserModal(true);
+  };
+
+  const openEditUser = (u: any) => {
+    setEditingUser(u);
+    const roleCurrent = u.role as typeof modalRole;
+    const managers = validManagersByRole(roleCurrent);
+    setModalRole(roleCurrent);
+    setModalReportsTo(
+      roleCurrent === 'owner' ? null : (u.reportsTo ?? managers[0]?.id ?? null)
+    );
+    setShowUserModal(true);
+  };
 
   const saveUser = () => {
-    const name = (document.getElementById('u-name') as HTMLInputElement).value;
-    const email = (document.getElementById('u-email') as HTMLInputElement).value;
+    const name = (document.getElementById('u-name') as HTMLInputElement).value.trim();
+    const email = (document.getElementById('u-email') as HTMLInputElement).value.trim();
     const password = (document.getElementById('u-pass') as HTMLInputElement).value;
-    const role = (document.getElementById('u-role') as HTMLSelectElement).value;
-    const reportsToVal = (document.getElementById('u-reportsTo') as HTMLSelectElement).value;
-    const reportsTo = reportsToVal ? parseInt(reportsToVal, 10) : null;
 
-    if (!name || !email || !role) return;
+    if (!name || !email) return;
+
+    const finalReportsTo = (modalRole === 'owner') ? null : (modalReportsTo ?? null);
 
     if (editingUser) {
-      setUsers(prev => prev.map(u => u.id === editingUser.id ? { ...u, name, email, password: password || u.password, role, reportsTo } : u));
+      setUsers(prev => prev.map(u =>
+        u.id === editingUser.id
+          ? { ...u, name, email, password: password || u.password, role: modalRole, reportsTo: finalReportsTo }
+          : u
+      ));
     } else {
       const newId = Math.max(...users.map(u => u.id)) + 1;
-      setUsers(prev => [...prev, { id: newId, name, email, password: password || '123456', role, reportsTo, active: true }]);
+      setUsers(prev => [...prev, {
+        id: newId, name, email,
+        password: password || '123456',
+        role: modalRole,
+        reportsTo: finalReportsTo,
+        active: true
+      }]);
     }
     setShowUserModal(false);
   };
 
   const deleteUser = (id: number) => {
+    const target = users.find(u => u.id === id);
+    if (!target) return;
+    if (target.role === 'owner') { alert('No podés eliminar al Dueño.'); return; }
     const hasChildren = users.some(u => u.reportsTo === id);
     if (hasChildren) { alert('No se puede eliminar: el usuario tiene integrantes a cargo.'); return; }
     setUsers(prev => prev.filter(u => u.id !== id));
@@ -614,7 +650,17 @@ export default function CRM() {
                             vendedor?.name
                           )}
                         </td>
-                        <td className="px-6 py-4 text-right text-sm text-gray-500">—</td>
+                        <td className="px-6 py-4 text-right text-sm">
+                          {isOwner() && (
+                            <button
+                              onClick={() => setLeads(prev => prev.filter(l => l.id !== lead.id))}
+                              className="inline-flex items-center px-2 py-1 text-sm rounded-md bg-red-100 text-red-700 hover:bg-red-200"
+                              title="Eliminar lead"
+                            >
+                              <Trash2 size={14} className="mr-1" /> Eliminar
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
@@ -930,31 +976,44 @@ export default function CRM() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
                   <input type="password" id="u-pass" placeholder={editingUser ? '(sin cambio)' : ''} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
                 </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
-                  <select id="u-role" defaultValue={editingUser?.role || 'vendedor'} className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  <select
+                    id="u-role"
+                    value={modalRole}
                     onChange={(e) => {
-                      const role = e.target.value;
-                      const managers = validManagersByRole(role);
-                      const sel = document.getElementById('u-reportsTo') as HTMLSelectElement | null;
-                      if (sel) sel.value = managers[0]?.id?.toString?.() || '';
+                      const r = e.target.value as typeof modalRole;
+                      setModalRole(r);
+                      const managers = validManagersByRole(r);
+                      setModalReportsTo(r === 'owner' ? null : (managers[0]?.id ?? null));
                     }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   >
+                    {isOwner() && <option value="owner">Dueño</option>}
                     <option value="director">Director</option>
                     <option value="gerente">Gerente</option>
                     <option value="supervisor">Supervisor</option>
                     <option value="vendedor">Vendedor</option>
                   </select>
                 </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Reporta a</label>
-                  <select id="u-reportsTo" defaultValue={editingUser?.reportsTo || ''} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                    {(validManagersByRole(editingUser?.role || 'vendedor')).map(m => (
+                  <select
+                    id="u-reportsTo"
+                    value={modalReportsTo ?? ''}
+                    onChange={(e) => setModalReportsTo(e.target.value ? parseInt(e.target.value,10) : null)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    disabled={modalRole === 'owner'}
+                  >
+                    {(modalRole === 'owner' ? [] : validManagersByRole(modalRole)).map(m => (
                       <option key={m.id} value={m.id}>{m.name} — {roles[m.role]}</option>
                     ))}
                   </select>
                 </div>
               </div>
+
               <div className="flex space-x-3 pt-6">
                 <button onClick={() => setShowUserModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancelar</button>
                 <button onClick={saveUser} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Guardar</button>
@@ -966,4 +1025,3 @@ export default function CRM() {
     </div>
   );
 }
-
