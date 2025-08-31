@@ -966,9 +966,12 @@ export default function CRM() {
                         <td className="px-6 py-4 text-right space-x-2">
                           {isOwner() && (
                             <>
-                              <button onClick={() => setEditingUser(user) || openEditUser(user)} className="inline-flex items-center px-2 py-1 text-sm rounded-md bg-amber-100 text-amber-700 hover:bg-amber-200">
-                                <Edit3 size={14} className="mr-1" /> Editar
-                              </button>
+                              <button
+  onClick={() => { setEditingUser(user); openEditUser(user); }}
+  className="inline-flex items-center px-2 py-1 text-sm rounded-md bg-amber-100 text-amber-700 hover:bg-amber-200"
+>
+  <Edit3 size={14} className="mr-1" /> Editar
+</button>
                               <button onClick={() => deleteUser(user.id)} className="inline-flex items-center px-2 py-1 text-sm rounded-md bg-red-100 text-red-700 hover:bg-red-200">
                                 <Trash2 size={14} className="mr-1" /> Eliminar
                               </button>
