@@ -1,50 +1,28 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 import * as React from "react";
 import { Calendar, Users, Trophy, Plus, Phone, BarChart3, Settings, Home, X, Trash2, Edit3, Bell } from "lucide-react";
+import { api } from "./api"; // baseURL: "/api" (Vercel rewrite)
+import {
+  listUsers,
+  createUser as apiCreateUser,
+  updateUser as apiUpdateUser,
+  deleteUser as apiDeleteUser,
+} from "./services/users";
+import {
+  listLeads,
+  createLead as apiCreateLead,
+  updateLead as apiUpdateLead,
+  deleteLead as apiDeleteLead,
+} from "./services/leads";
 
-// ===== Utilidades de datos y jerarquía =====
-function seedUsers() {
-  let id = 1;
-  const mk = (name: string, role: string, email: string, password: string, reportsTo: number | null = null, active = true) =>
-    ({ id: id++, name, role, email, password, reportsTo, active });
-  const users: any[] = [];
-
-  const owner = mk('María González', 'owner', 'Luca@alluma.com', 'admin123');
-  const director = mk('Carlos Mendoza', 'director', 'carlos@alluma.com', 'director123', owner.id);
-  const gerente = mk('Ana Rodríguez', 'gerente', 'ana@alluma.com', 'gerente123', director.id);
-
-  users.push(owner, director, gerente);
-
-  const supervisores = [
-    'Ricardo Silva', 'Patricia López', 'Miguel Torres', 'Laura Fernández'
-  ];
-  
-  supervisores.forEach((nombre, i) => {
-    const sup = mk(nombre, 'supervisor', `${nombre.split(' ')[0].toLowerCase()}@alluma.com`, `super${i+1}`, gerente.id);
-    users.push(sup);
-    
-    // Vendedores para cada supervisor
-    const vendedoresPorSup = [
-      ['Diego Martín', 'Sofía Herrera', 'Joaquín Ruiz'],
-      ['Valentina Castro', 'Sebastián Morales', 'Camila Vargas'],
-      ['Mateo Jiménez', 'Isabella Ramos', 'Nicolás Peña'],
-      ['Catalina Ortiz', 'Andrés Vega', 'Daniela Soto']
-    ];
-    
-    vendedoresPorSup[i].forEach((vendedorNombre, j) => {
-      const email = `${vendedorNombre.split(' ')[0].toLowerCase()}@alluma.com`;
-      const password = `vend${i+1}${j+1}`;
-      users.push(mk(vendedorNombre, 'vendedor', email, password, sup.id, true));
-    });
-  });
-  
-  return users;
-}
-
+// ===== Utilidades de jerarquía =====
 function buildIndex(users: any[]) {
-  const byId = new Map(users.map(u => [u.id, u]));
-  const children = new Map(users.map(u => [u.id, [] as number[]]));
-  users.forEach(u => { if (u.reportsTo) (children.get(u.reportsTo) as number[]).push(u.id); });
+  const byId = new Map(users.map((u: any) => [u.id, u]));
+  const children = new Map<number, number[]>();
+  users.forEach((u: any) => children.set(u.id, []));
+  users.forEach((u: any) => {
+    if (u.reportsTo) (children.get(u.reportsTo) as number[] | undefined)?.push(u.id);
+  });
   return { byId, children };
 }
 
@@ -61,238 +39,178 @@ function getDescendantUserIds(rootId: number, childrenIndex: Map<number, number[
 }
 
 const roles: Record<string, string> = {
-  owner: 'Dueño',
-  director: 'Director',
-  gerente: 'Gerente',
-  supervisor: 'Supervisor',
-  vendedor: 'Vendedor',
+  owner: "Dueño",
+  director: "Director",
+  gerente: "Gerente",
+  supervisor: "Supervisor",
+  vendedor: "Vendedor",
 };
 
 const estados: Record<string, { label: string; color: string }> = {
-  nuevo: { label: 'Nuevo', color: 'bg-blue-500' },
-  contactado: { label: 'Contactado', color: 'bg-yellow-500' },
-  interesado: { label: 'Interesado', color: 'bg-orange-500' },
-  negociacion: { label: 'Negociación', color: 'bg-purple-500' },
-  vendido: { label: 'Vendido', color: 'bg-green-600' },
-  perdido: { label: 'Perdido', color: 'bg-red-500' },
+  nuevo: { label: "Nuevo", color: "bg-blue-500" },
+  contactado: { label: "Contactado", color: "bg-yellow-500" },
+  interesado: { label: "Interesado", color: "bg-orange-500" },
+  negociacion: { label: "Negociación", color: "bg-purple-500" },
+  vendido: { label: "Vendido", color: "bg-green-600" },
+  perdido: { label: "Perdido", color: "bg-red-500" },
 };
 
 const fuentes: Record<string, { label: string; color: string; icon: string }> = {
-  meta: { label: 'Meta/Facebook', color: 'bg-blue-600', icon: '📱' },
-  whatsapp: { label: 'WhatsApp Bot', color: 'bg-green-500', icon: '💬' },
-  sitio_web: { label: 'Sitio Web', color: 'bg-purple-600', icon: '🌐' },
-  referido: { label: 'Referido', color: 'bg-orange-500', icon: '👥' },
-  telefono: { label: 'Llamada', color: 'bg-indigo-500', icon: '📞' },
-  showroom: { label: 'Showroom', color: 'bg-gray-600', icon: '🏢' },
-  google: { label: 'Google Ads', color: 'bg-red-500', icon: '🎯' },
-  instagram: { label: 'Instagram', color: 'bg-pink-500', icon: '📸' },
-  otro: { label: 'Otro', color: 'bg-gray-400', icon: '❓' },
+  meta: { label: "Meta/Facebook", color: "bg-blue-600", icon: "📱" },
+  whatsapp: { label: "WhatsApp Bot", color: "bg-green-500", icon: "💬" },
+  sitio_web: { label: "Sitio Web", color: "bg-purple-600", icon: "🌐" },
+  referido: { label: "Referido", color: "bg-orange-500", icon: "👥" },
+  telefono: { label: "Llamada", color: "bg-indigo-500", icon: "📞" },
+  showroom: { label: "Showroom", color: "bg-gray-600", icon: "🏢" },
+  google: { label: "Google Ads", color: "bg-red-500", icon: "🎯" },
+  instagram: { label: "Instagram", color: "bg-pink-500", icon: "📸" },
+  otro: { label: "Otro", color: "bg-gray-400", icon: "❓" },
+};
+
+type LeadRow = {
+  id: number;
+  nombre: string;
+  telefono: string;
+  modelo: string;
+  formaPago?: string;
+  infoUsado?: string;
+  entrega?: boolean;
+  fecha?: string; // si tu backend usa created_at, podés mapearlo
+  estado: keyof typeof estados;
+  vendedor: number | null; // en backend es assigned_to; acá lo llamamos vendedor para UI
+  notas?: string;
+  fuente: keyof typeof fuentes | string;
+};
+
+type Alert = {
+  id: number;
+  userId: number;
+  type: "lead_assigned" | "ranking_change";
+  message: string;
+  ts: string;
+  read: boolean;
 };
 
 export default function CRM() {
-  // ===== Persistencia de datos =====
-  const loadFromStorage = (key: string, defaultValue: any) => {
-    try {
-      const stored = localStorage.getItem(`alluma_crm_${key}`);
-      return stored ? JSON.parse(stored) : defaultValue;
-    } catch {
-      return defaultValue;
-    }
-  };
-
-  const saveToStorage = (key: string, value: any) => {
-    try {
-      localStorage.setItem(`alluma_crm_${key}`, JSON.stringify(value));
-    } catch {
-      // Silently fail if localStorage is not available
-    }
-  };
-
-  // ===== Usuarios y jerarquía =====
-  const [users, setUsers] = useState<any[]>(() => loadFromStorage('users', seedUsers()));
+  // ===== Estado principal =====
+  const [users, setUsers] = useState<any[]>([]);
+  const [leads, setLeads] = useState<LeadRow[]>([]);
   const { byId: userById, children: childrenIndex } = useMemo(() => buildIndex(users), [users]);
-
-  // Guardar usuarios cuando cambien
-  React.useEffect(() => {
-    saveToStorage('users', users);
-  }, [users]);
 
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [activeSection, setActiveSection] = useState<'dashboard' | 'leads' | 'calendar' | 'ranking' | 'users' | 'alerts'>('dashboard');
-  const [loginError, setLoginError] = useState('');
+  const [activeSection, setActiveSection] = useState<
+    "dashboard" | "leads" | "calendar" | "ranking" | "users" | "alerts"
+  >("dashboard");
+  const [loginError, setLoginError] = useState("");
 
-  // ===== Datos de negocio =====
-  const firstVendorId = users.find(u => u.role === 'vendedor')?.id || 0;
+  // ===== Login contra backend =====
+  const handleLogin = async (email: string, password: string) => {
+    try {
+      const r = await api.post("/auth/login", { email, password, useCookie: false });
+      const u = r.data?.user || {
+        id: 0,
+        name: r.data?.user?.email || email,
+        email,
+        role: r.data?.user?.role || "owner",
+        reportsTo: null,
+        active: true,
+      };
+      setCurrentUser(u);
+      setIsAuthenticated(true);
+      setLoginError("");
 
-  const [leads, setLeads] = useState<any[]>(() => loadFromStorage('leads', [
-    {
-      id: 1,
-      nombre: 'Roberto Fernandez',
-      telefono: '+54 11 4567-8910',
-      modelo: 'Toyota Corolla 2024',
-      formaPago: 'Financiado',
-      infoUsado: 'Ford Focus 2018',
-      entrega: true,
-      fecha: '2025-08-28',
-      estado: 'nuevo',
-      vendedor: firstVendorId,
-      notas: 'Cliente interesado',
-      fuente: 'meta',
-    },
-    {
-      id: 2,
-      nombre: 'Carmen Ruiz',
-      telefono: '+54 11 2345-6789',
-      modelo: 'Honda Civic 2024',
-      formaPago: 'Contado',
-      infoUsado: '',
-      entrega: false,
-      fecha: '2025-08-25',
-      estado: 'contactado',
-      vendedor: firstVendorId + 1,
-      notas: 'Pendiente cotización',
-      fuente: 'whatsapp',
-    },
-    {
-      id: 3,
-      nombre: 'Miguel Santos',
-      telefono: '+54 11 9876-5432',
-      modelo: 'Volkswagen Vento 2024',
-      formaPago: 'Financiado',
-      infoUsado: 'Peugeot 208 2019',
-      entrega: true,
-      fecha: '2025-08-20',
-      estado: 'vendido',
-      vendedor: firstVendorId + 2,
-      notas: 'Venta cerrada',
-      fuente: 'sitio_web',
-    },
-    {
-      id: 4,
-      nombre: 'Ana López',
-      telefono: '+54 11 1111-2222',
-      modelo: 'Ford Focus 2024',
-      formaPago: 'Financiado',
-      infoUsado: '',
-      entrega: false,
-      fecha: '2025-08-26',
-      estado: 'vendido',
-      vendedor: firstVendorId,
-      notas: 'Venta cerrada',
-      fuente: 'google',
-    },
-    {
-      id: 5,
-      nombre: 'Carlos Vega',
-      telefono: '+54 11 3333-4444',
-      modelo: 'Chevrolet Onix 2024',
-      formaPago: 'Contado',
-      infoUsado: '',
-      entrega: false,
-      fecha: '2025-08-27',
-      estado: 'interesado',
-      vendedor: firstVendorId + 1,
-      notas: 'Necesita más información',
-      fuente: 'referido',
-    },
-  ]));
-
-  const [events, setEvents] = useState<any[]>(() => loadFromStorage('events', [
-    { id: 1, title: 'Reunión equipo ventas', date: '2025-08-30', time: '10:00', userId: firstVendorId },
-    { id: 2, title: 'Seguimiento Roberto', date: '2025-08-31', time: '14:00', userId: firstVendorId },
-    { id: 3, title: 'Entrega vehículo', date: '2025-09-02', time: '16:00', userId: firstVendorId + 1 },
-  ]));
-
-  // Guardar leads y eventos cuando cambien
-  React.useEffect(() => {
-    saveToStorage('leads', leads);
-  }, [leads]);
-
-  React.useEffect(() => {
-    saveToStorage('events', events);
-  }, [events]);
+      // Cargar datos persistidos
+      const [uu, ll] = await Promise.all([listUsers(), listLeads()]);
+      // mapear leads del backend (assigned_to -> vendedor; created_at -> fecha)
+      const mappedLeads: LeadRow[] = (ll || []).map((L: any) => ({
+        id: L.id,
+        nombre: L.nombre,
+        telefono: L.telefono,
+        modelo: L.modelo,
+        formaPago: L.formaPago,
+        infoUsado: L.infoUsado,
+        entrega: L.entrega,
+        fecha: L.fecha || L.created_at || "",
+        estado: (L.estado || "nuevo") as LeadRow["estado"],
+        vendedor: L.assigned_to ?? null,
+        notas: L.notas || "",
+        fuente: (L.fuente || "otro") as LeadRow["fuente"],
+      }));
+      setUsers(uu || []);
+      setLeads(mappedLeads);
+    } catch (err: any) {
+      setLoginError(err?.response?.data?.error || "Credenciales incorrectas");
+      setIsAuthenticated(false);
+    }
+  };
 
   // ===== Acceso por rol =====
   const getAccessibleUserIds = (user: any) => {
     if (!user) return [] as number[];
-    if (user.role === 'owner' || user.role === 'director') return users.map(u => u.id);
+    if (["owner", "director"].includes(user.role)) return users.map((u: any) => u.id);
     const ids = [user.id, ...getDescendantUserIds(user.id, childrenIndex)];
     return ids;
   };
+  const canManageUsers = () => currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
+  const isOwner = () => currentUser?.role === "owner";
 
-  const canManageUsers = () => currentUser && ['owner', 'director', 'gerente'].includes(currentUser.role);
-  const isOwner = () => currentUser?.role === 'owner';
-
-  // ===== Login =====
-  const handleLogin = (email: string, password: string) => {
-    const user = users.find(u => u.email === email && u.password === password);
-    if (user) {
-      setCurrentUser(user);
-      setIsAuthenticated(true);
-      setLoginError('');
-    } else {
-      setLoginError('Credenciales incorrectas');
-    }
-  };
-
-  // ===== Round-robin y vendedores activos =====
+  // ===== Round-robin =====
   const [rrIndex, setRrIndex] = useState(0);
   const getActiveVendorIdsInScope = (scopeUser?: any) => {
     if (!scopeUser) return [] as number[];
     const scope = getAccessibleUserIds(scopeUser);
-    return users.filter(u => u.role === 'vendedor' && u.active && scope.includes(u.id)).map(u => u.id);
+    return users.filter((u: any) => u.role === "vendedor" && u.active && scope.includes(u.id)).map((u: any) => u.id);
   };
   const pickNextVendorId = (scopeUser?: any) => {
     const pool = getActiveVendorIdsInScope(scopeUser || currentUser);
     if (pool.length === 0) return null;
     const id = pool[rrIndex % pool.length];
-    setRrIndex(i => i + 1);
+    setRrIndex((i) => i + 1);
     return id;
   };
 
-  // ===== Alertas =====
-  type Alert = { id: number; userId: number; type: 'lead_assigned' | 'ranking_change'; message: string; ts: string; read: boolean };
+  // ===== Alertas (locales de UI) =====
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const nextAlertId = useRef(1);
-  const pushAlert = (userId: number, type: Alert['type'], message: string) => {
-    setAlerts(prev => [...prev, { id: nextAlertId.current++, userId, type, message, ts: new Date().toISOString(), read: false }]);
+  const pushAlert = (userId: number, type: Alert["type"], message: string) => {
+    setAlerts((prev) => [...prev, { id: nextAlertId.current++, userId, type, message, ts: new Date().toISOString(), read: false }]);
   };
-  const pushAlertToChain = (vendorId: number, type: Alert['type'], message: string) => {
+  const pushAlertToChain = (vendorId: number, type: Alert["type"], message: string) => {
     pushAlert(vendorId, type, message);
-    const sup = users.find(u => u.id === userById.get(vendorId)?.reportsTo);
+    const sup = users.find((u: any) => u.id === userById.get(vendorId)?.reportsTo);
     if (sup) pushAlert(sup.id, type, message);
-    const gerente = sup ? users.find(u => u.id === sup.reportsTo) : null;
+    const gerente = sup ? users.find((u: any) => u.id === sup.reportsTo) : null;
     if (gerente) pushAlert(gerente.id, type, message);
   };
-  const unreadCount = (uid: number) => alerts.filter(a => a.userId === uid && !a.read).length;
+  const unreadCount = (uid: number) => alerts.filter((a) => a.userId === uid && !a.read).length;
 
-  // ===== Leads visibles / ranking =====
+  // ===== Filtrados y ranking =====
   const visibleUserIds = useMemo(() => getAccessibleUserIds(currentUser), [currentUser, users]);
 
   const getFilteredLeads = () => {
-    if (!currentUser) return [] as any[];
-    return leads.filter(l => visibleUserIds.includes(l.vendedor));
+    if (!currentUser) return [] as LeadRow[];
+    return leads.filter((l) => (l.vendedor ? visibleUserIds.includes(l.vendedor) : true));
   };
 
   const getRanking = () => {
-    const vendedores = users.filter(u => u.role === 'vendedor');
+    const vendedores = users.filter((u: any) => u.role === "vendedor");
     return vendedores
-      .map(v => {
-        const ventas = leads.filter(l => l.vendedor === v.id && l.estado === 'vendido').length;
-        const leadsAsignados = leads.filter(l => l.vendedor === v.id).length;
-        return { id: v.id, nombre: v.name, ventas, leadsAsignados, team: `Equipo de ${userById.get(v.reportsTo)?.name || '—'}` };
+      .map((v: any) => {
+        const ventas = leads.filter((l) => l.vendedor === v.id && l.estado === "vendido").length;
+        const leadsAsignados = leads.filter((l) => l.vendedor === v.id).length;
+        return { id: v.id, nombre: v.name, ventas, leadsAsignados, team: `Equipo de ${userById.get(v.reportsTo)?.name || "—"}` };
       })
       .sort((a, b) => b.ventas - a.ventas);
   };
 
   const getRankingInScope = () => {
-    const vendedores = users.filter(u => u.role === 'vendedor' && visibleUserIds.includes(u.id));
+    const vendedores = users.filter((u: any) => u.role === "vendedor" && visibleUserIds.includes(u.id));
     return vendedores
-      .map(v => {
-        const ventas = leads.filter(l => l.vendedor === v.id && l.estado === 'vendido').length;
-        const leadsAsignados = leads.filter(l => l.vendedor === v.id).length;
-        return { id: v.id, nombre: v.name, ventas, leadsAsignados, team: `Equipo de ${userById.get(v.reportsTo)?.name || '—'}` };
+      .map((v: any) => {
+        const ventas = leads.filter((l) => l.vendedor === v.id && l.estado === "vendido").length;
+        const leadsAsignados = leads.filter((l) => l.vendedor === v.id).length;
+        return { id: v.id, nombre: v.name, ventas, leadsAsignados, team: `Equipo de ${userById.get(v.reportsTo)?.name || "—"}` };
       })
       .sort((a, b) => b.ventas - a.ventas);
   };
@@ -307,8 +225,9 @@ export default function CRM() {
       const before = prev.get(vid);
       if (before && before !== pos) {
         const delta = before - pos;
-        const msg = delta > 0 ? `¡Subiste ${Math.abs(delta)} puesto(s) en el ranking!` : `Bajaste ${Math.abs(delta)} puesto(s) en el ranking.`;
-        pushAlertToChain(vid, 'ranking_change', msg);
+        const msg =
+          delta > 0 ? `¡Subiste ${Math.abs(delta)} puesto(s) en el ranking!` : `Bajaste ${Math.abs(delta)} puesto(s) en el ranking.`;
+        pushAlertToChain(vid, "ranking_change", msg);
       }
     });
     prevRankingRef.current = curr;
@@ -316,148 +235,169 @@ export default function CRM() {
 
   const getDashboardStats = () => {
     const filteredLeads = getFilteredLeads();
-    const vendidos = filteredLeads.filter(lead => lead.estado === 'vendido').length;
+    const vendidos = filteredLeads.filter((lead) => lead.estado === "vendido").length;
     const conversion = filteredLeads.length > 0 ? ((vendidos / filteredLeads.length) * 100).toFixed(1) : 0;
     return { totalLeads: filteredLeads.length, vendidos, conversion };
   };
 
   const getSourceMetrics = () => {
     const filteredLeads = getFilteredLeads();
-    const sourceData = Object.keys(fuentes).map(source => {
-      const sourceLeads = filteredLeads.filter(lead => lead.fuente === source);
-      const vendidos = sourceLeads.filter(lead => lead.estado === 'vendido').length;
-      const conversion = sourceLeads.length > 0 ? ((vendidos / sourceLeads.length) * 100).toFixed(1) : '0';
-      return {
-        source,
-        total: sourceLeads.length,
-        vendidos,
-        conversion: parseFloat(conversion),
-        ...fuentes[source]
-      };
-    }).filter(item => item.total > 0).sort((a, b) => b.total - a.total);
-    
+    const sourceData = Object.keys(fuentes)
+      .map((source) => {
+        const sourceLeads = filteredLeads.filter((lead) => lead.fuente === source);
+        const vendidos = sourceLeads.filter((lead) => lead.estado === "vendido").length;
+        const conversion = sourceLeads.length > 0 ? ((vendidos / sourceLeads.length) * 100).toFixed(1) : "0";
+        return {
+          source,
+          total: sourceLeads.length,
+          vendidos,
+          conversion: parseFloat(conversion),
+          ...fuentes[source],
+        };
+      })
+      .filter((item) => item.total > 0)
+      .sort((a, b) => b.total - a.total);
+
     return sourceData;
   };
 
-  const isManagerialRole = () => currentUser && ['owner', 'director', 'gerente'].includes(currentUser.role);
-
-  const handleUpdateLeadStatus = (leadId: number, newStatus: string) => {
-    setLeads(prev => prev.map(l => (l.id === leadId ? { ...l, estado: newStatus } : l)));
+  // ===== Acciones de Leads (API) =====
+  const handleUpdateLeadStatus = async (leadId: number, newStatus: string) => {
+    try {
+      const updated = await apiUpdateLead(leadId, { estado: newStatus });
+      setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...mapLeadFromApi(updated) } : l)));
+    } catch (e) {
+      console.error("No pude actualizar estado del lead", e);
+    }
   };
 
-  // ===== Crear Lead =====
+  const mapLeadFromApi = (L: any): LeadRow => ({
+    id: L.id,
+    nombre: L.nombre,
+    telefono: L.telefono,
+    modelo: L.modelo,
+    formaPago: L.formaPago,
+    infoUsado: L.infoUsado,
+    entrega: L.entrega,
+    fecha: L.fecha || L.created_at || "",
+    estado: (L.estado || "nuevo") as LeadRow["estado"],
+    vendedor: L.assigned_to ?? null,
+    notas: L.notas || "",
+    fuente: (L.fuente || "otro") as LeadRow["fuente"],
+  });
+
+  // ===== Crear Lead (API) =====
   const [showNewLeadModal, setShowNewLeadModal] = useState(false);
-  const handleCreateLead = () => {
-    const nombre = (document.getElementById('new-nombre') as HTMLInputElement).value;
-    const telefono = (document.getElementById('new-telefono') as HTMLInputElement).value;
-    const modelo = (document.getElementById('new-modelo') as HTMLInputElement).value;
-    const formaPago = (document.getElementById('new-formaPago') as HTMLSelectElement).value;
-    const infoUsado = (document.getElementById('new-infoUsado') as HTMLInputElement).value;
-    const entrega = (document.getElementById('new-entrega') as HTMLInputElement).checked;
-    const fecha = (document.getElementById('new-fecha') as HTMLInputElement).value;
-    const fuente = (document.getElementById('new-fuente') as HTMLSelectElement).value;
-    const autoAssign = (document.getElementById('new-autoassign') as HTMLInputElement)?.checked;
-    const vendedorSelVal = (document.getElementById('new-vendedor') as HTMLSelectElement).value;
+  const handleCreateLead = async () => {
+    const nombre = (document.getElementById("new-nombre") as HTMLInputElement).value.trim();
+    const telefono = (document.getElementById("new-telefono") as HTMLInputElement).value.trim();
+    const modelo = (document.getElementById("new-modelo") as HTMLInputElement).value.trim();
+    const formaPago = (document.getElementById("new-formaPago") as HTMLSelectElement).value;
+    const infoUsado = (document.getElementById("new-infoUsado") as HTMLInputElement).value.trim();
+    const entrega = (document.getElementById("new-entrega") as HTMLInputElement).checked;
+    const fecha = (document.getElementById("new-fecha") as HTMLInputElement).value;
+    const fuente = (document.getElementById("new-fuente") as HTMLSelectElement).value;
+    const autoAssign = (document.getElementById("new-autoassign") as HTMLInputElement)?.checked;
+    const vendedorSelVal = (document.getElementById("new-vendedor") as HTMLSelectElement).value;
 
     const vendedorIdSelRaw = parseInt(vendedorSelVal, 10);
     const vendedorIdSel = Number.isNaN(vendedorIdSelRaw) ? null : vendedorIdSelRaw;
 
-    const vendedorId = autoAssign
-      ? (pickNextVendorId(currentUser) ?? (vendedorIdSel ?? null))
-      : (vendedorIdSel ?? null);
+    const vendedorId = autoAssign ? pickNextVendorId(currentUser) ?? vendedorIdSel ?? null : vendedorIdSel ?? null;
 
-    if (nombre && telefono && modelo && vendedorId && fuente) {
-      setLeads(prev => {
-        const newLead = {
-          id: Math.max(0, ...prev.map(l => l.id)) + 1,
+    if (nombre && telefono && modelo && fuente) {
+      try {
+        const created = await apiCreateLead({
           nombre,
           telefono,
           modelo,
           formaPago,
-          infoUsado: infoUsado || '',
-          entrega,
-          fecha: fecha || new Date().toISOString().split('T')[0],
-          estado: 'nuevo' as const,
-          vendedor: vendedorId,
-          notas: '',
+          notas: "",
+          estado: "nuevo",
           fuente,
-        };
-        pushAlert(vendedorId, 'lead_assigned', `Nuevo lead asignado: ${nombre}`);
-        return [...prev, newLead];
-      });
-      setShowNewLeadModal(false);
+          infoUsado,
+          entrega,
+          fecha,
+          vendedor: vendedorId, // backend: assigned_to
+        } as any);
+        const mapped = mapLeadFromApi(created);
+        if (mapped.vendedor) pushAlert(mapped.vendedor, "lead_assigned", `Nuevo lead asignado: ${mapped.nombre}`);
+        setLeads((prev) => [mapped, ...prev]);
+        setShowNewLeadModal(false);
+      } catch (e) {
+        console.error("No pude crear el lead", e);
+      }
     }
   };
 
-  // ===== Calendario =====
+  // ===== Calendario (UI local) =====
+  const [events, setEvents] = useState<any[]>([]);
   const [selectedCalendarUserId, setSelectedCalendarUserId] = useState<number | null>(null);
   const [showNewEventModal, setShowNewEventModal] = useState(false);
-
   const visibleUsers = useMemo(
-    () => (currentUser ? users.filter(u => getAccessibleUserIds(currentUser).includes(u.id)) : []),
+    () => (currentUser ? users.filter((u: any) => getAccessibleUserIds(currentUser).includes(u.id)) : []),
     [currentUser, users]
   );
-
   const eventsForSelectedUser = useMemo(() => {
     const uid = selectedCalendarUserId || currentUser?.id;
     return events
-      .filter(e => e.userId === uid)
-      .sort((a, b) => (a.date + (a.time || '')) > (b.date + (b.time || '')) ? 1 : -1);
+      .filter((e) => e.userId === uid)
+      .sort((a, b) => ((a.date + (a.time || "")) > (b.date + (b.time || "")) ? 1 : -1));
   }, [events, selectedCalendarUserId, currentUser]);
-
-  const formatterEs = new Intl.DateTimeFormat('es-AR', { weekday: 'long', day: '2-digit', month: 'long' });
+  const formatterEs = new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "2-digit", month: "long" });
 
   const createEvent = () => {
-    const title = (document.getElementById('ev-title') as HTMLInputElement).value;
-    const date = (document.getElementById('ev-date') as HTMLInputElement).value;
-    const time = (document.getElementById('ev-time') as HTMLInputElement).value;
-    const userId = parseInt((document.getElementById('ev-user') as HTMLSelectElement).value, 10);
+    const title = (document.getElementById("ev-title") as HTMLInputElement).value;
+    const date = (document.getElementById("ev-date") as HTMLInputElement).value;
+    const time = (document.getElementById("ev-time") as HTMLInputElement).value;
+    const userId = parseInt((document.getElementById("ev-user") as HTMLSelectElement).value, 10);
     if (title && date && userId) {
-      setEvents(prev => [
-        ...prev,
-        { id: Math.max(0, ...prev.map(e => e.id)) + 1, title, date, time: time || '09:00', userId },
-      ]);
+      setEvents((prev) => [...prev, { id: Math.max(0, ...prev.map((e: any) => e.id)) + 1, title, date, time: time || "09:00", userId }]);
       setShowNewEventModal(false);
     }
   };
+  const deleteEvent = (id: number) => setEvents((prev) => prev.filter((e: any) => e.id !== id));
 
-  const deleteEvent = (id: number) => setEvents(prev => prev.filter(e => e.id !== id));
-
-  // ===== Gestión de Usuarios =====
+  // ===== Gestión de Usuarios (API) =====
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
-  const [modalRole, setModalRole] = useState<'owner'|'director'|'gerente'|'supervisor'|'vendedor'>('vendedor');
+  const [modalRole, setModalRole] = useState<"owner" | "director" | "gerente" | "supervisor" | "vendedor">("vendedor");
   const [modalReportsTo, setModalReportsTo] = useState<number | null>(null);
 
   const validRolesByUser = (user: any) => {
     if (!user) return [];
     switch (user.role) {
-      case 'owner':
-        return ['director', 'gerente', 'supervisor', 'vendedor'];
-      case 'director':
-        return ['gerente', 'supervisor', 'vendedor'];
-      case 'gerente':
-        return ['supervisor', 'vendedor'];
+      case "owner":
+        return ["director", "gerente", "supervisor", "vendedor"];
+      case "director":
+        return ["gerente", "supervisor", "vendedor"];
+      case "gerente":
+        return ["supervisor", "vendedor"];
       default:
         return [];
     }
   };
-
   const validManagersByRole = (role: string) => {
     switch (role) {
-      case 'owner':      return [];
-      case 'director':   return users.filter(u => u.role === 'owner');
-      case 'gerente':    return users.filter(u => u.role === 'director');
-      case 'supervisor': return users.filter(u => u.role === 'gerente');
-      case 'vendedor':   return users.filter(u => u.role === 'supervisor');
-      default:           return [];
+      case "owner":
+        return [];
+      case "director":
+        return users.filter((u: any) => u.role === "owner");
+      case "gerente":
+        return users.filter((u: any) => u.role === "director");
+      case "supervisor":
+        return users.filter((u: any) => u.role === "gerente");
+      case "vendedor":
+        return users.filter((u: any) => u.role === "supervisor");
+      default:
+        return [];
     }
   };
 
   const openCreateUser = () => {
     setEditingUser(null);
     const availableRoles = validRolesByUser(currentUser);
-    const roleDefault = availableRoles[0] as typeof modalRole || 'vendedor';
+    const roleDefault = (availableRoles?.[0] as typeof modalRole) || "vendedor";
     const managers = validManagersByRole(roleDefault);
     setModalRole(roleDefault);
     setModalReportsTo(managers[0]?.id ?? null);
@@ -467,68 +407,78 @@ export default function CRM() {
   const openEditUser = (u: any) => {
     setEditingUser(u);
     const roleCurrent = u.role as typeof modalRole;
-    
-    // Si es el dueño editándose a sí mismo, puede mantener el rol de owner
-    // Si es el dueño editando a otros, aplicar restricciones normales
-    const availableRoles = (currentUser.role === 'owner' && u.id === currentUser.id) 
-      ? ['owner', ...validRolesByUser(currentUser)]
-      : validRolesByUser(currentUser);
-    
-    // Verificar que el rol actual esté disponible para edición
-    const roleToSet = availableRoles.includes(roleCurrent) ? roleCurrent : availableRoles[0] as typeof modalRole;
-    
+    const availableRoles =
+      currentUser.role === "owner" && u.id === currentUser.id
+        ? (["owner", ...validRolesByUser(currentUser)] as const)
+        : (validRolesByUser(currentUser) as const);
+    const roleToSet = (availableRoles as readonly string[]).includes(roleCurrent) ? roleCurrent : (availableRoles[0] as typeof modalRole);
     const managers = validManagersByRole(roleToSet);
     setModalRole(roleToSet);
-    setModalReportsTo(
-      roleToSet === 'owner' ? null : (u.reportsTo ?? managers[0]?.id ?? null)
-    );
+    setModalReportsTo(roleToSet === "owner" ? null : u.reportsTo ?? managers[0]?.id ?? null);
     setShowUserModal(true);
   };
 
-  const saveUser = () => {
-    const name = (document.getElementById('u-name') as HTMLInputElement).value.trim();
-    const email = (document.getElementById('u-email') as HTMLInputElement).value.trim();
-    const password = (document.getElementById('u-pass') as HTMLInputElement).value;
-
+  const saveUser = async () => {
+    const name = (document.getElementById("u-name") as HTMLInputElement).value.trim();
+    const email = (document.getElementById("u-email") as HTMLInputElement).value.trim();
+    const password = (document.getElementById("u-pass") as HTMLInputElement).value;
     if (!name || !email) return;
+    const finalReportsTo = modalRole === "owner" ? null : modalReportsTo ?? null;
 
-    const finalReportsTo = (modalRole === 'owner') ? null : (modalReportsTo ?? null);
-
-    if (editingUser) {
-      setUsers(prev => prev.map(u =>
-        u.id === editingUser.id
-          ? { ...u, name, email, password: password || u.password, role: modalRole, reportsTo: finalReportsTo }
-          : u
-      ));
-    } else {
-      const newId = Math.max(...users.map(u => u.id)) + 1;
-      setUsers(prev => [...prev, {
-        id: newId, name, email,
-        password: password || '123456',
-        role: modalRole,
-        reportsTo: finalReportsTo,
-        active: true
-      }]);
+    try {
+      if (editingUser) {
+        const updated = await apiUpdateUser(editingUser.id, {
+          name,
+          email,
+          password: password || undefined,
+          role: modalRole,
+          reportsTo: finalReportsTo,
+          active: editingUser.active,
+        });
+        setUsers((prev) => prev.map((u: any) => (u.id === editingUser.id ? updated : u)));
+      } else {
+        const created = await apiCreateUser({
+          name,
+          email,
+          password: password || "123456",
+          role: modalRole,
+          reportsTo: finalReportsTo,
+          active: 1,
+        } as any);
+        setUsers((prev) => [...prev, created]);
+      }
+      setShowUserModal(false);
+    } catch (e) {
+      console.error("No pude guardar usuario", e);
     }
-    setShowUserModal(false);
   };
 
-  const deleteUser = (id: number) => {
-    const target = users.find(u => u.id === id);
+  const deleteUser = async (id: number) => {
+    const target = users.find((u: any) => u.id === id);
     if (!target) return;
-    if (target.role === 'owner') { alert('No podés eliminar al Dueño.'); return; }
-    const hasChildren = users.some(u => u.reportsTo === id);
-    if (hasChildren) { alert('No se puede eliminar: el usuario tiene integrantes a cargo.'); return; }
-    setUsers(prev => prev.filter(u => u.id !== id));
+    if (target.role === "owner") {
+      alert("No podés eliminar al Dueño.");
+      return;
+    }
+    const hasChildren = users.some((u: any) => u.reportsTo === id);
+    if (hasChildren) {
+      alert("No se puede eliminar: el usuario tiene integrantes a cargo.");
+      return;
+    }
+    try {
+      await apiDeleteUser(id);
+      setUsers((prev) => prev.filter((u: any) => u.id !== id));
+    } catch (e) {
+      console.error("No pude eliminar usuario", e);
+    }
   };
 
-  // ===== UI =====
+  // ===== UI: Login =====
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-blue-800 flex items-center justify-center">
         <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
           <div className="text-center mb-8">
-            {/* Logo de Alluma Publicidad */}
             <div className="flex items-center justify-center mb-4">
               <svg width="48" height="42" viewBox="0 0 40 36" fill="none">
                 <path d="M10 2L30 2L35 12L30 22L10 22L5 12Z" fill="url(#gradient2)" />
@@ -565,10 +515,12 @@ export default function CRM() {
               </div>
             )}
             <button
-              onClick={() => handleLogin(
-                (document.getElementById('email') as HTMLInputElement).value,
-                (document.getElementById('password') as HTMLInputElement).value
-              )}
+              onClick={() =>
+                handleLogin(
+                  (document.getElementById("email") as HTMLInputElement).value,
+                  (document.getElementById("password") as HTMLInputElement).value
+                )
+              }
               className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700"
             >
               Iniciar Sesión
@@ -579,15 +531,14 @@ export default function CRM() {
     );
   }
 
+  // ===== UI autenticada =====
   return (
     <div className="min-h-screen bg-gray-100 flex">
       {/* Sidebar */}
       <div className="bg-slate-900 text-white w-64 min-h-screen p-4">
         <div className="mb-8">
-          {/* Logo de Alluma Publicidad */}
           <div className="flex items-center mb-4">
             <div className="relative">
-              {/* Hexágono colorido estilizado */}
               <svg width="40" height="36" viewBox="0 0 40 36" fill="none">
                 <path d="M10 2L30 2L35 12L30 22L10 22L5 12Z" fill="url(#gradient1)" />
                 <defs>
@@ -609,25 +560,25 @@ export default function CRM() {
               <p className="text-xs text-gray-400">Publicidad</p>
             </div>
           </div>
-          
+
           <div className="text-sm text-gray-300">
-            <p>{currentUser?.name}</p>
-            <p className="text-blue-300">{roles[currentUser?.role]}</p>
+            <p>{currentUser?.name || currentUser?.email}</p>
+            <p className="text-blue-300">{roles[currentUser?.role] || currentUser?.role}</p>
           </div>
         </div>
         <nav className="space-y-2">
           {[
-            { key: 'dashboard', label: 'Dashboard', Icon: Home },
-            { key: 'leads', label: 'Leads', Icon: Users },
-            { key: 'calendar', label: 'Calendario', Icon: Calendar },
-            { key: 'ranking', label: 'Ranking', Icon: Trophy },
-            ...(canManageUsers() ? [{ key: 'users', label: 'Usuarios', Icon: Settings }] : []),
+            { key: "dashboard", label: "Dashboard", Icon: Home },
+            { key: "leads", label: "Leads", Icon: Users },
+            { key: "calendar", label: "Calendario", Icon: Calendar },
+            { key: "ranking", label: "Ranking", Icon: Trophy },
+            ...(canManageUsers() ? [{ key: "users", label: "Usuarios", Icon: Settings }] : []),
           ].map(({ key, label, Icon }) => (
             <button
               key={key}
               onClick={() => setActiveSection(key as any)}
               className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
-                activeSection === (key as any) ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-slate-800'
+                activeSection === (key as any) ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-slate-800"
               }`}
             >
               <Icon size={20} />
@@ -642,9 +593,9 @@ export default function CRM() {
         {/* Topbar con alertas */}
         <div className="flex items-center justify-end mb-4">
           <div className="relative">
-            <button onClick={() => setActiveSection('alerts')} className="p-2 rounded-lg hover:bg-gray-200 relative">
+            <button onClick={() => setActiveSection("alerts")} className="p-2 rounded-lg hover:bg-gray-200 relative">
               <Bell size={20} />
-              {unreadCount(currentUser.id) > 0 && (
+              {currentUser && unreadCount(currentUser.id) > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full px-1">
                   {unreadCount(currentUser.id)}
                 </span>
@@ -653,16 +604,17 @@ export default function CRM() {
           </div>
         </div>
 
-        {activeSection === 'dashboard' && (
+        {/* Dashboard */}
+        {activeSection === "dashboard" && (
           <div className="space-y-6">
             <h2 className="text-3xl font-bold text-gray-800">Dashboard</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {(() => {
                 const stats = getDashboardStats();
                 const cards = [
-                  { label: 'Total Leads', value: stats.totalLeads, Icon: Users },
-                  { label: 'Vendidos', value: stats.vendidos, Icon: BarChart3 },
-                  { label: 'Conversión', value: stats.conversion + '%', Icon: BarChart3 },
+                  { label: "Total Leads", value: stats.totalLeads, Icon: Users },
+                  { label: "Vendidos", value: stats.vendidos, Icon: BarChart3 },
+                  { label: "Conversión", value: stats.conversion + "%", Icon: BarChart3 },
                 ];
                 return cards.map(({ label, value, Icon }, i) => (
                   <div key={i} className="bg-white rounded-xl shadow-lg p-6">
@@ -682,7 +634,7 @@ export default function CRM() {
               <h3 className="text-xl font-semibold text-gray-800 mb-4">Leads por Estado</h3>
               <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
                 {Object.entries(estados).map(([key, estado]) => {
-                  const count = getFilteredLeads().filter(l => l.estado === key).length;
+                  const count = getFilteredLeads().filter((l) => l.estado === key).length;
                   return (
                     <div key={key} className="text-center">
                       <div className={`${estado.color} text-white rounded-lg p-4 mb-2`}>
@@ -695,8 +647,7 @@ export default function CRM() {
               </div>
             </div>
 
-            {/* Métricas por fuente - Solo para roles gerenciales */}
-            {isManagerialRole() && (
+            {["owner", "director", "gerente"].includes(currentUser?.role) && (
               <div className="bg-white rounded-xl shadow-lg p-6">
                 <h3 className="text-xl font-semibold text-gray-800 mb-4">Rendimiento por Fuente de Lead</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -707,9 +658,7 @@ export default function CRM() {
                           <span className="text-xl">{source.icon}</span>
                           <h4 className="font-medium text-gray-800">{source.label}</h4>
                         </div>
-                        <span className={`${source.color} text-white px-2 py-1 rounded-full text-xs font-bold`}>
-                          {source.conversion}%
-                        </span>
+                        <span className={`${source.color} text-white px-2 py-1 rounded-full text-xs font-bold`}>{source.conversion}%</span>
                       </div>
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
@@ -721,24 +670,20 @@ export default function CRM() {
                           <span className="font-medium text-green-600">{source.vendidos}</span>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className={`${source.color} h-2 rounded-full`} 
-                            style={{ width: `${source.conversion}%` }}
-                          ></div>
+                          <div className={`${source.color} h-2 rounded-full`} style={{ width: `${source.conversion}%` }}></div>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
-                {getSourceMetrics().length === 0 && (
-                  <p className="text-gray-500 text-center py-8">No hay leads con fuentes registradas</p>
-                )}
+                {getSourceMetrics().length === 0 && <p className="text-gray-500 text-center py-8">No hay leads con fuentes registradas</p>}
               </div>
             )}
           </div>
         )}
 
-        {activeSection === 'leads' && (
+        {/* Leads */}
+        {activeSection === "leads" && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-3xl font-bold text-gray-800">Gestión de Leads</h2>
@@ -762,14 +707,14 @@ export default function CRM() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {getFilteredLeads().map(lead => {
-                    const vendedor = userById.get(lead.vendedor);
+                  {getFilteredLeads().map((lead) => {
+                    const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
                     return (
                       <tr key={lead.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4">
                           <div>
                             <div className="text-sm font-medium text-gray-900">{lead.nombre}</div>
-                            <div className="text-xs text-gray-500">{lead.fecha}</div>
+                            <div className="text-xs text-gray-500">{lead.fecha ? String(lead.fecha).slice(0, 10) : ""}</div>
                           </div>
                         </td>
                         <td className="px-6 py-4">
@@ -788,10 +733,10 @@ export default function CRM() {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center space-x-2">
-                            <span className="text-lg">{fuentes[lead.fuente]?.icon || '❓'}</span>
+                            <span className="text-lg">{fuentes[lead.fuente as string]?.icon || "❓"}</span>
                             <div>
-                              <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium text-white ${fuentes[lead.fuente]?.color || 'bg-gray-400'}`}>
-                                {fuentes[lead.fuente]?.label || 'Desconocida'}
+                              <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium text-white ${fuentes[lead.fuente as string]?.color || "bg-gray-400"}`}>
+                                {fuentes[lead.fuente as string]?.label || String(lead.fuente)}
                               </div>
                             </div>
                           </div>
@@ -803,35 +748,55 @@ export default function CRM() {
                             className={`px-3 py-1 rounded-full text-xs font-medium text-white ${estados[lead.estado].color}`}
                           >
                             {Object.entries(estados).map(([key]) => (
-                              <option key={key} value={key} className="text-black">{estados[key].label}</option>
+                              <option key={key} value={key} className="text-black">
+                                {estados[key as keyof typeof estados].label}
+                              </option>
                             ))}
                           </select>
                         </td>
                         <td className="px-6 py-4 text-sm">
-                          {(currentUser && ['owner','director','gerente','supervisor'].includes(currentUser.role)) ? (
+                          {currentUser && ["owner", "director", "gerente", "supervisor"].includes(currentUser.role) ? (
                             <select
-                              value={lead.vendedor}
-                              onChange={(e) => {
-                                const newVend = parseInt(e.target.value,10);
-                                setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, vendedor: newVend } : l));
-                                pushAlert(newVend, 'lead_assigned', `Te reasignaron el lead: ${lead.nombre}`);
+                              value={lead.vendedor ?? ""}
+                              onChange={async (e) => {
+                                const newVend = parseInt(e.target.value, 10);
+                                try {
+                                  const updated = await apiUpdateLead(lead.id, { vendedor: newVend });
+                                  const mapped = mapLeadFromApi(updated);
+                                  setLeads((prev) => prev.map((l) => (l.id === lead.id ? mapped : l)));
+                                  if (mapped.vendedor) pushAlert(mapped.vendedor, "lead_assigned", `Te reasignaron el lead: ${mapped.nombre}`);
+                                } catch (err) {
+                                  console.error("No pude reasignar lead", err);
+                                }
                               }}
                               className="px-3 py-2 border border-gray-300 rounded-lg"
                             >
+                              <option value="" disabled>
+                                Seleccionar...
+                              </option>
                               {users
-                                .filter(u => u.role === 'vendedor' && visibleUserIds.includes(u.id))
-                                .map(u => (
-                                  <option key={u.id} value={u.id}>{u.name} {u.active ? '' : '(inactivo)'}</option>
+                                .filter((u: any) => u.role === "vendedor" && visibleUserIds.includes(u.id))
+                                .map((u: any) => (
+                                  <option key={u.id} value={u.id}>
+                                    {u.name} {u.active ? "" : "(inactivo)"}
+                                  </option>
                                 ))}
                             </select>
                           ) : (
-                            vendedor?.name
+                            vendedor?.name || "—"
                           )}
                         </td>
                         <td className="px-6 py-4 text-right text-sm">
-                          {(currentUser?.role === 'owner' || currentUser?.role === 'director') && (
+                          {(currentUser?.role === "owner" || currentUser?.role === "director") && (
                             <button
-                              onClick={() => setLeads(prev => prev.filter(l => l.id !== lead.id))}
+                              onClick={async () => {
+                                try {
+                                  await apiDeleteLead(lead.id);
+                                  setLeads((prev) => prev.filter((l) => l.id !== lead.id));
+                                } catch (e) {
+                                  console.error("No pude eliminar lead", e);
+                                }
+                              }}
                               className="inline-flex items-center px-2 py-1 text-sm rounded-md bg-red-100 text-red-700 hover:bg-red-200"
                               title="Eliminar lead"
                             >
@@ -848,18 +813,21 @@ export default function CRM() {
           </div>
         )}
 
-        {activeSection === 'calendar' && (
+        {/* Calendario */}
+        {activeSection === "calendar" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-3xl font-bold text-gray-800">Calendario</h2>
               <div className="flex items-center space-x-3">
                 <select
-                  value={selectedCalendarUserId ?? currentUser.id}
+                  value={selectedCalendarUserId ?? currentUser?.id}
                   onChange={(e) => setSelectedCalendarUserId(parseInt(e.target.value, 10))}
                   className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
                 >
-                  {visibleUsers.map(u => (
-                    <option key={u.id} value={u.id}>{u.name} — {roles[u.role]}</option>
+                  {visibleUsers.map((u: any) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} — {roles[u.role] || u.role}
+                    </option>
                   ))}
                 </select>
                 <button onClick={() => setShowNewEventModal(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-blue-700">
@@ -877,17 +845,21 @@ export default function CRM() {
                 <p className="text-gray-500 text-sm">Sin eventos para este usuario.</p>
               ) : (
                 <div className="space-y-3">
-                  {eventsForSelectedUser.map(event => {
-                    const d = new Date(`${event.date}T${event.time || '09:00'}`);
+                  {eventsForSelectedUser.map((event: any) => {
+                    const d = new Date(`${event.date}T${event.time || "09:00"}`);
                     const fecha = formatterEs.format(d);
-                    const hora = (event.time || '').slice(0,5);
+                    const hora = (event.time || "").slice(0, 5);
                     return (
                       <div key={event.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                         <div className="flex items-center">
-                          <div className="bg-blue-500 text-white p-2 rounded-lg mr-4"><Calendar size={20} /></div>
+                          <div className="bg-blue-500 text-white p-2 rounded-lg mr-4">
+                            <Calendar size={20} />
+                          </div>
                           <div>
                             <h4 className="font-medium text-gray-800">{event.title}</h4>
-                            <p className="text-sm text-gray-600 capitalize">{fecha} {hora && `· ${hora} hs`}</p>
+                            <p className="text-sm text-gray-600 capitalize">
+                              {fecha} {hora && `· ${hora} hs`}
+                            </p>
                           </div>
                         </div>
                         <button onClick={() => deleteEvent(event.id)} className="p-2 rounded-lg hover:bg-red-100 text-red-600">
@@ -902,7 +874,8 @@ export default function CRM() {
           </div>
         )}
 
-        {activeSection === 'ranking' && (
+        {/* Ranking */}
+        {activeSection === "ranking" && (
           <div className="space-y-6">
             <h2 className="text-3xl font-bold text-gray-800">Ranking de Vendedores</h2>
             <div className="bg-white rounded-xl shadow-lg p-6">
@@ -910,9 +883,11 @@ export default function CRM() {
                 {getRankingInScope().map((vendedor, index) => (
                   <div key={vendedor.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                     <div className="flex items-center space-x-4">
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold ${
-                        index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : 'bg-orange-600'
-                      }`}>
+                      <div
+                        className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold ${
+                          index === 0 ? "bg-yellow-500" : index === 1 ? "bg-gray-400" : "bg-orange-600"
+                        }`}
+                      >
                         {index + 1}
                       </div>
                       <div>
@@ -931,7 +906,8 @@ export default function CRM() {
           </div>
         )}
 
-        {activeSection === 'users' && canManageUsers() && (
+        {/* Usuarios */}
+        {activeSection === "users" && canManageUsers() && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-3xl font-bold text-gray-800">Gestión de Usuarios</h2>
@@ -954,24 +930,44 @@ export default function CRM() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {users.map(user => {
-                    const canToggle = ['gerente','supervisor','owner','director'].includes(currentUser.role) && user.role === 'vendedor' && getAccessibleUserIds(currentUser).includes(user.id);
+                  {users.map((user: any) => {
+                    const canToggle =
+                      ["gerente", "supervisor", "owner", "director"].includes(currentUser.role) &&
+                      user.role === "vendedor" &&
+                      getAccessibleUserIds(currentUser).includes(user.id);
                     return (
                       <tr key={user.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4"><div className="text-sm font-medium text-gray-900">{user.name}</div></td>
-                        <td className="px-6 py-4"><span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">{roles[user.role]}</span></td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            {roles[user.role] || user.role}
+                          </span>
+                        </td>
                         <td className="px-6 py-4 text-sm text-gray-900">{user.email}</td>
-                        <td className="px-6 py-4 text-sm text-gray-900">{user.reportsTo ? userById.get(user.reportsTo)?.name : '—'}</td>
+                        <td className="px-6 py-4 text-sm text-gray-900">{user.reportsTo ? userById.get(user.reportsTo)?.name : "—"}</td>
                         <td className="px-6 py-4 text-right">
                           {canToggle ? (
                             <button
-                              onClick={() => setUsers(prev => prev.map(u => u.id === user.id ? { ...u, active: !u.active } : u))}
-                              className={`inline-flex items-center px-2 py-1 text-xs rounded-md ${user.active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                              onClick={async () => {
+                                try {
+                                  const updated = await apiUpdateUser(user.id, { active: user.active ? 0 : 1 });
+                                  setUsers((prev) => prev.map((u: any) => (u.id === user.id ? updated : u)));
+                                } catch (e) {
+                                  console.error("No pude cambiar estado", e);
+                                }
+                              }}
+                              className={`inline-flex items-center px-2 py-1 text-xs rounded-md ${
+                                user.active ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                              }`}
                             >
-                              {user.active ? 'Activo' : 'Inactivo'}
+                              {user.active ? "Activo" : "Inactivo"}
                             </button>
                           ) : (
-                            <span className={`px-2 py-1 text-xs rounded-md ${user.active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'}`}>{user.active ? 'Activo' : 'Inactivo'}</span>
+                            <span className={`px-2 py-1 text-xs rounded-md ${user.active ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-700"}`}>
+                              {user.active ? "Activo" : "Inactivo"}
+                            </span>
                           )}
                         </td>
                         <td className="px-6 py-4 text-right space-x-2">
@@ -995,33 +991,36 @@ export default function CRM() {
           </div>
         )}
 
-        {activeSection === 'alerts' && (
+        {/* Alertas */}
+        {activeSection === "alerts" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-3xl font-bold text-gray-800">Alertas</h2>
-              <button
-                onClick={() => setAlerts(prev => prev.map(a => a.userId === currentUser.id ? { ...a, read: true } : a))}
-                className="px-3 py-2 rounded-md text-sm bg-gray-100 hover:bg-gray-200"
-              >
-                Marcar todas como leídas
-              </button>
+              {currentUser && (
+                <button
+                  onClick={() => setAlerts((prev) => prev.map((a) => (a.userId === currentUser.id ? { ...a, read: true } : a)))}
+                  className="px-3 py-2 rounded-md text-sm bg-gray-100 hover:bg-gray-200"
+                >
+                  Marcar todas como leídas
+                </button>
+              )}
             </div>
             <div className="bg-white rounded-xl shadow-lg">
               <ul className="divide-y divide-gray-100">
-                {alerts.filter(a => a.userId === currentUser.id).reverse().map(a => (
-                  <li key={a.id} className="p-4 flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-gray-800">
-                        {a.type === 'lead_assigned' && '🧲 '}
-                        {a.type === 'ranking_change' && '🏆 '}
-                        {a.message}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">{new Date(a.ts).toLocaleString('es-AR')}</p>
-                    </div>
-                    {!a.read && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Nueva</span>}
-                  </li>
-                ))}
-                {alerts.filter(a => a.userId === currentUser.id).length === 0 && (
+                {currentUser &&
+                  alerts
+                    .filter((a) => a.userId === currentUser.id)
+                    .reverse()
+                    .map((a) => (
+                      <li key={a.id} className="p-4 flex items-start justify-between">
+                        <div>
+                          <p className="text-sm text-gray-800">{a.type === "lead_assigned" ? "🧲 " : "🏆 "}{a.message}</p>
+                          <p className="text-xs text-gray-500 mt-1">{new Date(a.ts).toLocaleString("es-AR")}</p>
+                        </div>
+                        {!a.read && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Nueva</span>}
+                      </li>
+                    ))}
+                {(!currentUser || alerts.filter((a) => a.userId === currentUser.id).length === 0) && (
                   <li className="p-6 text-sm text-gray-500">No hay alertas.</li>
                 )}
               </ul>
@@ -1035,7 +1034,9 @@ export default function CRM() {
             <div className="bg-white rounded-xl p-6 w-full max-w-3xl">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-semibold text-gray-800">Nuevo Lead</h3>
-                <button onClick={() => setShowNewLeadModal(false)}><X size={24} className="text-gray-600" /></button>
+                <button onClick={() => setShowNewLeadModal(false)}>
+                  <X size={24} className="text-gray-600" />
+                </button>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -1061,7 +1062,9 @@ export default function CRM() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Fuente del Lead</label>
                   <select id="new-fuente" className="w-full px-3 py-2 border border-gray-300 rounded-lg" defaultValue="sitio_web">
                     {Object.entries(fuentes).map(([key, fuente]) => (
-                      <option key={key} value={key}>{fuente.icon} {fuente.label}</option>
+                      <option key={key} value={key}>
+                        {fuente.icon} {fuente.label}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -1085,17 +1088,23 @@ export default function CRM() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Asignar a vendedor (opcional)</label>
                   <select id="new-vendedor" className="w-full px-3 py-2 border border-gray-300 rounded-lg">
                     {users
-                      .filter(u => u.role === 'vendedor' && visibleUserIds.includes(u.id))
-                      .map(u => (
-                        <option key={u.id} value={u.id}>{u.name} {u.active ? '' : '(inactivo)'}</option>
+                      .filter((u: any) => u.role === "vendedor" && visibleUserIds.includes(u.id))
+                      .map((u: any) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} {u.active ? "" : "(inactivo)"}
+                        </option>
                       ))}
                   </select>
                   <p className="text-xs text-gray-500 mt-1">Si está tildado "Asignación automática", se ignorará esta selección.</p>
                 </div>
               </div>
               <div className="flex space-x-3 pt-6">
-                <button onClick={() => setShowNewLeadModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancelar</button>
-                <button onClick={handleCreateLead} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Crear Lead</button>
+                <button onClick={() => setShowNewLeadModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                  Cancelar
+                </button>
+                <button onClick={handleCreateLead} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  Crear Lead
+                </button>
               </div>
             </div>
           </div>
@@ -1107,7 +1116,9 @@ export default function CRM() {
             <div className="bg-white rounded-xl p-6 w-full max-w-xl">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-semibold text-gray-800">Nuevo evento</h3>
-                <button onClick={() => setShowNewEventModal(false)}><X size={24} className="text-gray-600" /></button>
+                <button onClick={() => setShowNewEventModal(false)}>
+                  <X size={24} className="text-gray-600" />
+                </button>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
@@ -1124,16 +1135,22 @@ export default function CRM() {
                 </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Usuario</label>
-                  <select id="ev-user" defaultValue={selectedCalendarUserId ?? currentUser.id} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                    {visibleUsers.map(u => (
-                      <option key={u.id} value={u.id}>{u.name} — {roles[u.role]}</option>
+                  <select id="ev-user" defaultValue={selectedCalendarUserId ?? currentUser?.id} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    {visibleUsers.map((u: any) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} — {roles[u.role] || u.role}
+                      </option>
                     ))}
                   </select>
                 </div>
               </div>
               <div className="flex space-x-3 pt-6">
-                <button onClick={() => setShowNewEventModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancelar</button>
-                <button onClick={createEvent} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Crear evento</button>
+                <button onClick={() => setShowNewEventModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                  Cancelar
+                </button>
+                <button onClick={createEvent} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  Crear evento
+                </button>
               </div>
             </div>
           </div>
@@ -1144,21 +1161,23 @@ export default function CRM() {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-xl p-6 w-full max-w-xl">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">{editingUser ? 'Editar usuario' : 'Nuevo usuario'}</h3>
-                <button onClick={() => setShowUserModal(false)}><X size={24} className="text-gray-600" /></button>
+                <h3 className="text-xl font-semibold text-gray-800">{editingUser ? "Editar usuario" : "Nuevo usuario"}</h3>
+                <button onClick={() => setShowUserModal(false)}>
+                  <X size={24} className="text-gray-600" />
+                </button>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
-                  <input type="text" id="u-name" defaultValue={editingUser?.name || ''} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                  <input type="text" id="u-name" defaultValue={editingUser?.name || ""} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input type="email" id="u-email" defaultValue={editingUser?.email || ''} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                  <input type="email" id="u-email" defaultValue={editingUser?.email || ""} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-                  <input type="password" id="u-pass" placeholder={editingUser ? '(sin cambio)' : ''} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                  <input type="password" id="u-pass" placeholder={editingUser ? "(sin cambio)" : ""} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
                 </div>
 
                 <div>
@@ -1170,16 +1189,15 @@ export default function CRM() {
                       const r = e.target.value as typeof modalRole;
                       setModalRole(r);
                       const managers = validManagersByRole(r);
-                      setModalReportsTo(r === 'owner' ? null : (managers[0]?.id ?? null));
+                      setModalReportsTo(r === "owner" ? null : managers[0]?.id ?? null);
                     }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   >
-                    {/* Si es el dueño editándose a sí mismo, puede mantener el rol de owner */}
-                    {(currentUser?.role === 'owner' && editingUser?.id === currentUser?.id) && (
-                      <option value="owner">{roles['owner']}</option>
-                    )}
-                    {validRolesByUser(currentUser).map(role => (
-                      <option key={role} value={role}>{roles[role]}</option>
+                    {currentUser?.role === "owner" && editingUser?.id === currentUser?.id && <option value="owner">{roles["owner"]}</option>}
+                    {validRolesByUser(currentUser).map((role) => (
+                      <option key={role} value={role}>
+                        {roles[role]}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -1188,21 +1206,27 @@ export default function CRM() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Reporta a</label>
                   <select
                     id="u-reportsTo"
-                    value={modalReportsTo ?? ''}
-                    onChange={(e) => setModalReportsTo(e.target.value ? parseInt(e.target.value,10) : null)}
+                    value={modalReportsTo ?? ""}
+                    onChange={(e) => setModalReportsTo(e.target.value ? parseInt(e.target.value, 10) : null)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    disabled={modalRole === 'owner'}
+                    disabled={modalRole === "owner"}
                   >
-                    {(modalRole === 'owner' ? [] : validManagersByRole(modalRole)).map(m => (
-                      <option key={m.id} value={m.id}>{m.name} — {roles[m.role]}</option>
+                    {(modalRole === "owner" ? [] : validManagersByRole(modalRole)).map((m: any) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} — {roles[m.role] || m.role}
+                      </option>
                     ))}
                   </select>
                 </div>
               </div>
 
               <div className="flex space-x-3 pt-6">
-                <button onClick={() => setShowUserModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancelar</button>
-                <button onClick={saveUser} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Guardar</button>
+                <button onClick={() => setShowUserModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                  Cancelar
+                </button>
+                <button onClick={saveUser} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  Guardar
+                </button>
               </div>
             </div>
           </div>
