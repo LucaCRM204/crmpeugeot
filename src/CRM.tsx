@@ -1,4 +1,5 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
+import * as React from "react";
 import { Calendar, Users, Trophy, Plus, Phone, BarChart3, Settings, Home, X, Trash2, Edit3, Bell } from "lucide-react";
 
 // ===== Utilidades de datos y jerarquía =====
@@ -8,19 +9,35 @@ function seedUsers() {
     ({ id: id++, name, role, email, password, reportsTo, active });
   const users: any[] = [];
 
-  const owner = mk('Carlos Rodriguez', 'owner', 'carlos@alluma.com', 'admin123');
-  const director = mk('Ana Garcia', 'director', 'ana@alluma.com', 'director123', owner.id);
-  const gerente = mk('Luis Martinez', 'gerente', 'luis@alluma.com', 'gerente123', director.id);
+  const owner = mk('María González', 'owner', 'Luca@alluma.com', 'admin123');
+  const director = mk('Carlos Mendoza', 'director', 'carlos@alluma.com', 'director123', owner.id);
+  const gerente = mk('Ana Rodríguez', 'gerente', 'ana@alluma.com', 'gerente123', director.id);
 
   users.push(owner, director, gerente);
 
-  for (let s = 1; s <= 4; s++) {
-    const sup = mk(`Supervisor ${s}`, 'supervisor', `sup${s}@alluma.com`, `super${s}`, gerente.id);
+  const supervisores = [
+    'Ricardo Silva', 'Patricia López', 'Miguel Torres', 'Laura Fernández'
+  ];
+  
+  supervisores.forEach((nombre, i) => {
+    const sup = mk(nombre, 'supervisor', `${nombre.split(' ')[0].toLowerCase()}@alluma.com`, `super${i+1}`, gerente.id);
     users.push(sup);
-    for (let v = 1; v <= 10; v++) {
-      users.push(mk(`Vendedor ${s}-${v}`, 'vendedor', `vend${s}${v}@alluma.com`, `vendedor${s}${v}`, sup.id, true));
-    }
-  }
+    
+    // Vendedores para cada supervisor
+    const vendedoresPorSup = [
+      ['Diego Martín', 'Sofía Herrera', 'Joaquín Ruiz'],
+      ['Valentina Castro', 'Sebastián Morales', 'Camila Vargas'],
+      ['Mateo Jiménez', 'Isabella Ramos', 'Nicolás Peña'],
+      ['Catalina Ortiz', 'Andrés Vega', 'Daniela Soto']
+    ];
+    
+    vendedoresPorSup[i].forEach((vendedorNombre, j) => {
+      const email = `${vendedorNombre.split(' ')[0].toLowerCase()}@alluma.com`;
+      const password = `vend${i+1}${j+1}`;
+      users.push(mk(vendedorNombre, 'vendedor', email, password, sup.id, true));
+    });
+  });
+  
   return users;
 }
 
@@ -73,9 +90,32 @@ const fuentes: Record<string, { label: string; color: string; icon: string }> = 
 };
 
 export default function CRM() {
+  // ===== Persistencia de datos =====
+  const loadFromStorage = (key: string, defaultValue: any) => {
+    try {
+      const stored = localStorage.getItem(`alluma_crm_${key}`);
+      return stored ? JSON.parse(stored) : defaultValue;
+    } catch {
+      return defaultValue;
+    }
+  };
+
+  const saveToStorage = (key: string, value: any) => {
+    try {
+      localStorage.setItem(`alluma_crm_${key}`, JSON.stringify(value));
+    } catch {
+      // Silently fail if localStorage is not available
+    }
+  };
+
   // ===== Usuarios y jerarquía =====
-  const [users, setUsers] = useState<any[]>(() => seedUsers());
+  const [users, setUsers] = useState<any[]>(() => loadFromStorage('users', seedUsers()));
   const { byId: userById, children: childrenIndex } = useMemo(() => buildIndex(users), [users]);
+
+  // Guardar usuarios cuando cambien
+  React.useEffect(() => {
+    saveToStorage('users', users);
+  }, [users]);
 
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -85,7 +125,7 @@ export default function CRM() {
   // ===== Datos de negocio =====
   const firstVendorId = users.find(u => u.role === 'vendedor')?.id || 0;
 
-  const [leads, setLeads] = useState<any[]>([
+  const [leads, setLeads] = useState<any[]>(() => loadFromStorage('leads', [
     {
       id: 1,
       nombre: 'Roberto Fernandez',
@@ -156,13 +196,22 @@ export default function CRM() {
       notas: 'Necesita más información',
       fuente: 'referido',
     },
-  ]);
+  ]));
 
-  const [events, setEvents] = useState<any[]>([
+  const [events, setEvents] = useState<any[]>(() => loadFromStorage('events', [
     { id: 1, title: 'Reunión equipo ventas', date: '2025-08-30', time: '10:00', userId: firstVendorId },
     { id: 2, title: 'Seguimiento Roberto', date: '2025-08-31', time: '14:00', userId: firstVendorId },
     { id: 3, title: 'Entrega vehículo', date: '2025-09-02', time: '16:00', userId: firstVendorId + 1 },
-  ]);
+  ]));
+
+  // Guardar leads y eventos cuando cambien
+  React.useEffect(() => {
+    saveToStorage('leads', leads);
+  }, [leads]);
+
+  React.useEffect(() => {
+    saveToStorage('events', events);
+  }, [events]);
 
   // ===== Acceso por rol =====
   const getAccessibleUserIds = (user: any) => {
@@ -418,10 +467,20 @@ export default function CRM() {
   const openEditUser = (u: any) => {
     setEditingUser(u);
     const roleCurrent = u.role as typeof modalRole;
-    const managers = validManagersByRole(roleCurrent);
-    setModalRole(roleCurrent);
+    
+    // Si es el dueño editándose a sí mismo, puede mantener el rol de owner
+    // Si es el dueño editando a otros, aplicar restricciones normales
+    const availableRoles = (currentUser.role === 'owner' && u.id === currentUser.id) 
+      ? ['owner', ...validRolesByUser(currentUser)]
+      : validRolesByUser(currentUser);
+    
+    // Verificar que el rol actual esté disponible para edición
+    const roleToSet = availableRoles.includes(roleCurrent) ? roleCurrent : availableRoles[0] as typeof modalRole;
+    
+    const managers = validManagersByRole(roleToSet);
+    setModalRole(roleToSet);
     setModalReportsTo(
-      roleCurrent === 'owner' ? null : (u.reportsTo ?? managers[0]?.id ?? null)
+      roleToSet === 'owner' ? null : (u.reportsTo ?? managers[0]?.id ?? null)
     );
     setShowUserModal(true);
   };
@@ -469,9 +528,26 @@ export default function CRM() {
       <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-blue-800 flex items-center justify-center">
         <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
           <div className="text-center mb-8">
-            <div className="text-4xl mb-2">🚗</div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Alluma CRM</h1>
-            <p className="text-gray-600">Sistema de gestión para concesionarias</p>
+            {/* Logo de Alluma Publicidad */}
+            <div className="flex items-center justify-center mb-4">
+              <svg width="48" height="42" viewBox="0 0 40 36" fill="none">
+                <path d="M10 2L30 2L35 12L30 22L10 22L5 12Z" fill="url(#gradient2)" />
+                <defs>
+                  <linearGradient id="gradient2" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#FFB800" />
+                    <stop offset="25%" stopColor="#FF6B9D" />
+                    <stop offset="50%" stopColor="#8B5CF6" />
+                    <stop offset="75%" stopColor="#06B6D4" />
+                    <stop offset="100%" stopColor="#10B981" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div className="ml-3">
+                <h1 className="text-2xl font-bold text-gray-800">Alluma</h1>
+                <p className="text-sm text-gray-600">Publicidad</p>
+              </div>
+            </div>
+            <p className="text-gray-600">Sistema de gestión CRM</p>
           </div>
 
           <div className="space-y-6">
@@ -508,7 +584,32 @@ export default function CRM() {
       {/* Sidebar */}
       <div className="bg-slate-900 text-white w-64 min-h-screen p-4">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-blue-400 mb-2">Alluma CRM</h1>
+          {/* Logo de Alluma Publicidad */}
+          <div className="flex items-center mb-4">
+            <div className="relative">
+              {/* Hexágono colorido estilizado */}
+              <svg width="40" height="36" viewBox="0 0 40 36" fill="none">
+                <path d="M10 2L30 2L35 12L30 22L10 22L5 12Z" fill="url(#gradient1)" />
+                <defs>
+                  <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#FFB800" />
+                    <stop offset="25%" stopColor="#FF6B9D" />
+                    <stop offset="50%" stopColor="#8B5CF6" />
+                    <stop offset="75%" stopColor="#06B6D4" />
+                    <stop offset="100%" stopColor="#10B981" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-2 h-2 bg-white rounded-full"></div>
+              </div>
+            </div>
+            <div className="ml-3">
+              <h1 className="text-xl font-bold text-white">Alluma</h1>
+              <p className="text-xs text-gray-400">Publicidad</p>
+            </div>
+          </div>
+          
           <div className="text-sm text-gray-300">
             <p>{currentUser?.name}</p>
             <p className="text-blue-300">{roles[currentUser?.role]}</p>
@@ -1073,6 +1174,10 @@ export default function CRM() {
                     }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   >
+                    {/* Si es el dueño editándose a sí mismo, puede mantener el rol de owner */}
+                    {(currentUser?.role === 'owner' && editingUser?.id === currentUser?.id) && (
+                      <option value="owner">{roles['owner']}</option>
+                    )}
                     {validRolesByUser(currentUser).map(role => (
                       <option key={role} value={role}>{roles[role]}</option>
                     ))}

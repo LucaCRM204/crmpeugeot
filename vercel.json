@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://alluma-crm-backend-production.up.railway.app/:path*"
+    }
+  ]
+}
