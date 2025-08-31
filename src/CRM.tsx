@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { Calendar, Users, Trophy, Plus, Phone, BarChart3, Settings, Home, X, Trash2, Edit3, Bell } from 'lucide-react';
 
 // ===== Utilidades de datos y jerarquía =====
@@ -966,3 +966,4 @@ export default function CRM() {
     </div>
   );
 }
+
