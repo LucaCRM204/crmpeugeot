@@ -1,0 +1,968 @@
+﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Calendar, Users, Trophy, Plus, Phone, BarChart3, Settings, Home, X, Trash2, Edit3, Bell } from 'lucide-react';
+
+// ===== Utilidades de datos y jerarquía =====
+function seedUsers() {
+  let id = 1;
+  const mk = (name: string, role: string, email: string, password: string, reportsTo: number | null = null, active = true) =>
+    ({ id: id++, name, role, email, password, reportsTo, active });
+  const users: any[] = [];
+
+  const owner = mk('Carlos Rodriguez', 'owner', 'carlos@alluma.com', 'admin123');
+  const director = mk('Ana Garcia', 'director', 'ana@alluma.com', 'director123', owner.id);
+  const gerente = mk('Luis Martinez', 'gerente', 'luis@alluma.com', 'gerente123', director.id);
+
+  users.push(owner, director, gerente);
+
+  for (let s = 1; s <= 4; s++) {
+    const sup = mk(`Supervisor ${s}`, 'supervisor', `sup${s}@alluma.com`, `super${s}`, gerente.id);
+    users.push(sup);
+    for (let v = 1; v <= 10; v++) {
+      users.push(mk(`Vendedor ${s}-${v}`, 'vendedor', `vend${s}${v}@alluma.com`, `vendedor${s}${v}`, sup.id, true));
+    }
+  }
+  return users;
+}
+
+function buildIndex(users: any[]) {
+  const byId = new Map(users.map(u => [u.id, u]));
+  const children = new Map(users.map(u => [u.id, [] as number[]]));
+  users.forEach(u => { if (u.reportsTo) (children.get(u.reportsTo) as number[]).push(u.id); });
+  return { byId, children };
+}
+
+function getDescendantUserIds(rootId: number, childrenIndex: Map<number, number[]>) {
+  const out: number[] = [];
+  const stack = [...(childrenIndex.get(rootId) || [])];
+  while (stack.length) {
+    const id = stack.pop()!;
+    out.push(id);
+    const kids = childrenIndex.get(id) || [];
+    for (const k of kids) stack.push(k);
+  }
+  return out;
+}
+
+const roles: Record<string, string> = {
+  owner: 'Dueño',
+  director: 'Director',
+  gerente: 'Gerente',
+  supervisor: 'Supervisor',
+  vendedor: 'Vendedor',
+};
+
+const estados: Record<string, { label: string; color: string }> = {
+  nuevo: { label: 'Nuevo', color: 'bg-blue-500' },
+  contactado: { label: 'Contactado', color: 'bg-yellow-500' },
+  interesado: { label: 'Interesado', color: 'bg-orange-500' },
+  negociacion: { label: 'Negociación', color: 'bg-purple-500' },
+  vendido: { label: 'Vendido', color: 'bg-green-600' },
+  perdido: { label: 'Perdido', color: 'bg-red-500' },
+};
+
+// lead_assigned -> para el vendedor asignado
+// ranking_change -> para vendedor afectado + su supervisor + su gerente
+
+export default function CRM() {
+  // ===== Usuarios y jerarquía =====
+  const [users, setUsers] = useState<any[]>(() => seedUsers());
+  const { byId: userById, children: childrenIndex } = useMemo(() => buildIndex(users), [users]);
+
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [activeSection, setActiveSection] = useState<'dashboard' | 'leads' | 'calendar' | 'ranking' | 'users' | 'alerts'>('dashboard');
+  const [loginError, setLoginError] = useState('');
+
+  // ===== Datos de negocio =====
+  const firstVendorId = users.find(u => u.role === 'vendedor')?.id || 0;
+
+  const [leads, setLeads] = useState<any[]>([
+    {
+      id: 1,
+      nombre: 'Roberto Fernandez',
+      telefono: '+54 11 4567-8910',
+      modelo: 'Toyota Corolla 2024',
+      formaPago: 'Financiado',
+      infoUsado: 'Ford Focus 2018',
+      entrega: true,
+      fecha: '2025-08-28',
+      estado: 'nuevo',
+      vendedor: firstVendorId,
+      notas: 'Cliente interesado',
+    },
+    {
+      id: 2,
+      nombre: 'Carmen Ruiz',
+      telefono: '+54 11 2345-6789',
+      modelo: 'Honda Civic 2024',
+      formaPago: 'Contado',
+      infoUsado: '',
+      entrega: false,
+      fecha: '2025-08-25',
+      estado: 'contactado',
+      vendedor: firstVendorId + 1,
+      notas: 'Pendiente cotización',
+    },
+    {
+      id: 3,
+      nombre: 'Miguel Santos',
+      telefono: '+54 11 9876-5432',
+      modelo: 'Volkswagen Vento 2024',
+      formaPago: 'Financiado',
+      infoUsado: 'Peugeot 208 2019',
+      entrega: true,
+      fecha: '2025-08-20',
+      estado: 'vendido',
+      vendedor: firstVendorId + 2,
+      notas: 'Venta cerrada',
+    },
+  ]);
+
+  const [events, setEvents] = useState<any[]>([
+    { id: 1, title: 'Reunión equipo ventas', date: '2025-08-30', time: '10:00', userId: firstVendorId },
+    { id: 2, title: 'Seguimiento Roberto', date: '2025-08-31', time: '14:00', userId: firstVendorId },
+    { id: 3, title: 'Entrega vehículo', date: '2025-09-02', time: '16:00', userId: firstVendorId + 1 },
+  ]);
+
+  // ===== Acceso por rol =====
+  const getAccessibleUserIds = (user: any) => {
+    if (!user) return [] as number[];
+    if (user.role === 'owner' || user.role === 'director') return users.map(u => u.id);
+    const ids = [user.id, ...getDescendantUserIds(user.id, childrenIndex)];
+    return ids;
+  };
+
+  const canManageUsers = () => currentUser && ['owner', 'director', 'gerente'].includes(currentUser.role);
+  const isOwner = () => currentUser?.role === 'owner';
+
+  // ===== Login =====
+  const handleLogin = (email: string, password: string) => {
+    const user = users.find(u => u.email === email && u.password === password);
+    if (user) {
+      setCurrentUser(user);
+      setIsAuthenticated(true);
+      setLoginError('');
+    } else {
+      setLoginError('Credenciales incorrectas');
+    }
+  };
+
+  // ===== Round-robin y vendedores activos =====
+  const [rrIndex, setRrIndex] = useState(0);
+  const getActiveVendorIdsInScope = (scopeUser?: any) => {
+    if (!scopeUser) return [] as number[];
+    const scope = getAccessibleUserIds(scopeUser);
+    return users.filter(u => u.role === 'vendedor' && u.active && scope.includes(u.id)).map(u => u.id);
+  };
+  const pickNextVendorId = (scopeUser?: any) => {
+    const pool = getActiveVendorIdsInScope(scopeUser || currentUser);
+    if (pool.length === 0) return null;
+    const id = pool[rrIndex % pool.length];
+    setRrIndex(i => i + 1);
+    return id;
+  };
+
+  // ===== Alertas =====
+  type Alert = { id: number; userId: number; type: 'lead_assigned' | 'ranking_change'; message: string; ts: string; read: boolean };
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const nextAlertId = useRef(1);
+  const pushAlert = (userId: number, type: Alert['type'], message: string) => {
+    setAlerts(prev => [...prev, { id: nextAlertId.current++, userId, type, message, ts: new Date().toISOString(), read: false }]);
+  };
+  const pushAlertToChain = (vendorId: number, type: Alert['type'], message: string) => {
+    // vendedor
+    pushAlert(vendorId, type, message);
+    // supervisor
+    const sup = users.find(u => u.id === userById.get(vendorId)?.reportsTo);
+    if (sup) pushAlert(sup.id, type, message);
+    // gerente
+    const gerente = sup ? users.find(u => u.id === sup.reportsTo) : null;
+    if (gerente) pushAlert(gerente.id, type, message);
+  };
+  const unreadCount = (uid: number) => alerts.filter(a => a.userId === uid && !a.read).length;
+
+  // ===== Leads visibles / ranking =====
+  const visibleUserIds = useMemo(() => getAccessibleUserIds(currentUser), [currentUser, users]);
+
+  const getFilteredLeads = () => {
+    if (!currentUser) return [] as any[];
+    return leads.filter(l => visibleUserIds.includes(l.vendedor));
+  };
+
+  const getRanking = () => {
+    const vendedores = users.filter(u => u.role === 'vendedor');
+    return vendedores
+      .map(v => {
+        const ventas = leads.filter(l => l.vendedor === v.id && l.estado === 'vendido').length;
+        const leadsAsignados = leads.filter(l => l.vendedor === v.id).length;
+        return { id: v.id, nombre: v.name, ventas, leadsAsignados, team: `Equipo de ${userById.get(v.reportsTo)?.name || '—'}` };
+      })
+      .sort((a, b) => b.ventas - a.ventas);
+  };
+
+  const getRankingInScope = () => {
+    const vendedores = users.filter(u => u.role === 'vendedor' && visibleUserIds.includes(u.id));
+    return vendedores
+      .map(v => {
+        const ventas = leads.filter(l => l.vendedor === v.id && l.estado === 'vendido').length;
+        const leadsAsignados = leads.filter(l => l.vendedor === v.id).length;
+        return { id: v.id, nombre: v.name, ventas, leadsAsignados, team: `Equipo de ${userById.get(v.reportsTo)?.name || '—'}` };
+      })
+      .sort((a, b) => b.ventas - a.ventas);
+  };
+
+  const prevRankingRef = useRef(new Map<number, number>()); // vendorId -> position
+  useEffect(() => {
+    const r = getRanking();
+    const curr = new Map<number, number>();
+    r.forEach((row, idx) => curr.set(row.id, idx + 1));
+    // comparar con prev
+    const prev = prevRankingRef.current;
+    curr.forEach((pos, vid) => {
+      const before = prev.get(vid);
+      if (before && before !== pos) {
+        const delta = before - pos; // + sube, - baja
+        const msg = delta > 0 ? `¡Subiste ${Math.abs(delta)} puesto(s) en el ranking!` : `Bajaste ${Math.abs(delta)} puesto(s) en el ranking.`;
+        pushAlertToChain(vid, 'ranking_change', msg);
+      }
+    });
+    prevRankingRef.current = curr;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leads]);
+
+  const getDashboardStats = () => {
+    const filteredLeads = getFilteredLeads();
+    const vendidos = filteredLeads.filter(lead => lead.estado === 'vendido').length;
+    const conversion = filteredLeads.length > 0 ? ((vendidos / filteredLeads.length) * 100).toFixed(1) : 0;
+    return { totalLeads: filteredLeads.length, vendidos, conversion };
+  };
+
+  const handleUpdateLeadStatus = (leadId: number, newStatus: string) => {
+    setLeads(prev => prev.map(l => (l.id === leadId ? { ...l, estado: newStatus } : l)));
+  };
+
+  // ===== Crear Lead =====
+  const [showNewLeadModal, setShowNewLeadModal] = useState(false);
+  const handleCreateLead = () => {
+    const nombre = (document.getElementById('new-nombre') as HTMLInputElement).value;
+    const telefono = (document.getElementById('new-telefono') as HTMLInputElement).value;
+    const modelo = (document.getElementById('new-modelo') as HTMLInputElement).value;
+    const formaPago = (document.getElementById('new-formaPago') as HTMLSelectElement).value;
+    const infoUsado = (document.getElementById('new-infoUsado') as HTMLInputElement).value;
+    const entrega = (document.getElementById('new-entrega') as HTMLInputElement).checked;
+    const fecha = (document.getElementById('new-fecha') as HTMLInputElement).value;
+    const autoAssign = (document.getElementById('new-autoassign') as HTMLInputElement)?.checked;
+    const vendedorSelVal = (document.getElementById('new-vendedor') as HTMLSelectElement).value;
+
+    const vendedorIdSelRaw = parseInt(vendedorSelVal, 10);
+    const vendedorIdSel = Number.isNaN(vendedorIdSelRaw) ? null : vendedorIdSelRaw;
+
+    // ✅ corrección: paréntesis cuando mezclamos ?? con ||
+    const vendedorId = autoAssign
+      ? (pickNextVendorId(currentUser) ?? (vendedorIdSel ?? null))
+      : (vendedorIdSel ?? null);
+
+    if (nombre && telefono && modelo && vendedorId) {
+      setLeads(prev => {
+        const newLead = {
+          id: Math.max(0, ...prev.map(l => l.id)) + 1,
+          nombre,
+          telefono,
+          modelo,
+          formaPago,
+          infoUsado: infoUsado || '',
+          entrega,
+          fecha: fecha || new Date().toISOString().split('T')[0],
+          estado: 'nuevo' as const,
+          vendedor: vendedorId,
+          notas: '',
+        };
+        // alerta a vendedor asignado
+        pushAlert(vendedorId, 'lead_assigned', `Nuevo lead asignado: ${nombre}`);
+        return [...prev, newLead];
+      });
+      setShowNewLeadModal(false);
+    }
+  };
+
+  // ===== Calendario por usuario (Mini agenda en español) =====
+  const [selectedCalendarUserId, setSelectedCalendarUserId] = useState<number | null>(null);
+  const [showNewEventModal, setShowNewEventModal] = useState(false);
+
+  const visibleUsers = useMemo(
+    () => (currentUser ? users.filter(u => getAccessibleUserIds(currentUser).includes(u.id)) : []),
+    [currentUser, users]
+  );
+
+  const eventsForSelectedUser = useMemo(() => {
+    const uid = selectedCalendarUserId || currentUser?.id;
+    return events
+      .filter(e => e.userId === uid)
+      .sort((a, b) => (a.date + (a.time || '')) > (b.date + (b.time || '')) ? 1 : -1);
+  }, [events, selectedCalendarUserId, currentUser]);
+
+  const formatterEs = new Intl.DateTimeFormat('es-AR', { weekday: 'long', day: '2-digit', month: 'long' });
+
+  const createEvent = () => {
+    const title = (document.getElementById('ev-title') as HTMLInputElement).value;
+    const date = (document.getElementById('ev-date') as HTMLInputElement).value;
+    const time = (document.getElementById('ev-time') as HTMLInputElement).value;
+    const userId = parseInt((document.getElementById('ev-user') as HTMLSelectElement).value, 10);
+    if (title && date && userId) {
+      setEvents(prev => [
+        ...prev,
+        { id: Math.max(0, ...prev.map(e => e.id)) + 1, title, date, time: time || '09:00', userId },
+      ]);
+      setShowNewEventModal(false);
+    }
+  };
+
+  const deleteEvent = (id: number) => setEvents(prev => prev.filter(e => e.id !== id));
+
+  // ===== Gestión de Usuarios =====
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<any>(null);
+
+  const validManagersByRole = (role: string) => {
+    switch (role) {
+      case 'director': return users.filter(u => u.role === 'owner');
+      case 'gerente': return users.filter(u => u.role === 'director');
+      case 'supervisor': return users.filter(u => u.role === 'gerente');
+      case 'vendedor': return users.filter(u => u.role === 'supervisor');
+      default: return [];
+    }
+  };
+
+  const openCreateUser = () => { setEditingUser(null); setShowUserModal(true); };
+  const openEditUser = (u: any) => { setEditingUser(u); setShowUserModal(true); };
+
+  const saveUser = () => {
+    const name = (document.getElementById('u-name') as HTMLInputElement).value;
+    const email = (document.getElementById('u-email') as HTMLInputElement).value;
+    const password = (document.getElementById('u-pass') as HTMLInputElement).value;
+    const role = (document.getElementById('u-role') as HTMLSelectElement).value;
+    const reportsToVal = (document.getElementById('u-reportsTo') as HTMLSelectElement).value;
+    const reportsTo = reportsToVal ? parseInt(reportsToVal, 10) : null;
+
+    if (!name || !email || !role) return;
+
+    if (editingUser) {
+      setUsers(prev => prev.map(u => u.id === editingUser.id ? { ...u, name, email, password: password || u.password, role, reportsTo } : u));
+    } else {
+      const newId = Math.max(...users.map(u => u.id)) + 1;
+      setUsers(prev => [...prev, { id: newId, name, email, password: password || '123456', role, reportsTo, active: true }]);
+    }
+    setShowUserModal(false);
+  };
+
+  const deleteUser = (id: number) => {
+    const hasChildren = users.some(u => u.reportsTo === id);
+    if (hasChildren) { alert('No se puede eliminar: el usuario tiene integrantes a cargo.'); return; }
+    setUsers(prev => prev.filter(u => u.id !== id));
+  };
+
+  // ===== UI =====
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-blue-800 flex items-center justify-center">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+          <div className="text-center mb-8">
+            <div className="text-4xl mb-2">🚗</div>
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">Alluma CRM</h1>
+            <p className="text-gray-600">Sistema de gestión para concesionarias</p>
+          </div>
+
+          <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+              <input type="email" id="email" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="tu@alluma.com" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Contraseña</label>
+              <input type="password" id="password" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="••••••••" />
+            </div>
+            {loginError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-red-700 text-sm">{loginError}</p>
+              </div>
+            )}
+            <button
+              onClick={() => handleLogin(
+                (document.getElementById('email') as HTMLInputElement).value,
+                (document.getElementById('password') as HTMLInputElement).value
+              )}
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700"
+            >
+              Iniciar Sesión
+            </button>
+          </div>
+
+          <div className="mt-8 p-4 bg-gray-50 rounded-lg">
+            <p className="text-xs text-gray-600 mb-2">Usuarios de prueba:</p>
+            <div className="text-xs space-y-1">
+              <p><strong>Dueño:</strong> carlos@alluma.com / admin123</p>
+              <p><strong>Director:</strong> ana@alluma.com / director123</p>
+              <p><strong>Gerente:</strong> luis@alluma.com / gerente123</p>
+              <p><strong>Supervisor:</strong> sup1@alluma.com / super1</p>
+              <p><strong>Vendedor:</strong> vend11@alluma.com / vendedor11</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-100 flex">
+      {/* Sidebar */}
+      <div className="bg-slate-900 text-white w-64 min-h-screen p-4">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-blue-400 mb-2">Alluma CRM</h1>
+          <div className="text-sm text-gray-300">
+            <p>{currentUser?.name}</p>
+            <p className="text-blue-300">{roles[currentUser?.role]}</p>
+          </div>
+        </div>
+        <nav className="space-y-2">
+          {[
+            { key: 'dashboard', label: 'Dashboard', Icon: Home },
+            { key: 'leads', label: 'Leads', Icon: Users },
+            { key: 'calendar', label: 'Calendario', Icon: Calendar },
+            { key: 'ranking', label: 'Ranking', Icon: Trophy },
+            ...(canManageUsers() ? [{ key: 'users', label: 'Usuarios', Icon: Settings }] : []),
+          ].map(({ key, label, Icon }) => (
+            <button
+              key={key}
+              onClick={() => setActiveSection(key as any)}
+              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                activeSection === (key as any) ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-slate-800'
+              }`}
+            >
+              <Icon size={20} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
+
+        {/* Simulador de lead externo (Meta/Bot) */}
+        <div className="mt-6 p-3 rounded-lg bg-slate-800">
+          <button
+            onClick={() => {
+              const vendedorId = pickNextVendorId(currentUser);
+              if (!vendedorId) { alert('No hay vendedores activos en tu alcance.'); return; }
+              setLeads(prev => ([
+                ...prev,
+                {
+                  id: Math.max(0, ...prev.map(l => l.id)) + 1,
+                  nombre: 'Lead externo',
+                  telefono: '+54 11 0000-0000',
+                  modelo: 'Pendiente',
+                  formaPago: 'Pendiente',
+                  infoUsado: '',
+                  entrega: false,
+                  fecha: new Date().toISOString().slice(0,10),
+                  estado: 'nuevo',
+                  vendedor: vendedorId,
+                  notas: 'Asignado automáticamente (RR)',
+                },
+              ]));
+              pushAlert(vendedorId, 'lead_assigned', 'Nuevo lead de Meta/Bot asignado automáticamente');
+            }}
+            className="w-full text-xs bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-md"
+          >
+            Simular lead de Meta/Bot → reparto equitativo
+          </button>
+        </div>
+      </div>
+
+      {/* Main */}
+      <div className="flex-1 p-6">
+        {/* Topbar con alertas */}
+        <div className="flex items-center justify-end mb-4">
+          <div className="relative">
+            <button onClick={() => setActiveSection('alerts')} className="p-2 rounded-lg hover:bg-gray-200 relative">
+              <Bell size={20} />
+              {unreadCount(currentUser.id) > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full px-1">
+                  {unreadCount(currentUser.id)}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {activeSection === 'dashboard' && (
+          <div className="space-y-6">
+            <h2 className="text-3xl font-bold text-gray-800">Dashboard</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {(() => {
+                const stats = getDashboardStats();
+                const cards = [
+                  { label: 'Total Leads', value: stats.totalLeads, Icon: Users },
+                  { label: 'Vendidos', value: stats.vendidos, Icon: BarChart3 },
+                  { label: 'Conversión', value: stats.conversion + '%', Icon: BarChart3 },
+                ];
+                return cards.map(({ label, value, Icon }, i) => (
+                  <div key={i} className="bg-white rounded-xl shadow-lg p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-gray-600 text-sm font-medium">{label}</p>
+                        <p className="text-3xl font-bold text-gray-800">{value}</p>
+                      </div>
+                      <Icon className="text-blue-500" size={32} />
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h3 className="text-xl font-semibold text-gray-800 mb-4">Leads por Estado</h3>
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
+                {Object.entries(estados).map(([key, estado]) => {
+                  const count = getFilteredLeads().filter(l => l.estado === key).length;
+                  return (
+                    <div key={key} className="text-center">
+                      <div className={`${estado.color} text-white rounded-lg p-4 mb-2`}>
+                        <div className="text-2xl font-bold">{count}</div>
+                      </div>
+                      <div className="text-sm text-gray-600">{estado.label}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeSection === 'leads' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-3xl font-bold text-gray-800">Gestión de Leads</h2>
+              <button onClick={() => setShowNewLeadModal(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-blue-700">
+                <Plus size={20} />
+                <span>Nuevo Lead</span>
+              </button>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Teléfono</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vehículo</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vendedor</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {getFilteredLeads().map(lead => {
+                    const vendedor = userById.get(lead.vendedor);
+                    return (
+                      <tr key={lead.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">{lead.nombre}</div>
+                            <div className="text-xs text-gray-500">{lead.fecha}</div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center space-x-2">
+                            <Phone size={16} className="text-gray-400" />
+                            <span className="text-sm">{lead.telefono}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div>
+                            <div className="text-sm font-medium">{lead.modelo}</div>
+                            <div className="text-xs text-gray-500">{lead.formaPago}</div>
+                            {lead.infoUsado && <div className="text-xs text-orange-600">Usado: {lead.infoUsado}</div>}
+                            {lead.entrega && <div className="text-xs text-green-600">✓ Entrega usado</div>}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <select
+                            value={lead.estado}
+                            onChange={(e) => handleUpdateLeadStatus(lead.id, e.target.value)}
+                            className={`px-3 py-1 rounded-full text-xs font-medium text-white ${estados[lead.estado].color}`}
+                          >
+                            {Object.entries(estados).map(([key]) => (
+                              <option key={key} value={key} className="text-black">{estados[key].label}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-6 py-4 text-sm">
+                          {(currentUser && ['owner','gerente','supervisor'].includes(currentUser.role)) ? (
+                            <select
+                              value={lead.vendedor}
+                              onChange={(e) => {
+                                const newVend = parseInt(e.target.value,10);
+                                setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, vendedor: newVend } : l));
+                                pushAlert(newVend, 'lead_assigned', `Te reasignaron el lead: ${lead.nombre}`);
+                              }}
+                              className="px-3 py-2 border border-gray-300 rounded-lg"
+                            >
+                              {users
+                                .filter(u => u.role === 'vendedor' && visibleUserIds.includes(u.id))
+                                .map(u => (
+                                  <option key={u.id} value={u.id}>{u.name} {u.active ? '' : '(inactivo)'}</option>
+                                ))}
+                            </select>
+                          ) : (
+                            vendedor?.name
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-right text-sm text-gray-500">—</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {activeSection === 'calendar' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-bold text-gray-800">Calendario</h2>
+              <div className="flex items-center space-x-3">
+                <select
+                  value={selectedCalendarUserId ?? currentUser.id}
+                  onChange={(e) => setSelectedCalendarUserId(parseInt(e.target.value, 10))}
+                  className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                >
+                  {visibleUsers.map(u => (
+                    <option key={u.id} value={u.id}>{u.name} — {roles[u.role]}</option>
+                  ))}
+                </select>
+                <button onClick={() => setShowNewEventModal(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-blue-700">
+                  <Plus size={18} />
+                  <span>Nuevo evento</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Mini agenda en español */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold text-gray-800">Próximos eventos (agenda)</h3>
+                <button onClick={() => setShowNewEventModal(true)} className="px-3 py-2 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700">
+                  + Evento
+                </button>
+              </div>
+              {eventsForSelectedUser.length === 0 ? (
+                <p className="text-gray-500 text-sm">Sin eventos para este usuario.</p>
+              ) : (
+                <div className="space-y-3">
+                  {eventsForSelectedUser.map(event => {
+                    const d = new Date(`${event.date}T${event.time || '09:00'}`);
+                    const fecha = formatterEs.format(d);
+                    const hora = (event.time || '').slice(0,5);
+                    return (
+                      <div key={event.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div className="flex items-center">
+                          <div className="bg-blue-500 text-white p-2 rounded-lg mr-4"><Calendar size={20} /></div>
+                          <div>
+                            <h4 className="font-medium text-gray-800">{event.title}</h4>
+                            <p className="text-sm text-gray-600 capitalize">{fecha} {hora && `· ${hora} hs`}</p>
+                          </div>
+                        </div>
+                        <button onClick={() => deleteEvent(event.id)} className="p-2 rounded-lg hover:bg-red-100 text-red-600">
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeSection === 'ranking' && (
+          <div className="space-y-6">
+            <h2 className="text-3xl font-bold text-gray-800">Ranking de Vendedores</h2>
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="space-y-4">
+                {getRankingInScope().map((vendedor, index) => (
+                  <div key={vendedor.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center space-x-4">
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold ${
+                        index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : 'bg-orange-600'
+                      }`}>
+                        {index + 1}
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-gray-800">{vendedor.nombre}</h4>
+                        <p className="text-sm text-gray-600">{vendedor.team}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-gray-800">{vendedor.ventas}</p>
+                      <p className="text-xs text-gray-600">ventas</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeSection === 'users' && canManageUsers() && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-bold text-gray-800">Gestión de Usuarios</h2>
+              {isOwner() && (
+                <button onClick={openCreateUser} className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-blue-700">
+                  <Plus size={18} />
+                  <span>Nuevo usuario</span>
+                </button>
+              )}
+            </div>
+
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuario</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rol</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reporta a</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Estado</th>
+                    <th className="px-6 py-3"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {users.map(user => {
+                    const canToggle = ['gerente','supervisor','owner'].includes(currentUser.role) && user.role === 'vendedor' && getAccessibleUserIds(currentUser).includes(user.id);
+                    return (
+                      <tr key={user.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4"><div className="text-sm font-medium text-gray-900">{user.name}</div></td>
+                        <td className="px-6 py-4"><span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">{roles[user.role]}</span></td>
+                        <td className="px-6 py-4 text-sm text-gray-900">{user.email}</td>
+                        <td className="px-6 py-4 text-sm text-gray-900">{user.reportsTo ? userById.get(user.reportsTo)?.name : '—'}</td>
+                        <td className="px-6 py-4 text-right">
+                          {canToggle ? (
+                            <button
+                              onClick={() => setUsers(prev => prev.map(u => u.id === user.id ? { ...u, active: !u.active } : u))}
+                              className={`inline-flex items-center px-2 py-1 text-xs rounded-md ${user.active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                            >
+                              {user.active ? 'Activo' : 'Inactivo'}
+                            </button>
+                          ) : (
+                            <span className={`px-2 py-1 text-xs rounded-md ${user.active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'}`}>{user.active ? 'Activo' : 'Inactivo'}</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-right space-x-2">
+                          {isOwner() && (
+                            <>
+                              <button onClick={() => openEditUser(user)} className="inline-flex items-center px-2 py-1 text-sm rounded-md bg-amber-100 text-amber-700 hover:bg-amber-200">
+                                <Edit3 size={14} className="mr-1" /> Editar
+                              </button>
+                              <button onClick={() => deleteUser(user.id)} className="inline-flex items-center px-2 py-1 text-sm rounded-md bg-red-100 text-red-700 hover:bg-red-200">
+                                <Trash2 size={14} className="mr-1" /> Eliminar
+                              </button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {activeSection === 'alerts' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-bold text-gray-800">Alertas</h2>
+              <button
+                onClick={() => setAlerts(prev => prev.map(a => a.userId === currentUser.id ? { ...a, read: true } : a))}
+                className="px-3 py-2 rounded-md text-sm bg-gray-100 hover:bg-gray-200"
+              >
+                Marcar todas como leídas
+              </button>
+            </div>
+            <div className="bg-white rounded-xl shadow-lg">
+              <ul className="divide-y divide-gray-100">
+                {alerts.filter(a => a.userId === currentUser.id).reverse().map(a => (
+                  <li key={a.id} className="p-4 flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-gray-800">
+                        {a.type === 'lead_assigned' && '🧲 '}
+                        {a.type === 'ranking_change' && '🏆 '}
+                        {a.message}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">{new Date(a.ts).toLocaleString('es-AR')}</p>
+                    </div>
+                    {!a.read && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Nueva</span>}
+                  </li>
+                ))}
+                {alerts.filter(a => a.userId === currentUser.id).length === 0 && (
+                  <li className="p-6 text-sm text-gray-500">No hay alertas.</li>
+                )}
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Nuevo Lead */}
+        {showNewLeadModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-3xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">Nuevo Lead</h3>
+                <button onClick={() => setShowNewLeadModal(false)}><X size={24} className="text-gray-600" /></button>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                  <input type="text" id="new-nombre" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                  <input type="text" id="new-telefono" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Modelo</label>
+                  <input type="text" id="new-modelo" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Forma de Pago</label>
+                  <select id="new-formaPago" className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    <option value="Contado">Contado</option>
+                    <option value="Financiado">Financiado</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Info Usado</label>
+                  <input type="text" id="new-infoUsado" placeholder="Marca Modelo Año" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
+                  <input type="date" id="new-fecha" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div className="col-span-2 flex items-center space-x-3">
+                  <input type="checkbox" id="new-autoassign" defaultChecked className="rounded border-gray-300 text-blue-600" />
+                  <span className="text-sm text-gray-700">Asignación automática y equitativa a vendedores activos</span>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Asignar a vendedor (opcional)</label>
+                  <select id="new-vendedor" className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    {users
+                      .filter(u => u.role === 'vendedor' && visibleUserIds.includes(u.id))
+                      .map(u => (
+                        <option key={u.id} value={u.id}>{u.name} {u.active ? '' : '(inactivo)'}</option>
+                      ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">Si está tildado "Asignación automática", se ignorará esta selección.</p>
+                </div>
+              </div>
+              <div className="flex space-x-3 pt-6">
+                <button onClick={() => setShowNewLeadModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancelar</button>
+                <button onClick={handleCreateLead} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Crear Lead</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Nuevo Evento */}
+        {showNewEventModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">Nuevo evento</h3>
+                <button onClick={() => setShowNewEventModal(false)}><X size={24} className="text-gray-600" /></button>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
+                  <input type="text" id="ev-title" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
+                  <input type="date" id="ev-date" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Hora</label>
+                  <input type="time" id="ev-time" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Usuario</label>
+                  <select id="ev-user" defaultValue={selectedCalendarUserId ?? currentUser.id} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    {visibleUsers.map(u => (
+                      <option key={u.id} value={u.id}>{u.name} — {roles[u.role]}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex space-x-3 pt-6">
+                <button onClick={() => setShowNewEventModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancelar</button>
+                <button onClick={createEvent} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Crear evento</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Crear/Editar Usuario (sólo Dueño) */}
+        {showUserModal && isOwner() && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">{editingUser ? 'Editar usuario' : 'Nuevo usuario'}</h3>
+                <button onClick={() => setShowUserModal(false)}><X size={24} className="text-gray-600" /></button>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                  <input type="text" id="u-name" defaultValue={editingUser?.name || ''} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input type="email" id="u-email" defaultValue={editingUser?.email || ''} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+                  <input type="password" id="u-pass" placeholder={editingUser ? '(sin cambio)' : ''} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
+                  <select id="u-role" defaultValue={editingUser?.role || 'vendedor'} className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    onChange={(e) => {
+                      const role = e.target.value;
+                      const managers = validManagersByRole(role);
+                      const sel = document.getElementById('u-reportsTo') as HTMLSelectElement | null;
+                      if (sel) sel.value = managers[0]?.id?.toString?.() || '';
+                    }}
+                  >
+                    <option value="director">Director</option>
+                    <option value="gerente">Gerente</option>
+                    <option value="supervisor">Supervisor</option>
+                    <option value="vendedor">Vendedor</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Reporta a</label>
+                  <select id="u-reportsTo" defaultValue={editingUser?.reportsTo || ''} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    {(validManagersByRole(editingUser?.role || 'vendedor')).map(m => (
+                      <option key={m.id} value={m.id}>{m.name} — {roles[m.role]}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex space-x-3 pt-6">
+                <button onClick={() => setShowUserModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancelar</button>
+                <button onClick={saveUser} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Guardar</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
