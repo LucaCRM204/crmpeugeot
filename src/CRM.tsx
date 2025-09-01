@@ -105,7 +105,7 @@ export default function CRM() {
     try {
       const r = await api.post("/auth/login", { email, password });
       
-      // Verificar respuesta
+      // Verificar respuesta exitosa
       if (r.data?.ok && r.data?.token) {
         // Guardar token
         localStorage.setItem('token', r.data.token);
@@ -114,37 +114,40 @@ export default function CRM() {
         // Configurar axios para futuras peticiones
         api.defaults.headers.common['Authorization'] = `Bearer ${r.data.token}`;
         
-        const u = r.data.user || { id: 0 });
-      const u = r.data?.user || {
-        id: 0,
-        name: r.data?.user?.email || email,
-        email,
-        role: r.data?.user?.role || "owner",
-        reportsTo: null,
-        active: true,
-      };
-      setCurrentUser(u);
-      setIsAuthenticated(true);
-      setLoginError("");
+        const u = r.data.user || {
+          id: 0,
+          name: r.data?.user?.email || email,
+          email,
+          role: r.data?.user?.role || "owner",
+          reportsTo: null,
+          active: true,
+        };
+        
+        setCurrentUser(u);
+        setIsAuthenticated(true);
+        setLoginError("");
 
-      // Cargar datos persistidos
-      const [uu, ll] = await Promise.all([listUsers(), listLeads()]);
-      const mappedLeads: LeadRow[] = (ll || []).map((L: any) => ({
-        id: L.id,
-        nombre: L.nombre,
-        telefono: L.telefono,
-        modelo: L.modelo,
-        formaPago: L.formaPago,
-        infoUsado: L.infoUsado,
-        entrega: L.entrega,
-        fecha: L.fecha || L.created_at || "",
-        estado: (L.estado || "nuevo") as LeadRow["estado"],
-        vendedor: L.assigned_to ?? null,
-        notas: L.notas || "",
-        fuente: (L.fuente || "otro") as LeadRow["fuente"],
-      }));
-      setUsers(uu || []);
-      setLeads(mappedLeads);
+        // Cargar datos
+        const [uu, ll] = await Promise.all([listUsers(), listLeads()]);
+        const mappedLeads: LeadRow[] = (ll || []).map((L: any) => ({
+          id: L.id,
+          nombre: L.nombre,
+          telefono: L.telefono,
+          modelo: L.modelo,
+          formaPago: L.formaPago,
+          infoUsado: L.infoUsado,
+          entrega: L.entrega,
+          fecha: L.fecha || L.created_at || "",
+          estado: (L.estado || "nuevo") as LeadRow["estado"],
+          vendedor: L.assigned_to ?? null,
+          notas: L.notas || "",
+          fuente: (L.fuente || "otro") as LeadRow["fuente"],
+        }));
+        setUsers(uu || []);
+        setLeads(mappedLeads);
+      } else {
+        throw new Error("Respuesta inválida del servidor");
+      }
     } catch (err: any) {
       setLoginError(err?.response?.data?.error || "Credenciales incorrectas");
       setIsAuthenticated(false);
@@ -978,11 +981,11 @@ export default function CRM() {
                           {isOwner() && (
                             <>
                               <button
-  onClick={() => { setEditingUser(user); openEditUser(user); }}
-  className="inline-flex items-center px-2 py-1 text-sm rounded-md bg-amber-100 text-amber-700 hover:bg-amber-200"
->
-  <Edit3 size={14} className="mr-1" /> Editar
-</button>
+                                onClick={() => openEditUser(user)}
+                                className="inline-flex items-center px-2 py-1 text-sm rounded-md bg-amber-100 text-amber-700 hover:bg-amber-200"
+                              >
+                                <Edit3 size={14} className="mr-1" /> Editar
+                              </button>
                               <button onClick={() => deleteUser(user.id)} className="inline-flex items-center px-2 py-1 text-sm rounded-md bg-red-100 text-red-700 hover:bg-red-200">
                                 <Trash2 size={14} className="mr-1" /> Eliminar
                               </button>
@@ -1242,4 +1245,3 @@ export default function CRM() {
     </div>
   );
 }
-
