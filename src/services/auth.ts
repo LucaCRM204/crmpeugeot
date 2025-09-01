@@ -1,11 +1,15 @@
-import http from '../api/client';
+import { api } from '../api';
 
 export async function login(email: string, password: string) {
-  await http.post('/auth/login', { email, password }); // SIN /api/
-  const { data } = await http.get('/auth/me');         // SIN /api/
-  return data;
+  const response = await api.post('/auth/login', { email, password });
+  return response.data;
 }
 
 export async function logout() {
-  await http.post('/auth/logout'); // SIN /api/
+  await api.post('/auth/logout');
+}
+
+export async function getMe() {
+  const response = await api.get('/auth/me');  
+  return response.data;
 }
