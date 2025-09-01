@@ -1,19 +1,33 @@
-import { api } from '../api';
+﻿import http from '../api/client';
 
-export async function login(email: string, password: string) {
-  const response = await api.post('/auth/login', { email, password });
+export const authService = {
+  async login(email: string, password: string) {
+    const response = await http.post('/auth/login', { email, password });
+    if (response.data.token) {
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+    }
+    return response.data;
+  },
   
-  // Si el backend devuelve un token, configurarlo en el cliente API
-  if (response.data.token) {
-    // Configurar el token para futuras requests
-    api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
+  logout() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = '/login';
+  },
+  
+  getToken() {
+    return localStorage.getItem('token');
+  },
+  
+  getUser() {
+    const user = localStorage.getItem('user');
+    return user ? JSON.parse(user) : null;
+  },
+  
+  isAuthenticated() {
+    return !!localStorage.getItem('token');
   }
-  
-  return response.data; // Devolver {ok: true, token: "...", user: {...}}
-}
+};
 
-export async function logout() {
-  await api.post('/auth/logout');
-  // Limpiar el token
-  delete api.defaults.headers.common['Authorization'];
-}
+export default authService;
