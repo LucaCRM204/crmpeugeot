@@ -104,17 +104,6 @@ export default function CRM() {
   const handleLogin = async (email: string, password: string) => {
     try {
       const r = await api.post("/auth/login", { email, password });
-      
-      // Verificar respuesta
-      if (r.data?.ok && r.data?.token) {
-        // Guardar token
-        localStorage.setItem('token', r.data.token);
-        localStorage.setItem('user', JSON.stringify(r.data.user));
-        
-        // Configurar axios para futuras peticiones
-        api.defaults.headers.common['Authorization'] = `Bearer ${r.data.token}`;
-        
-        const u = r.data.user || { id: 0 });
       const u = r.data?.user || {
         id: 0,
         name: r.data?.user?.email || email,
@@ -1242,4 +1231,3 @@ export default function CRM() {
     </div>
   );
 }
-
