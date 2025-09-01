@@ -103,7 +103,7 @@ export default function CRM() {
   // ===== Login contra backend =====
   const handleLogin = async (email: string, password: string) => {
     try {
-      const r = await api.post("/auth/login", { email, password, useCookie: false });
+      const r = await api.post("/api/auth/login", { email, password, useCookie: false });
       const u = r.data?.user || {
         id: 0,
         name: r.data?.user?.email || email,
