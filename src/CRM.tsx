@@ -104,6 +104,7 @@ export default function CRM() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeSection, setActiveSection] = useState<"dashboard" | "leads" | "calendar" | "ranking" | "users" | "alerts" | "team">("dashboard");
   const [loginError, setLoginError] = useState("");
+  const [selectedEstado, setSelectedEstado] = useState<string | null>(null);
 
   // ===== Login contra backend =====
   const handleLogin = async (email: string, password: string) => {
