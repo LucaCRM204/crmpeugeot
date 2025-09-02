@@ -769,6 +769,259 @@ export default function CRM() {
                               </div>
                             </div>
                           </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Alertas */}
+        {activeSection === "alerts" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-bold text-gray-800">Alertas</h2>
+              {currentUser && (
+                <button
+                  onClick={() => setAlerts((prev) => prev.map((a) => (a.userId === currentUser.id ? { ...a, read: true } : a)))}
+                  className="px-3 py-2 rounded-md text-sm bg-gray-100 hover:bg-gray-200"
+                >
+                  Marcar todas como leídas
+                </button>
+              )}
+            </div>
+            <div className="bg-white rounded-xl shadow-lg">
+              <ul className="divide-y divide-gray-100">
+                {currentUser &&
+                  alerts
+                    .filter((a) => a.userId === currentUser.id)
+                    .reverse()
+                    .map((a) => (
+                      <li key={a.id} className="p-4 flex items-start justify-between">
+                        <div>
+                          <p className="text-sm text-gray-800">{a.type === "lead_assigned" ? "🧲 " : "🏆 "}{a.message}</p>
+                          <p className="text-xs text-gray-500 mt-1">{new Date(a.ts).toLocaleString("es-AR")}</p>
+                        </div>
+                        {!a.read && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Nueva</span>}
+                      </li>
+                    ))}
+                {(!currentUser || alerts.filter((a) => a.userId === currentUser.id).length === 0) && (
+                  <li className="p-6 text-sm text-gray-500">No hay alertas.</li>
+                )}
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Nuevo Lead */}
+        {showNewLeadModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-3xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">Nuevo Lead</h3>
+                <button onClick={() => setShowNewLeadModal(false)}>
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                  <input type="text" id="new-nombre" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                  <input type="text" id="new-telefono" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Modelo</label>
+                  <input type="text" id="new-modelo" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Forma de Pago</label>
+                  <select id="new-formaPago" className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    <option value="Contado">Contado</option>
+                    <option value="Financiado">Financiado</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fuente del Lead</label>
+                  <select id="new-fuente" className="w-full px-3 py-2 border border-gray-300 rounded-lg" defaultValue="sitio_web">
+                    {Object.entries(fuentes).map(([key, fuente]) => (
+                      <option key={key} value={key}>
+                        {fuente.icon} {fuente.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Info Usado</label>
+                  <input type="text" id="new-infoUsado" placeholder="Marca Modelo Año" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
+                  <input type="date" id="new-fecha" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div className="col-span-2 flex items-center space-x-3">
+                  <input type="checkbox" id="new-entrega" className="rounded border-gray-300 text-blue-600" />
+                  <span className="text-sm text-gray-700">Entrega de vehículo usado</span>
+                </div>
+                <div className="col-span-2 flex items-center space-x-3">
+                  <input type="checkbox" id="new-autoassign" defaultChecked className="rounded border-gray-300 text-blue-600" />
+                  <span className="text-sm text-gray-700">Asignación automática y equitativa a vendedores activos</span>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Asignar a vendedor (opcional)</label>
+                  <select id="new-vendedor" className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    {users
+                      .filter((u: any) => u.role === "vendedor" && visibleUserIds.includes(u.id))
+                      .map((u: any) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} {u.active ? "" : "(inactivo)"}
+                        </option>
+                      ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">Si está tildado "Asignación automática", se ignorará esta selección.</p>
+                </div>
+              </div>
+              <div className="flex space-x-3 pt-6">
+                <button onClick={() => setShowNewLeadModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                  Cancelar
+                </button>
+                <button onClick={handleCreateLead} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  Crear Lead
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Nuevo Evento */}
+        {showNewEventModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">Nuevo evento</h3>
+                <button onClick={() => setShowNewEventModal(false)}>
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
+                  <input type="text" id="ev-title" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
+                  <input type="date" id="ev-date" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Hora</label>
+                  <input type="time" id="ev-time" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Usuario</label>
+                  <select id="ev-user" defaultValue={selectedCalendarUserId ?? currentUser?.id} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    {visibleUsers.map((u: any) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} — {roles[u.role] || u.role}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex space-x-3 pt-6">
+                <button onClick={createEvent} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  Crear evento
+                </button>
+                <button onClick={() => setShowNewEventModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Crear/Editar Usuario */}
+        {showUserModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">{editingUser ? "Editar usuario" : "Nuevo usuario"}</h3>
+                <button onClick={() => setShowUserModal(false)}>
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                  <input type="text" id="u-name" defaultValue={editingUser?.name || ""} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input type="email" id="u-email" defaultValue={editingUser?.email || ""} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+                  <input type="password" id="u-pass" placeholder={editingUser ? "(sin cambio)" : ""} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
+                  <select
+                    id="u-role"
+                    value={modalRole}
+                    onChange={(e) => {
+                      const r = e.target.value as typeof modalRole;
+                      setModalRole(r);
+                      const managers = validManagersByRole(r);
+                      setModalReportsTo(r === "owner" ? null : managers[0]?.id ?? null);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  >
+                    {currentUser?.role === "owner" && editingUser?.id === currentUser?.id && <option value="owner">{roles["owner"]}</option>}
+                    {validRolesByUser(currentUser).map((role) => (
+                      <option key={role} value={role}>
+                        {roles[role]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Reporta a</label>
+                  <select
+                    id="u-reportsTo"
+                    value={modalReportsTo ?? ""}
+                    onChange={(e) => setModalReportsTo(e.target.value ? parseInt(e.target.value, 10) : null)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    disabled={modalRole === "owner"}
+                  >
+                    {(modalRole === "owner" ? [] : validManagersByRole(modalRole)).map((m: any) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} — {roles[m.role] || m.role}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex space-x-3 pt-6">
+                <button onClick={saveUser} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  Guardar
+                </button>
+                <button onClick={() => setShowUserModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
                           <td className="px-6 py-4 text-center">
                             <span className={`px-2 py-1 text-xs rounded-full ${
                               vendedor.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
@@ -1145,3 +1398,11 @@ export default function CRM() {
                               <button
                                 onClick={() => openEditUser(user)}
                                 className="inline-flex items-center px-2 py-1 text-sm rounded-md bg-amber-100 text-amber-700 hover:bg-amber-200"
+                              >
+                                <Edit3 size={14} className="mr-1" /> Editar
+                              </button>
+                              <button onClick={() => deleteUser(user.id)} className="inline-flex items-center px-2 py-1 text-sm rounded-md bg-red-100 text-red-700 hover:bg-red-200">
+                                <Trash2 size={14} className="mr-1" /> Eliminar
+                              </button>
+                            </>
+                          )}
