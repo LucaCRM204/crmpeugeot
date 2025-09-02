@@ -993,6 +993,20 @@ export default function CRM() {
                             vendedor?.name || "—"
                           )}
                         </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={() => {
+                                setEditingLeadObservaciones(lead);
+                                setShowObservacionesModal(true);
+                              }}
+                              className="px-2 py-1 text-xs rounded-md bg-blue-100 text-blue-700 hover:bg-blue-200"
+                              title="Ver/Editar observaciones"
+                            >
+                              {lead.notas && lead.notas.length > 0 ? "Ver obs." : "Agregar obs."}
+                            </button>
+                          </div>
+                        </td>
                         <td className="px-6 py-4 text-right text-sm">
                           {(currentUser?.role === "owner" || currentUser?.role === "director") && (
                             <button
