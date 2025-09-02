@@ -52,6 +52,10 @@ const estados: Record<string, { label: string; color: string }> = {
   negociacion: { label: "Negociación", color: "bg-purple-500" },
   vendido: { label: "Vendido", color: "bg-green-600" },
   perdido: { label: "Perdido", color: "bg-red-500" },
+  numero_invalido: { label: "Número inválido", color: "bg-gray-500" },
+  no_contesta_1: { label: "No contesta 1", color: "bg-amber-500" },
+  no_contesta_2: { label: "No contesta 2", color: "bg-orange-600" },
+  no_contesta_3: { label: "No contesta 3", color: "bg-red-600" },
 };
 
 const fuentes: Record<string, { label: string; color: string; icon: string }> = {
@@ -295,8 +299,22 @@ export default function CRM() {
     }
   };
 
-  // ===== Crear Lead (API) =====
+  // ===== Crear Lead y Modales =====
   const [showNewLeadModal, setShowNewLeadModal] = useState(false);
+  const [showObservacionesModal, setShowObservacionesModal] = useState(false);
+  const [editingLeadObservaciones, setEditingLeadObservaciones] = useState<LeadRow | null>(null);
+
+  const handleUpdateObservaciones = async (leadId: number, observaciones: string) => {
+    try {
+      const updated = await apiUpdateLead(leadId, { notas: observaciones });
+      setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...mapLeadFromApi(updated) } : l)));
+      setShowObservacionesModal(false);
+      setEditingLeadObservaciones(null);
+    } catch (e) {
+      console.error("No pude actualizar observaciones del lead", e);
+    }
+  };
+
   const handleCreateLead = async () => {
     const nombre = (document.getElementById("new-nombre") as HTMLInputElement).value.trim();
     const telefono = (document.getElementById("new-telefono") as HTMLInputElement).value.trim();
@@ -641,7 +659,7 @@ export default function CRM() {
 
             <div className="bg-white rounded-xl shadow-lg p-6">
               <h3 className="text-xl font-semibold text-gray-800 mb-4">Leads por Estado</h3>
-              <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {Object.entries(estados).map(([key, estado]) => {
                   const count = getFilteredLeads().filter((l) => l.estado === key).length;
                   return (
@@ -910,6 +928,7 @@ export default function CRM() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fuente</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vendedor</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Observaciones</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
                   </tr>
                 </thead>
