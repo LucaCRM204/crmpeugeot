@@ -1126,7 +1126,7 @@ export default function CRM() {
               <div className="bg-white rounded-lg shadow p-4">
                 <p className="text-sm text-gray-600">Hoy</p>
                 <p className="text-2xl font-bold text-green-600">
-                  {seguimiento.filter(s => {
+                  {seguimiento.filter((s: SeguimientoEntry) => {
                     const today = new Date();
                     const entryDate = new Date(s.timestamp);
                     return entryDate.toDateString() === today.toDateString();
@@ -1136,7 +1136,7 @@ export default function CRM() {
               <div className="bg-white rounded-lg shadow p-4">
                 <p className="text-sm text-gray-600">Esta Semana</p>
                 <p className="text-2xl font-bold text-orange-600">
-                  {seguimiento.filter(s => {
+                  {seguimiento.filter((s: SeguimientoEntry) => {
                     const weekAgo = new Date();
                     weekAgo.setDate(weekAgo.getDate() - 7);
                     const entryDate = new Date(s.timestamp);
@@ -1148,11 +1148,12 @@ export default function CRM() {
                 <p className="text-sm text-gray-600">Usuario Activo</p>
                 <p className="text-lg font-bold text-purple-600">
                   {(() => {
-                    const userCounts = seguimiento.reduce((acc: any, s) => {
+                    const userCounts = seguimiento.reduce((acc: Record<string, number>, s: SeguimientoEntry) => {
                       acc[s.usuario] = (acc[s.usuario] || 0) + 1;
                       return acc;
                     }, {});
-                    const topUser = Object.entries(userCounts).sort((a: any, b: any) => b[1] - a[1])[0];
+                    const entries = Object.entries(userCounts) as [string, number][];
+                    const topUser = entries.sort((a, b) => b[1] - a[1])[0];
                     return topUser ? topUser[0] : "—";
                   })()}
                 </p>
