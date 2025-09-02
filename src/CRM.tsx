@@ -56,7 +56,7 @@ const estados: Record<string, { label: string; color: string }> = {
 
 const fuentes: Record<string, { label: string; color: string; icon: string }> = {
   meta: { label: "Meta/Facebook", color: "bg-blue-600", icon: "📱" },
-  whatsapp: { label: "WhatsApp Bot Original", color: "bg-green-500", icon: "💬" },
+  whatsapp: { label: "WhatsApp Bot", color: "bg-green-500", icon: "💬" },
   whatsapp_100: { label: "WhatsApp Bot 100", color: "bg-green-700", icon: "💬" },
   sitio_web: { label: "Sitio Web", color: "bg-purple-600", icon: "🌐" },
   referido: { label: "Referido", color: "bg-orange-500", icon: "👥" },
@@ -66,7 +66,6 @@ const fuentes: Record<string, { label: string; color: string; icon: string }> = 
   instagram: { label: "Instagram", color: "bg-pink-500", icon: "📸" },
   otro: { label: "Otro", color: "bg-gray-400", icon: "❓" },
 };
-
 
 type LeadRow = {
   id: number;
@@ -1205,6 +1204,72 @@ export default function CRM() {
                   })}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Observaciones del Lead */}
+        {showObservacionesModal && editingLeadObservaciones && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">
+                  Observaciones - {editingLeadObservaciones.nombre}
+                </h3>
+                <button onClick={() => {
+                  setShowObservacionesModal(false);
+                  setEditingLeadObservaciones(null);
+                }}>
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+              
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-2">
+                  <span className="font-medium">Cliente:</span> {editingLeadObservaciones.nombre} | 
+                  <span className="font-medium ml-2">Teléfono:</span> {editingLeadObservaciones.telefono} | 
+                  <span className="font-medium ml-2">Vehículo:</span> {editingLeadObservaciones.modelo}
+                </p>
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium">Estado actual:</span> 
+                  <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium text-white ${estados[editingLeadObservaciones.estado].color}`}>
+                    {estados[editingLeadObservaciones.estado].label}
+                  </span>
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Observaciones</label>
+                <textarea
+                  id="observaciones-textarea"
+                  defaultValue={editingLeadObservaciones.notas || ""}
+                  placeholder="Agregar observaciones sobre el cliente, llamadas realizadas, intereses, objeciones, etc..."
+                  className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              
+              <div className="flex space-x-3 pt-6">
+                <button 
+                  onClick={() => {
+                    const textarea = document.getElementById("observaciones-textarea") as HTMLTextAreaElement;
+                    if (textarea && editingLeadObservaciones) {
+                      handleUpdateObservaciones(editingLeadObservaciones.id, textarea.value);
+                    }
+                  }}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Guardar Observaciones
+                </button>
+                <button 
+                  onClick={() => {
+                    setShowObservacionesModal(false);
+                    setEditingLeadObservaciones(null);
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+              </div>
             </div>
           </div>
         )}
