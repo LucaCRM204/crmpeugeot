@@ -56,7 +56,8 @@ const estados: Record<string, { label: string; color: string }> = {
 
 const fuentes: Record<string, { label: string; color: string; icon: string }> = {
   meta: { label: "Meta/Facebook", color: "bg-blue-600", icon: "📱" },
-  whatsapp: { label: "WhatsApp Bot", color: "bg-green-500", icon: "💬" },
+  whatsapp: { label: "WhatsApp Bot Original", color: "bg-green-500", icon: "💬" },
+  whatsapp_100: { label: "WhatsApp Bot 100", color: "bg-green-700", icon: "💬" },
   sitio_web: { label: "Sitio Web", color: "bg-purple-600", icon: "🌐" },
   referido: { label: "Referido", color: "bg-orange-500", icon: "👥" },
   telefono: { label: "Llamada", color: "bg-indigo-500", icon: "📞" },
@@ -65,6 +66,7 @@ const fuentes: Record<string, { label: string; color: string; icon: string }> = 
   instagram: { label: "Instagram", color: "bg-pink-500", icon: "📸" },
   otro: { label: "Otro", color: "bg-gray-400", icon: "❓" },
 };
+
 
 type LeadRow = {
   id: number;
