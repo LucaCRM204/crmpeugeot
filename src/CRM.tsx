@@ -110,6 +110,7 @@ export default function CRM() {
   const [activeSection, setActiveSection] = useState<"dashboard" | "leads" | "calendar" | "ranking" | "users" | "alerts" | "team">("dashboard");
   const [loginError, setLoginError] = useState("");
   const [selectedEstado, setSelectedEstado] = useState<string | null>(null);
+  const [selectedTeam, setSelectedTeam] = useState<'roberto' | 'daniel'>('roberto');
 
   // ===== Login contra backend =====
   const handleLogin = async (email: string, password: string) => {
@@ -652,7 +653,284 @@ export default function CRM() {
 
       {/* Main */}
       <div className="flex-1 p-6">
-        {/* Topbar con alertas */}
+        {/* Modal: Observaciones del Lead */}
+        {showObservacionesModal && editingLeadObservaciones && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">
+                  Observaciones - {editingLeadObservaciones.nombre}
+                </h3>
+                <button onClick={() => {
+                  setShowObservacionesModal(false);
+                  setEditingLeadObservaciones(null);
+                }}>
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+              
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-2">
+                  <span className="font-medium">Cliente:</span> {editingLeadObservaciones.nombre} | 
+                  <span className="font-medium ml-2">Teléfono:</span> {editingLeadObservaciones.telefono} | 
+                  <span className="font-medium ml-2">Vehículo:</span> {editingLeadObservaciones.modelo}
+                </p>
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium">Estado actual:</span> 
+                  <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium text-white ${estados[editingLeadObservaciones.estado].color}`}>
+                    {estados[editingLeadObservaciones.estado].label}
+                  </span>
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Observaciones</label>
+                <textarea
+                  id="observaciones-textarea"
+                  defaultValue={editingLeadObservaciones.notas || ""}
+                  placeholder="Agregar observaciones sobre el cliente, llamadas realizadas, intereses, objeciones, etc..."
+                  className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              
+              <div className="flex space-x-3 pt-6">
+                <button 
+                  onClick={() => {
+                    const textarea = document.getElementById("observaciones-textarea") as HTMLTextAreaElement;
+                    if (textarea && editingLeadObservaciones) {
+                      handleUpdateObservaciones(editingLeadObservaciones.id, textarea.value);
+                    }
+                  }}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Guardar Observaciones
+                </button>
+                <button 
+                  onClick={() => {
+                    setShowObservacionesModal(false);
+                    setEditingLeadObservaciones(null);
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Nuevo Lead */}
+        {showNewLeadModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-3xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">Nuevo Lead</h3>
+                <button onClick={() => setShowNewLeadModal(false)}>
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                  <input type="text" id="new-nombre" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                  <input type="text" id="new-telefono" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Modelo</label>
+                  <input type="text" id="new-modelo" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Forma de Pago</label>
+                  <select id="new-formaPago" className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    <option value="Contado">Contado</option>
+                    <option value="Financiado">Financiado</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fuente del Lead</label>
+                  <select id="new-fuente" className="w-full px-3 py-2 border border-gray-300 rounded-lg" defaultValue="sitio_web">
+                    {Object.entries(fuentes).map(([key, fuente]) => (
+                      <option key={key} value={key}>
+                        {fuente.icon} {fuente.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Info Usado</label>
+                  <input type="text" id="new-infoUsado" placeholder="Marca Modelo Año" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
+                  <input type="date" id="new-fecha" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div className="col-span-2 flex items-center space-x-3">
+                  <input type="checkbox" id="new-entrega" className="rounded border-gray-300 text-blue-600" />
+                  <span className="text-sm text-gray-700">Entrega de vehículo usado</span>
+                </div>
+                <div className="col-span-2 flex items-center space-x-3">
+                  <input type="checkbox" id="new-autoassign" defaultChecked className="rounded border-gray-300 text-blue-600" />
+                  <span className="text-sm text-gray-700">Asignación automática y equitativa a vendedores activos</span>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Asignar a vendedor (opcional)</label>
+                  <select id="new-vendedor" className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    <option value="">Sin asignar</option>
+                    {users
+                      .filter((u: any) => u.role === "vendedor" && visibleUserIds.includes(u.id))
+                      .map((u: any) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} {u.active ? "" : "(inactivo)"}
+                        </option>
+                      ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">Si está tildado "Asignación automática", se ignorará esta selección.</p>
+                </div>
+              </div>
+              <div className="flex space-x-3 pt-6">
+                <button onClick={() => setShowNewLeadModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                  Cancelar
+                </button>
+                <button onClick={handleCreateLead} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  Crear Lead
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Nuevo Evento */}
+        {showNewEventModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">Nuevo evento</h3>
+                <button onClick={() => setShowNewEventModal(false)}>
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
+                  <input type="text" id="ev-title" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
+                  <input type="date" id="ev-date" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Hora</label>
+                  <input type="time" id="ev-time" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Usuario</label>
+                  <select id="ev-user" defaultValue={selectedCalendarUserId ?? currentUser?.id} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    {visibleUsers.map((u: any) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} — {roles[u.role] || u.role}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex space-x-3 pt-6">
+                <button onClick={createEvent} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  Crear evento
+                </button>
+                <button onClick={() => setShowNewEventModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Crear/Editar Usuario */}
+        {showUserModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">{editingUser ? "Editar usuario" : "Nuevo usuario"}</h3>
+                <button onClick={() => setShowUserModal(false)}>
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                  <input type="text" id="u-name" defaultValue={editingUser?.name || ""} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input type="email" id="u-email" defaultValue={editingUser?.email || ""} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+                  <input type="password" id="u-pass" placeholder={editingUser ? "(sin cambio)" : ""} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
+                  <select
+                    id="u-role"
+                    value={modalRole}
+                    onChange={(e) => {
+                      const r = e.target.value as typeof modalRole;
+                      setModalRole(r);
+                      const managers = validManagersByRole(r);
+                      setModalReportsTo(r === "owner" ? null : managers[0]?.id ?? null);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  >
+                    {currentUser?.role === "owner" && editingUser?.id === currentUser?.id && <option value="owner">{roles["owner"]}</option>}
+                    {validRolesByUser(currentUser).map((role) => (
+                      <option key={role} value={role}>
+                        {roles[role]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Reporta a</label>
+                  <select
+                    id="u-reportsTo"
+                    value={modalReportsTo ?? ""}
+                    onChange={(e) => setModalReportsTo(e.target.value ? parseInt(e.target.value, 10) : null)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    disabled={modalRole === "owner"}
+                  >
+                    {modalRole === "owner" ? (
+                      <option value="">N/A - Dueño</option>
+                    ) : (
+                      validManagersByRole(modalRole).map((m: any) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} — {roles[m.role] || m.role}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex space-x-3 pt-6">
+                <button onClick={saveUser} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  Guardar
+                </button>
+                <button onClick={() => setShowUserModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+} Topbar con alertas */}
         <div className="flex items-center justify-end mb-4">
           <div className="relative">
             <button onClick={() => setActiveSection("alerts")} className="p-2 rounded-lg hover:bg-gray-200 relative">
@@ -2219,281 +2497,4 @@ export default function CRM() {
           </div>
         )}
 
-        {/* Modal: Observaciones del Lead */}
-        {showObservacionesModal && editingLeadObservaciones && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">
-                  Observaciones - {editingLeadObservaciones.nombre}
-                </h3>
-                <button onClick={() => {
-                  setShowObservacionesModal(false);
-                  setEditingLeadObservaciones(null);
-                }}>
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-              
-              <div className="mb-4">
-                <p className="text-sm text-gray-600 mb-2">
-                  <span className="font-medium">Cliente:</span> {editingLeadObservaciones.nombre} | 
-                  <span className="font-medium ml-2">Teléfono:</span> {editingLeadObservaciones.telefono} | 
-                  <span className="font-medium ml-2">Vehículo:</span> {editingLeadObservaciones.modelo}
-                </p>
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium">Estado actual:</span> 
-                  <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium text-white ${estados[editingLeadObservaciones.estado].color}`}>
-                    {estados[editingLeadObservaciones.estado].label}
-                  </span>
-                </p>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Observaciones</label>
-                <textarea
-                  id="observaciones-textarea"
-                  defaultValue={editingLeadObservaciones.notas || ""}
-                  placeholder="Agregar observaciones sobre el cliente, llamadas realizadas, intereses, objeciones, etc..."
-                  className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              
-              <div className="flex space-x-3 pt-6">
-                <button 
-                  onClick={() => {
-                    const textarea = document.getElementById("observaciones-textarea") as HTMLTextAreaElement;
-                    if (textarea && editingLeadObservaciones) {
-                      handleUpdateObservaciones(editingLeadObservaciones.id, textarea.value);
-                    }
-                  }}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Guardar Observaciones
-                </button>
-                <button 
-                  onClick={() => {
-                    setShowObservacionesModal(false);
-                    setEditingLeadObservaciones(null);
-                  }}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Nuevo Lead */}
-        {showNewLeadModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-3xl">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">Nuevo Lead</h3>
-                <button onClick={() => setShowNewLeadModal(false)}>
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
-                  <input type="text" id="new-nombre" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
-                  <input type="text" id="new-telefono" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Modelo</label>
-                  <input type="text" id="new-modelo" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Forma de Pago</label>
-                  <select id="new-formaPago" className="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                    <option value="Contado">Contado</option>
-                    <option value="Financiado">Financiado</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Fuente del Lead</label>
-                  <select id="new-fuente" className="w-full px-3 py-2 border border-gray-300 rounded-lg" defaultValue="sitio_web">
-                    {Object.entries(fuentes).map(([key, fuente]) => (
-                      <option key={key} value={key}>
-                        {fuente.icon} {fuente.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Info Usado</label>
-                  <input type="text" id="new-infoUsado" placeholder="Marca Modelo Año" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
-                  <input type="date" id="new-fecha" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                </div>
-                <div className="col-span-2 flex items-center space-x-3">
-                  <input type="checkbox" id="new-entrega" className="rounded border-gray-300 text-blue-600" />
-                  <span className="text-sm text-gray-700">Entrega de vehículo usado</span>
-                </div>
-                <div className="col-span-2 flex items-center space-x-3">
-                  <input type="checkbox" id="new-autoassign" defaultChecked className="rounded border-gray-300 text-blue-600" />
-                  <span className="text-sm text-gray-700">Asignación automática y equitativa a vendedores activos</span>
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Asignar a vendedor (opcional)</label>
-                  <select id="new-vendedor" className="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                    <option value="">Sin asignar</option>
-                    {users
-                      .filter((u: any) => u.role === "vendedor" && visibleUserIds.includes(u.id))
-                      .map((u: any) => (
-                        <option key={u.id} value={u.id}>
-                          {u.name} {u.active ? "" : "(inactivo)"}
-                        </option>
-                      ))}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">Si está tildado "Asignación automática", se ignorará esta selección.</p>
-                </div>
-              </div>
-              <div className="flex space-x-3 pt-6">
-                <button onClick={() => setShowNewLeadModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
-                  Cancelar
-                </button>
-                <button onClick={handleCreateLead} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                  Crear Lead
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Nuevo Evento */}
-        {showNewEventModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-xl">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">Nuevo evento</h3>
-                <button onClick={() => setShowNewEventModal(false)}>
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
-                  <input type="text" id="ev-title" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
-                  <input type="date" id="ev-date" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Hora</label>
-                  <input type="time" id="ev-time" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Usuario</label>
-                  <select id="ev-user" defaultValue={selectedCalendarUserId ?? currentUser?.id} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                    {visibleUsers.map((u: any) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name} — {roles[u.role] || u.role}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="flex space-x-3 pt-6">
-                <button onClick={createEvent} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                  Crear evento
-                </button>
-                <button onClick={() => setShowNewEventModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Crear/Editar Usuario */}
-        {showUserModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-xl">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">{editingUser ? "Editar usuario" : "Nuevo usuario"}</h3>
-                <button onClick={() => setShowUserModal(false)}>
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
-                  <input type="text" id="u-name" defaultValue={editingUser?.name || ""} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input type="email" id="u-email" defaultValue={editingUser?.email || ""} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-                  <input type="password" id="u-pass" placeholder={editingUser ? "(sin cambio)" : ""} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
-                  <select
-                    id="u-role"
-                    value={modalRole}
-                    onChange={(e) => {
-                      const r = e.target.value as typeof modalRole;
-                      setModalRole(r);
-                      const managers = validManagersByRole(r);
-                      setModalReportsTo(r === "owner" ? null : managers[0]?.id ?? null);
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    {currentUser?.role === "owner" && editingUser?.id === currentUser?.id && <option value="owner">{roles["owner"]}</option>}
-                    {validRolesByUser(currentUser).map((role) => (
-                      <option key={role} value={role}>
-                        {roles[role]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Reporta a</label>
-                  <select
-                    id="u-reportsTo"
-                    value={modalReportsTo ?? ""}
-                    onChange={(e) => setModalReportsTo(e.target.value ? parseInt(e.target.value, 10) : null)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    disabled={modalRole === "owner"}
-                  >
-                    {modalRole === "owner" ? (
-                      <option value="">N/A - Dueño</option>
-                    ) : (
-                      validManagersByRole(modalRole).map((m: any) => (
-                        <option key={m.id} value={m.id}>
-                          {m.name} — {roles[m.role] || m.role}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex space-x-3 pt-6">
-                <button onClick={saveUser} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                  Guardar
-                </button>
-                <button onClick={() => setShowUserModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+        {/*
