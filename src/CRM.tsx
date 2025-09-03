@@ -332,7 +332,9 @@ export default function CRM() {
   // ===== Crear Lead y Modales =====
   const [showNewLeadModal, setShowNewLeadModal] = useState(false);
   const [showObservacionesModal, setShowObservacionesModal] = useState(false);
+  const [showHistorialModal, setShowHistorialModal] = useState(false);
   const [editingLeadObservaciones, setEditingLeadObservaciones] = useState<LeadRow | null>(null);
+  const [viewingLeadHistorial, setViewingLeadHistorial] = useState<LeadRow | null>(null);
 
   const handleUpdateObservaciones = async (leadId: number, observaciones: string) => {
     try {
@@ -1172,30 +1174,39 @@ export default function CRM() {
                         <td className="px-6 py-4">
                           <div className="max-w-xs">
                             {lead.historial && lead.historial.length > 0 ? (
-                              <div className="space-y-1">
-                                {lead.historial.slice(-3).map((entry, index) => {
-                                  const fecha = new Date(entry.timestamp).toLocaleString("es-AR", {
-                                    day: "2-digit",
-                                    month: "2-digit",
-                                    hour: "2-digit",
-                                    minute: "2-digit"
-                                  });
-                                  return (
-                                    <div key={index} className="text-xs flex items-center space-x-1">
-                                      <span className={`px-1 py-0.5 rounded text-white text-[10px] ${estados[entry.estado]?.color || 'bg-gray-400'}`}>
-                                        {estados[entry.estado]?.label || entry.estado}
-                                      </span>
-                                      <span className="text-gray-500">{fecha}</span>
-                                      <span className="text-gray-400">por {entry.usuario}</span>
+                              <button
+                                onClick={() => {
+                                  setViewingLeadHistorial(lead);
+                                  setShowHistorialModal(true);
+                                }}
+                                className="w-full text-left hover:bg-gray-50 p-2 rounded border"
+                                title="Click para ver historial completo"
+                              >
+                                <div className="space-y-1">
+                                  {lead.historial.slice(-3).map((entry, index) => {
+                                    const fecha = new Date(entry.timestamp).toLocaleString("es-AR", {
+                                      day: "2-digit",
+                                      month: "2-digit",
+                                      hour: "2-digit",
+                                      minute: "2-digit"
+                                    });
+                                    return (
+                                      <div key={index} className="text-xs flex items-center space-x-1">
+                                        <span className={`px-1 py-0.5 rounded text-white text-[10px] ${estados[entry.estado]?.color || 'bg-gray-400'}`}>
+                                          {estados[entry.estado]?.label || entry.estado}
+                                        </span>
+                                        <span className="text-gray-500">{fecha}</span>
+                                        <span className="text-gray-400">por {entry.usuario}</span>
+                                      </div>
+                                    );
+                                  })}
+                                  {lead.historial.length > 3 && (
+                                    <div className="text-xs text-blue-600 font-medium">
+                                      +{lead.historial.length - 3} más... (Click para ver todo)
                                     </div>
-                                  );
-                                })}
-                                {lead.historial.length > 3 && (
-                                  <div className="text-xs text-gray-400">
-                                    +{lead.historial.length - 3} más...
-                                  </div>
-                                )}
-                              </div>
+                                  )}
+                                </div>
+                              </button>
                             ) : (
                               <span className="text-xs text-gray-400">Sin historial</span>
                             )}
