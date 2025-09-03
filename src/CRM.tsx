@@ -95,14 +95,27 @@ type Alert = {
   read: boolean;
 };
 
+type SeguimientoEntry = {
+  id: number;
+  timestamp: string;
+  usuario: string;
+  usuarioId: number;
+  accion: string;
+  leadId: number;
+  estadoAnterior?: string;
+  estadoNuevo?: string;
+  notas: string;
+};
+
 export default function CRM() {
   const [users, setUsers] = useState<any[]>([]);
   const [leads, setLeads] = useState<LeadRow[]>([]);
+  const [seguimiento, setSeguimiento] = useState<SeguimientoEntry[]>([]);
   const { byId: userById, children: childrenIndex } = useMemo(() => buildIndex(users), [users]);
 
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [activeSection, setActiveSection] = useState<"dashboard" | "leads" | "calendar" | "ranking" | "users" | "alerts" | "team">("dashboard");
+  const [activeSection, setActiveSection] = useState<"dashboard" | "leads" | "calendar" | "ranking" | "users" | "alerts" | "team" | "seguimiento">("dashboard");
   const [loginError, setLoginError] = useState("");
   const [selectedEstado, setSelectedEstado] = useState<string | null>(null);
 
@@ -275,6 +288,23 @@ export default function CRM() {
     return sourceData;
   };
 
+  // ===== Funciones de seguimiento =====
+  const nextSeguimientoId = useRef(1);
+  const addSeguimientoEntry = (action: string, leadId: number, estadoAnterior?: string, estadoNuevo?: string, notas: string = "") => {
+    if (!currentUser) return;
+    setSeguimiento(prev => [...prev, {
+      id: nextSeguimientoId.current++,
+      timestamp: new Date().toISOString(),
+      usuario: currentUser.name,
+      usuarioId: currentUser.id,
+      accion: action,
+      leadId,
+      estadoAnterior,
+      estadoNuevo,
+      notas
+    }]);
+  };
+
   // ===== Acciones de Leads (API) =====
   const mapLeadFromApi = (L: any): LeadRow => ({
     id: L.id,
@@ -293,8 +323,16 @@ export default function CRM() {
 
   const handleUpdateLeadStatus = async (leadId: number, newStatus: string) => {
     try {
+      const leadAnterior = leads.find(l => l.id === leadId);
+      const estadoAnterior = leadAnterior?.estado;
+      
       const updated = await apiUpdateLead(leadId, { estado: newStatus });
       setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...mapLeadFromApi(updated) } : l)));
+      
+      // Registrar en seguimiento
+      if (estadoAnterior && estadoAnterior !== newStatus) {
+        addSeguimientoEntry("Cambio de estado", leadId, estadoAnterior, newStatus, `Estado cambiado de ${estados[estadoAnterior]?.label || estadoAnterior} a ${estados[newStatus]?.label || newStatus}`);
+      }
     } catch (e) {
       console.error("No pude actualizar estado del lead", e);
     }
@@ -311,6 +349,9 @@ export default function CRM() {
       setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...mapLeadFromApi(updated) } : l)));
       setShowObservacionesModal(false);
       setEditingLeadObservaciones(null);
+      
+      // Registrar en seguimiento
+      addSeguimientoEntry("Actualización de observaciones", leadId, undefined, undefined, `Observaciones actualizadas: ${observaciones.slice(0, 100)}${observaciones.length > 100 ? '...' : ''}`);
     } catch (e) {
       console.error("No pude actualizar observaciones del lead", e);
     }
@@ -351,6 +392,9 @@ export default function CRM() {
         if (mapped.vendedor) pushAlert(mapped.vendedor, "lead_assigned", `Nuevo lead asignado: ${mapped.nombre}`);
         setLeads((prev) => [mapped, ...prev]);
         setShowNewLeadModal(false);
+        
+        // Registrar en seguimiento
+        addSeguimientoEntry("Creación de lead", mapped.id, undefined, "nuevo", `Nuevo lead creado: ${mapped.nombre} - ${mapped.telefono}`);
       } catch (e) {
         console.error("No pude crear el lead", e);
       }
@@ -599,6 +643,7 @@ export default function CRM() {
             { key: "leads", label: "Leads", Icon: Users },
             { key: "calendar", label: "Calendario", Icon: Calendar },
             { key: "ranking", label: "Ranking", Icon: Trophy },
+            { key: "seguimiento", label: "Seguimiento", Icon: BarChart3 },
             ...(currentUser?.role === "supervisor" ? [{ key: "team", label: "Mi Equipo", Icon: UserCheck }] : []),
             ...(canManageUsers() ? [{ key: "users", label: "Usuarios", Icon: Settings }] : []),
           ].map(({ key, label, Icon }) => (
@@ -1283,6 +1328,11 @@ export default function CRM() {
                                   const mapped = mapLeadFromApi(updated);
                                   setLeads((prev) => prev.map((l) => (l.id === lead.id ? mapped : l)));
                                   if (mapped.vendedor) pushAlert(mapped.vendedor, "lead_assigned", `Te reasignaron el lead: ${mapped.nombre}`);
+                                  
+                                  // Registrar en seguimiento
+                                  const vendedorAnterior = lead.vendedor ? userById.get(lead.vendedor)?.name : "Sin asignar";
+                                  const vendedorNuevo = mapped.vendedor ? userById.get(mapped.vendedor)?.name : "Sin asignar";
+                                  addSeguimientoEntry("Reasignación de vendedor", lead.id, undefined, undefined, `Vendedor cambiado de ${vendedorAnterior} a ${vendedorNuevo}`);
                                 } catch (err) {
                                   console.error("No pude reasignar lead", err);
                                 }
@@ -1325,6 +1375,9 @@ export default function CRM() {
                                 try {
                                   await apiDeleteLead(lead.id);
                                   setLeads((prev) => prev.filter((l) => l.id !== lead.id));
+                                  
+                                  // Registrar en seguimiento
+                                  addSeguimientoEntry("Eliminación de lead", lead.id, undefined, undefined, `Lead eliminado: ${lead.nombre} - ${lead.telefono}`);
                                 } catch (e) {
                                   console.error("No pude eliminar lead", e);
                                 }
