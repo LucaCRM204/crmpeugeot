@@ -1207,9 +1207,6 @@ export default function CRM() {
                                 try {
                                   await apiDeleteLead(lead.id);
                                   setLeads((prev) => prev.filter((l) => l.id !== lead.id));
-                                  
-                                  // Registrar en seguimiento
-                                  addSeguimientoEntry("Eliminación de lead", lead.id, undefined, undefined, `Lead eliminado: ${lead.nombre} - ${lead.telefono}`);
                                 } catch (e) {
                                   console.error("No pude eliminar lead", e);
                                 }
