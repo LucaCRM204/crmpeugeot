@@ -1430,6 +1430,106 @@ export default function CRM() {
           </div>
         )}
 
+        {/* Modal: Historial Completo del Lead */}
+        {showHistorialModal && viewingLeadHistorial && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">
+                  Historial Completo - {viewingLeadHistorial.nombre}
+                </h3>
+                <button onClick={() => {
+                  setShowHistorialModal(false);
+                  setViewingLeadHistorial(null);
+                }}>
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+              
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <span className="font-medium text-gray-700">Cliente:</span>
+                    <p className="text-gray-900">{viewingLeadHistorial.nombre}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Teléfono:</span>
+                    <p className="text-gray-900">{viewingLeadHistorial.telefono}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Vehículo:</span>
+                    <p className="text-gray-900">{viewingLeadHistorial.modelo}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Estado actual:</span>
+                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium text-white ${estados[viewingLeadHistorial.estado].color}`}>
+                      {estados[viewingLeadHistorial.estado].label}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto">
+                <h4 className="text-lg font-semibold text-gray-800 mb-4">
+                  Historial de Cambios ({viewingLeadHistorial.historial?.length || 0} entradas)
+                </h4>
+                
+                {viewingLeadHistorial.historial && viewingLeadHistorial.historial.length > 0 ? (
+                  <div className="space-y-3">
+                    {[...viewingLeadHistorial.historial].reverse().map((entry, index) => {
+                      const fecha = new Date(entry.timestamp).toLocaleString("es-AR", {
+                        weekday: "long",
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit"
+                      });
+                      
+                      return (
+                        <div key={index} className="flex items-center space-x-4 p-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">
+                          <div className="flex-shrink-0">
+                            <span className={`px-3 py-1 rounded-full text-sm font-medium text-white ${estados[entry.estado]?.color || 'bg-gray-400'}`}>
+                              {estados[entry.estado]?.label || entry.estado}
+                            </span>
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-900 capitalize">{fecha}</p>
+                            <p className="text-xs text-gray-500">Cambiado por {entry.usuario}</p>
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            #{viewingLeadHistorial.historial!.length - index}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="text-gray-400 mb-2">
+                      <BarChart3 size={48} className="mx-auto" />
+                    </div>
+                    <p className="text-gray-500">No hay historial de cambios para este lead</p>
+                    <p className="text-gray-400 text-sm mt-1">Los cambios de estado aparecerán aquí automáticamente</p>
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex justify-end pt-6 border-t">
+                <button 
+                  onClick={() => {
+                    setShowHistorialModal(false);
+                    setViewingLeadHistorial(null);
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Modal: Observaciones del Lead */}
         {showObservacionesModal && editingLeadObservaciones && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
