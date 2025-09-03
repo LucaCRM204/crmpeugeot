@@ -666,10 +666,22 @@ export default function CRM() {
           </div>
         </div>
 
-        {/* Dashboard */}
+        {/* Dashboard con selector de equipo para Owner/Director */}
         {activeSection === "dashboard" && (
           <div className="space-y-6">
-            <h2 className="text-3xl font-bold text-gray-800">Dashboard</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-bold text-gray-800">Dashboard</h2>
+              {["owner", "director"].includes(currentUser?.role) && (
+                <select
+                  value={selectedTeam}
+                  onChange={(e) => setSelectedTeam(e.target.value as 'roberto' | 'daniel')}
+                  className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                >
+                  <option value="roberto">Equipo Roberto</option>
+                  <option value="daniel">Equipo Daniel</option>
+                </select>
+              )}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {(() => {
                 const stats = getDashboardStats();
