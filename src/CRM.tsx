@@ -748,7 +748,7 @@ export default function CRM() {
                 </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Usuario</label>
-                  <select id="ev-user" defaultValue={selectedCalendarUserId ?? currentUser?.id} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                  <select id="ev-user" defaultValue={currentUser?.id} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
                     {visibleUsers.map((u: any) => (
                       <option key={u.id} value={u.id}>
                         {u.name} — {roles[u.role] || u.role}
