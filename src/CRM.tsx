@@ -925,24 +925,323 @@ export default function CRM() {
               })()}
             </div>
 
-            {/* Vista por Estados - Similar al Dashboard */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4">Leads por Estado en mi Organización</h3>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                {Object.entries(estados).map(([key, estado]) => {
-                  const accessibleIds = getAccessibleUserIds(currentUser);
-                  const count = leads.filter((l) => l.vendedor && accessibleIds.includes(l.vendedor) && l.estado === key).length;
-                  return (
-                    <div key={key} className="text-center">
-                      <div className={`${estado.color} text-white rounded-lg p-4 mb-2`}>
-                        <div className="text-2xl font-bold">{count}</div>
+            {/* Vista por Estados por Gerente - Desplegable como Dashboard */}
+            {["director", "owner"].includes(currentUser?.role || "") && (
+              <>
+                {users
+                  .filter((u: any) => {
+                    if (currentUser?.role === "director") return u.role === "gerente" && u.reportsTo === currentUser.id;
+                    if (currentUser?.role === "owner") return u.role === "gerente";
+                    return false;
+                  })
+                  .map((gerente: any) => {
+                    const supervisoresDelGerente = users.filter((u: any) => u.role === "supervisor" && u.reportsTo === gerente.id);
+                    const vendedoresDelGerente = users.filter((u: any) => u.role === "vendedor" && 
+                      supervisoresDelGerente.some(sup => sup.id === u.reportsTo));
+                    const leadsDelGerente = leads.filter((l) => vendedoresDelGerente.some((v: any) => v.id === l.vendedor));
+                    
+                    return (
+                      <div key={gerente.id} className="bg-white rounded-xl shadow-lg p-6 mb-6">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-xl font-semibold text-gray-800">
+                            Leads por Estado - Equipo de {gerente.name}
+                          </h3>
+                          <div className="text-sm text-gray-600">
+                            {supervisoresDelGerente.length} supervisores • {vendedoresDelGerente.length} vendedores
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+                          {Object.entries(estados).map(([key, estado]) => {
+                            const count = leadsDelGerente.filter((l) => l.estado === key).length;
+                            return (
+                              <button
+                                key={key}
+                                onClick={() => setSelectedEstado(selectedEstado === `${gerente.id}-${key}` ? null : `${gerente.id}-${key}`)}
+                                className={`text-center transition-all duration-200 transform hover:scale-105 ${
+                                  selectedEstado === `${gerente.id}-${key}` ? "ring-4 ring-blue-300 ring-opacity-50" : ""
+                                }`}
+                                title={`Ver leads del equipo de ${gerente.name} en estado: ${estado.label}`}
+                              >
+                                <div className={`${estado.color} text-white rounded-lg p-4 mb-2 hover:opacity-90`}>
+                                  <div className="text-2xl font-bold">{count}</div>
+                                </div>
+                                <div className="text-sm text-gray-600">{estado.label}</div>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Lista filtrada de leads por estado y gerente */}
+                        {selectedEstado && selectedEstado.startsWith(`${gerente.id}-`) && (
+                          <div className="mt-6 border-t pt-6">
+                            {(() => {
+                              const estadoKey = selectedEstado.split('-')[1];
+                              const leadsFiltrados = leadsDelGerente.filter(l => l.estado === estadoKey);
+                              
+                              return (
+                                <div>
+                                  <div className="flex items-center justify-between mb-4">
+                                    <h4 className="text-lg font-semibold text-gray-800">
+                                      Leads del equipo de {gerente.name} en estado: 
+                                      <span className={`ml-2 px-3 py-1 rounded-full text-white text-sm ${estados[estadoKey].color}`}>
+                                        {estados[estadoKey].label}
+                                      </span>
+                                    </h4>
+                                    <button 
+                                      onClick={() => setSelectedEstado(null)}
+                                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
+                                    >
+                                      <X size={16} />
+                                      <span>Cerrar filtro</span>
+                                    </button>
+                                  </div>
+                                  
+                                  {leadsFiltrados.length === 0 ? (
+                                    <p className="text-gray-500 text-center py-8">
+                                      No hay leads del equipo de {gerente.name} en estado "{estados[estadoKey].label}"
+                                    </p>
+                                  ) : (
+                                    <div className="overflow-x-auto">
+                                      <table className="w-full text-sm">
+                                        <thead className="bg-gray-50">
+                                          <tr>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Teléfono</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vehículo</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fuente</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vendedor</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Supervisor</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                                            <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-200">
+                                          {leadsFiltrados.map((lead) => {
+                                            const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
+                                            const supervisor = vendedor ? userById.get(vendedor.reportsTo) : null;
+                                            return (
+                                              <tr key={lead.id} className="hover:bg-gray-50">
+                                                <td className="px-4 py-2">
+                                                  <div className="font-medium text-gray-900">{lead.nombre}</div>
+                                                </td>
+                                                <td className="px-4 py-2">
+                                                  <div className="flex items-center space-x-1">
+                                                    <Phone size={12} className="text-gray-400" />
+                                                    <span className="text-gray-700">{lead.telefono}</span>
+                                                  </div>
+                                                </td>
+                                                <td className="px-4 py-2">
+                                                  <div>
+                                                    <div className="font-medium text-gray-900">{lead.modelo}</div>
+                                                    <div className="text-xs text-gray-500">{lead.formaPago}</div>
+                                                    {lead.infoUsado && <div className="text-xs text-orange-600">Usado: {lead.infoUsado}</div>}
+                                                  </div>
+                                                </td>
+                                                <td className="px-4 py-2">
+                                                  <div className="flex items-center space-x-1">
+                                                    <span className="text-sm">{fuentes[lead.fuente as string]?.icon || "❓"}</span>
+                                                    <span className="text-xs text-gray-600">
+                                                      {fuentes[lead.fuente as string]?.label || String(lead.fuente)}
+                                                    </span>
+                                                  </div>
+                                                </td>
+                                                <td className="px-4 py-2 text-gray-700">
+                                                  {vendedor?.name || "Sin asignar"}
+                                                </td>
+                                                <td className="px-4 py-2 text-gray-600 text-xs">
+                                                  {supervisor?.name || "—"}
+                                                </td>
+                                                <td className="px-4 py-2 text-gray-500 text-xs">
+                                                  {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
+                                                </td>
+                                                <td className="px-4 py-2 text-center">
+                                                  <div className="flex items-center justify-center space-x-1">
+                                                    <button
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setEditingLeadObservaciones(lead);
+                                                        setShowObservacionesModal(true);
+                                                      }}
+                                                      className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                                      title="Ver/Editar observaciones"
+                                                    >
+                                                      {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
+                                                    </button>
+                                                    <button
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setActiveSection("leads");
+                                                      }}
+                                                      className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                                      title="Ver en tabla completa"
+                                                    >
+                                                      Ver
+                                                    </button>
+                                                  </div>
+                                                </td>
+                                              </tr>
+                                            );
+                                          })}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
                       </div>
-                      <div className="text-sm text-gray-600">{estado.label}</div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+              </>
+            )}
+
+            {/* Vista general para gerentes y supervisores */}
+            {["gerente", "supervisor"].includes(currentUser?.role || "") && (
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-semibold text-gray-800">Leads por Estado en mi Organización</h3>
+                  {selectedEstado && (
+                    <button 
+                      onClick={() => setSelectedEstado(null)}
+                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
+                    >
+                      <X size={16} />
+                      <span>Cerrar filtro</span>
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  {Object.entries(estados).map(([key, estado]) => {
+                    const accessibleIds = getAccessibleUserIds(currentUser);
+                    const count = leads.filter((l) => l.vendedor && accessibleIds.includes(l.vendedor) && l.estado === key).length;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => setSelectedEstado(selectedEstado === key ? null : key)}
+                        className={`text-center transition-all duration-200 transform hover:scale-105 ${
+                          selectedEstado === key ? "ring-4 ring-blue-300 ring-opacity-50" : ""
+                        }`}
+                        title={`Ver todos los leads en estado: ${estado.label}`}
+                      >
+                        <div className={`${estado.color} text-white rounded-lg p-4 mb-2 hover:opacity-90`}>
+                          <div className="text-2xl font-bold">{count}</div>
+                        </div>
+                        <div className="text-sm text-gray-600">{estado.label}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Lista filtrada para gerentes y supervisores */}
+                {selectedEstado && !selectedEstado.includes('-') && (
+                  <div className="mt-6 border-t pt-6">
+                    <h4 className="text-lg font-semibold text-gray-800 mb-4">
+                      Leads en estado: <span className={`px-3 py-1 rounded-full text-white text-sm ${estados[selectedEstado].color}`}>
+                        {estados[selectedEstado].label}
+                      </span>
+                    </h4>
+                    
+                    {(() => {
+                      const accessibleIds = getAccessibleUserIds(currentUser);
+                      const leadsFiltrados = leads.filter((l) => l.vendedor && accessibleIds.includes(l.vendedor) && l.estado === selectedEstado);
+                      
+                      if (leadsFiltrados.length === 0) {
+                        return (
+                          <p className="text-gray-500 text-center py-8">
+                            No hay leads en estado "{estados[selectedEstado].label}"
+                          </p>
+                        );
+                      }
+
+                      return (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Teléfono</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vehículo</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fuente</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vendedor</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                                <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {leadsFiltrados.map((lead) => {
+                                const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
+                                return (
+                                  <tr key={lead.id} className="hover:bg-gray-50">
+                                    <td className="px-4 py-2">
+                                      <div className="font-medium text-gray-900">{lead.nombre}</div>
+                                    </td>
+                                    <td className="px-4 py-2">
+                                      <div className="flex items-center space-x-1">
+                                        <Phone size={12} className="text-gray-400" />
+                                        <span className="text-gray-700">{lead.telefono}</span>
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-2">
+                                      <div>
+                                        <div className="font-medium text-gray-900">{lead.modelo}</div>
+                                        <div className="text-xs text-gray-500">{lead.formaPago}</div>
+                                        {lead.infoUsado && <div className="text-xs text-orange-600">Usado: {lead.infoUsado}</div>}
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-2">
+                                      <div className="flex items-center space-x-1">
+                                        <span className="text-sm">{fuentes[lead.fuente as string]?.icon || "❓"}</span>
+                                        <span className="text-xs text-gray-600">
+                                          {fuentes[lead.fuente as string]?.label || String(lead.fuente)}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-2 text-gray-700">
+                                      {vendedor?.name || "Sin asignar"}
+                                    </td>
+                                    <td className="px-4 py-2 text-gray-500 text-xs">
+                                      {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
+                                    </td>
+                                    <td className="px-4 py-2 text-center">
+                                      <div className="flex items-center justify-center space-x-1">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setEditingLeadObservaciones(lead);
+                                            setShowObservacionesModal(true);
+                                          }}
+                                          className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                          title="Ver/Editar observaciones"
+                                        >
+                                          {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
+                                        </button>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveSection("leads");
+                                          }}
+                                          className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                          title="Ver en tabla completa"
+                                        >
+                                          Ver
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
-            </div>
+            )}
 
             {/* Vista jerárquica por roles */}
             {currentUser?.role !== "supervisor" && (
