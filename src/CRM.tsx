@@ -867,24 +867,42 @@ export default function CRM() {
           </div>
         )}
 
-        {/* Mi Equipo - Vista para Supervisores */}
-        {activeSection === "team" && currentUser?.role === "supervisor" && (
+        {/* Mi Equipo - Vista jerárquica para Supervisores, Gerentes, Directores y Dueño */}
+        {activeSection === "team" && ["supervisor", "gerente", "director", "owner"].includes(currentUser?.role || "") && (
           <div className="space-y-6">
-            <h2 className="text-3xl font-bold text-gray-800">Mi Equipo de Vendedores</h2>
+            <h2 className="text-3xl font-bold text-gray-800">
+              {currentUser?.role === "supervisor" && "Mi Equipo de Vendedores"}
+              {currentUser?.role === "gerente" && "Mi Organización"}
+              {currentUser?.role === "director" && "Mi División"}
+              {currentUser?.role === "owner" && "Organización Completa"}
+            </h2>
             
-            {/* Estadísticas generales del equipo */}
+            {/* Estadísticas generales */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               {(() => {
-                const misVendedores = users.filter((u: any) => u.role === "vendedor" && u.reportsTo === currentUser.id);
-                const totalLeadsEquipo = leads.filter((l) => misVendedores.some((v: any) => v.id === l.vendedor)).length;
-                const vendidosEquipo = leads.filter((l) => misVendedores.some((v: any) => v.id === l.vendedor) && l.estado === "vendido").length;
+                let miEquipo: any[] = [];
+                let totalLeadsEquipo = 0;
+                let vendidosEquipo = 0;
+                
+                if (currentUser?.role === "supervisor") {
+                  miEquipo = users.filter((u: any) => u.role === "vendedor" && u.reportsTo === currentUser.id);
+                  totalLeadsEquipo = leads.filter((l) => miEquipo.some((v: any) => v.id === l.vendedor)).length;
+                  vendidosEquipo = leads.filter((l) => miEquipo.some((v: any) => v.id === l.vendedor) && l.estado === "vendido").length;
+                } else {
+                  // Para gerente, director y owner: incluir toda su estructura
+                  const accessibleIds = getAccessibleUserIds(currentUser);
+                  miEquipo = users.filter((u: any) => accessibleIds.includes(u.id) && u.id !== currentUser.id);
+                  totalLeadsEquipo = leads.filter((l) => l.vendedor && accessibleIds.includes(l.vendedor)).length;
+                  vendidosEquipo = leads.filter((l) => l.vendedor && accessibleIds.includes(l.vendedor) && l.estado === "vendido").length;
+                }
+                
                 const conversionEquipo = totalLeadsEquipo > 0 ? ((vendidosEquipo / totalLeadsEquipo) * 100).toFixed(1) : "0";
                 
                 return (
                   <>
                     <div className="bg-white rounded-lg shadow p-4">
-                      <p className="text-sm text-gray-600">Vendedores</p>
-                      <p className="text-2xl font-bold">{misVendedores.length}</p>
+                      <p className="text-sm text-gray-600">Personal Total</p>
+                      <p className="text-2xl font-bold">{miEquipo.length}</p>
                     </div>
                     <div className="bg-white rounded-lg shadow p-4">
                       <p className="text-sm text-gray-600">Total Leads</p>
@@ -903,128 +921,262 @@ export default function CRM() {
               })()}
             </div>
 
-            {/* Detalle por vendedor */}
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vendedor</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Estado</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Nuevos</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Contactados</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Interesados</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Negociación</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Vendidos</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Perdidos</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Total</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Conversión</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {users
-                    .filter((u: any) => u.role === "vendedor" && u.reportsTo === currentUser?.id)
-                    .map((vendedor: any) => {
-                      const leadsVendedor = leads.filter((l) => l.vendedor === vendedor.id);
-                      const stats = {
-                        nuevo: leadsVendedor.filter((l) => l.estado === "nuevo").length,
-                        contactado: leadsVendedor.filter((l) => l.estado === "contactado").length,
-                        interesado: leadsVendedor.filter((l) => l.estado === "interesado").length,
-                        negociacion: leadsVendedor.filter((l) => l.estado === "negociacion").length,
-                        vendido: leadsVendedor.filter((l) => l.estado === "vendido").length,
-                        perdido: leadsVendedor.filter((l) => l.estado === "perdido").length,
-                        total: leadsVendedor.length
-                      };
-                      const conversion = stats.total > 0 ? ((stats.vendido / stats.total) * 100).toFixed(1) : "0";
+            {/* Vista por Supervisores (para Gerentes, Directores y Dueño) */}
+            {["gerente", "director", "owner"].includes(currentUser?.role || "") && (
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <h3 className="text-xl font-semibold text-gray-800 mb-4">Resumen por Supervisores</h3>
+                <div className="space-y-4">
+                  {(() => {
+                    let supervisoresAMostrar: any[] = [];
+                    
+                    if (currentUser?.role === "gerente") {
+                      supervisoresAMostrar = users.filter((u: any) => u.role === "supervisor" && u.reportsTo === currentUser.id);
+                    } else if (currentUser?.role === "director") {
+                      const gerentesACargo = users.filter((u: any) => u.role === "gerente" && u.reportsTo === currentUser.id);
+                      supervisoresAMostrar = users.filter((u: any) => u.role === "supervisor" && gerentesACargo.some(g => g.id === u.reportsTo));
+                    } else if (currentUser?.role === "owner") {
+                      supervisoresAMostrar = users.filter((u: any) => u.role === "supervisor");
+                    }
+                    
+                    return supervisoresAMostrar.map((supervisor: any) => {
+                      const vendedoresDeSupervisor = users.filter((u: any) => u.role === "vendedor" && u.reportsTo === supervisor.id);
+                      const leadsSupervisor = leads.filter((l) => vendedoresDeSupervisor.some((v: any) => v.id === l.vendedor));
+                      const ventasSupervisor = leadsSupervisor.filter((l) => l.estado === "vendido").length;
+                      const conversionSup = leadsSupervisor.length > 0 ? ((ventasSupervisor / leadsSupervisor.length) * 100).toFixed(1) : "0";
+                      const gerenteNombre = userById.get(supervisor.reportsTo)?.name || "Sin gerente";
                       
                       return (
-                        <tr key={vendedor.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4">
-                            <div className="flex items-center">
-                              <div>
-                                <div className="text-sm font-medium text-gray-900">{vendedor.name}</div>
-                                <div className="text-xs text-gray-500">{vendedor.email}</div>
-                              </div>
+                        <div key={supervisor.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <h4 className="font-medium text-gray-800">{supervisor.name}</h4>
+                              <p className="text-sm text-gray-600">Supervisor - Reporta a: {gerenteNombre}</p>
+                              <p className="text-xs text-gray-500">{vendedoresDeSupervisor.length} vendedores a cargo</p>
                             </div>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <span className={`px-2 py-1 text-xs rounded-full ${
-                              vendedor.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
-                            }`}>
-                              {vendedor.active ? "Activo" : "Inactivo"}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <span className="text-blue-600 font-medium">{stats.nuevo}</span>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <span className="text-yellow-600 font-medium">{stats.contactado}</span>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <span className="text-orange-600 font-medium">{stats.interesado}</span>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <span className="text-purple-600 font-medium">{stats.negociacion}</span>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <span className="text-green-600 font-bold">{stats.vendido}</span>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <span className="text-red-600 font-medium">{stats.perdido}</span>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <span className="font-bold">{stats.total}</span>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <div className="flex items-center justify-center">
-                              <span className={`text-sm font-bold ${
-                                parseFloat(conversion) > 20 ? "text-green-600" : 
-                                parseFloat(conversion) > 10 ? "text-yellow-600" : "text-red-600"
-                              }`}>
-                                {conversion}%
-                              </span>
+                            <div className="text-right">
+                              <div className="text-lg font-bold text-gray-800">{ventasSupervisor} ventas</div>
+                              <div className="text-sm text-gray-600">{leadsSupervisor.length} leads</div>
+                              <div className="text-sm font-medium text-blue-600">{conversionSup}%</div>
                             </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Gráfico de rendimiento por vendedor */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4">Rendimiento del Equipo</h3>
-              <div className="space-y-4">
-                {users
-                  .filter((u: any) => u.role === "vendedor" && u.reportsTo === currentUser?.id)
-                  .map((vendedor: any) => {
-                    const leadsVendedor = leads.filter((l) => l.vendedor === vendedor.id);
-                    const vendidos = leadsVendedor.filter((l) => l.estado === "vendido").length;
-                    const total = leadsVendedor.length;
-                    const porcentaje = total > 0 ? (vendidos / total) * 100 : 0;
-                    
-                    return (
-                      <div key={vendedor.id} className="flex items-center space-x-4">
-                        <div className="w-32 text-sm font-medium text-gray-700">{vendedor.name}</div>
-                        <div className="flex-1">
-                          <div className="w-full bg-gray-200 rounded-full h-6 relative">
-                            <div 
-                              className="bg-gradient-to-r from-blue-500 to-green-500 h-6 rounded-full"
-                              style={{ width: `${porcentaje}%` }}
-                            />
-                            <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-gray-700">
-                              {vendidos}/{total} leads
-                            </span>
+                          </div>
+                          
+                          {/* Vendedores de este supervisor */}
+                          <div className="ml-4 space-y-2">
+                            {vendedoresDeSupervisor.map((vendedor: any) => {
+                              const leadsVendedor = leads.filter((l) => l.vendedor === vendedor.id);
+                              const ventasVendedor = leadsVendedor.filter((l) => l.estado === "vendido").length;
+                              const conversionVend = leadsVendedor.length > 0 ? ((ventasVendedor / leadsVendedor.length) * 100).toFixed(1) : "0";
+                              
+                              return (
+                                <div key={vendedor.id} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded">
+                                  <div className="flex items-center">
+                                    <div className="w-2 h-2 bg-blue-400 rounded-full mr-3"></div>
+                                    <div>
+                                      <span className="text-sm font-medium text-gray-700">{vendedor.name}</span>
+                                      <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${
+                                        vendedor.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                                      }`}>
+                                        {vendedor.active ? "Activo" : "Inactivo"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="text-right text-xs">
+                                    <div className="font-medium">{ventasVendedor}/{leadsVendedor.length}</div>
+                                    <div className="text-gray-500">{conversionVend}%</div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {vendedoresDeSupervisor.length === 0 && (
+                              <p className="text-xs text-gray-400 ml-3">Sin vendedores asignados</p>
+                            )}
                           </div>
                         </div>
-                        <div className="w-16 text-right font-bold text-gray-700">
-                          {porcentaje.toFixed(0)}%
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    });
+                  })()}
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* Vista detallada de vendedores (solo para Supervisor) */}
+            {currentUser?.role === "supervisor" && (
+              <>
+                {/* Detalle por vendedor */}
+                <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vendedor</th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Estado</th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Nuevos</th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Contactados</th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Interesados</th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Negociación</th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Vendidos</th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Perdidos</th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Total</th>
+                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Conversión</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {users
+                        .filter((u: any) => u.role === "vendedor" && u.reportsTo === currentUser?.id)
+                        .map((vendedor: any) => {
+                          const leadsVendedor = leads.filter((l) => l.vendedor === vendedor.id);
+                          const stats = {
+                            nuevo: leadsVendedor.filter((l) => l.estado === "nuevo").length,
+                            contactado: leadsVendedor.filter((l) => l.estado === "contactado").length,
+                            interesado: leadsVendedor.filter((l) => l.estado === "interesado").length,
+                            negociacion: leadsVendedor.filter((l) => l.estado === "negociacion").length,
+                            vendido: leadsVendedor.filter((l) => l.estado === "vendido").length,
+                            perdido: leadsVendedor.filter((l) => l.estado === "perdido").length,
+                            total: leadsVendedor.length
+                          };
+                          const conversion = stats.total > 0 ? ((stats.vendido / stats.total) * 100).toFixed(1) : "0";
+                          
+                          return (
+                            <tr key={vendedor.id} className="hover:bg-gray-50">
+                              <td className="px-6 py-4">
+                                <div className="flex items-center">
+                                  <div>
+                                    <div className="text-sm font-medium text-gray-900">{vendedor.name}</div>
+                                    <div className="text-xs text-gray-500">{vendedor.email}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <span className={`px-2 py-1 text-xs rounded-full ${
+                                  vendedor.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+                                }`}>
+                                  {vendedor.active ? "Activo" : "Inactivo"}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <span className="text-blue-600 font-medium">{stats.nuevo}</span>
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <span className="text-yellow-600 font-medium">{stats.contactado}</span>
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <span className="text-orange-600 font-medium">{stats.interesado}</span>
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <span className="text-purple-600 font-medium">{stats.negociacion}</span>
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <span className="text-green-600 font-bold">{stats.vendido}</span>
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <span className="text-red-600 font-medium">{stats.perdido}</span>
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <span className="font-bold">{stats.total}</span>
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <div className="flex items-center justify-center">
+                                  <span className={`text-sm font-bold ${
+                                    parseFloat(conversion) > 20 ? "text-green-600" : 
+                                    parseFloat(conversion) > 10 ? "text-yellow-600" : "text-red-600"
+                                  }`}>
+                                    {conversion}%
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Gráfico de rendimiento por vendedor */}
+                <div className="bg-white rounded-xl shadow-lg p-6">
+                  <h3 className="text-xl font-semibold text-gray-800 mb-4">Rendimiento del Equipo</h3>
+                  <div className="space-y-4">
+                    {users
+                      .filter((u: any) => u.role === "vendedor" && u.reportsTo === currentUser?.id)
+                      .map((vendedor: any) => {
+                        const leadsVendedor = leads.filter((l) => l.vendedor === vendedor.id);
+                        const vendidos = leadsVendedor.filter((l) => l.estado === "vendido").length;
+                        const total = leadsVendedor.length;
+                        const porcentaje = total > 0 ? (vendidos / total) * 100 : 0;
+                        
+                        return (
+                          <div key={vendedor.id} className="flex items-center space-x-4">
+                            <div className="w-32 text-sm font-medium text-gray-700">{vendedor.name}</div>
+                            <div className="flex-1">
+                              <div className="w-full bg-gray-200 rounded-full h-6 relative">
+                                <div 
+                                  className="bg-gradient-to-r from-blue-500 to-green-500 h-6 rounded-full"
+                                  style={{ width: `${porcentaje}%` }}
+                                />
+                                <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-gray-700">
+                                  {vendidos}/{total} leads
+                                </span>
+                              </div>
+                            </div>
+                            <div className="w-16 text-right font-bold text-gray-700">
+                              {porcentaje.toFixed(0)}%
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Ranking general de vendedores (para roles superiores) */}
+            {["gerente", "director", "owner"].includes(currentUser?.role || "") && (
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <h3 className="text-xl font-semibold text-gray-800 mb-4">Top Vendedores en mi Organización</h3>
+                <div className="space-y-3">
+                  {(() => {
+                    const accessibleIds = getAccessibleUserIds(currentUser);
+                    const vendedoresEnScope = users.filter((u: any) => u.role === "vendedor" && accessibleIds.includes(u.id));
+                    
+                    return vendedoresEnScope
+                      .map((vendedor: any) => {
+                        const leadsVendedor = leads.filter((l) => l.vendedor === vendedor.id);
+                        const ventasVendedor = leadsVendedor.filter((l) => l.estado === "vendido").length;
+                        const supervisorNombre = userById.get(vendedor.reportsTo)?.name || "Sin supervisor";
+                        
+                        return {
+                          ...vendedor,
+                          ventas: ventasVendedor,
+                          totalLeads: leadsVendedor.length,
+                          supervisor: supervisorNombre,
+                          conversion: leadsVendedor.length > 0 ? ((ventasVendedor / leadsVendedor.length) * 100).toFixed(1) : "0"
+                        };
+                      })
+                      .sort((a, b) => b.ventas - a.ventas)
+                      .slice(0, 10)
+                      .map((vendedor, index) => (
+                        <div key={vendedor.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div className="flex items-center space-x-4">
+                            <div
+                              className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm ${
+                                index === 0 ? "bg-yellow-500" : index === 1 ? "bg-gray-400" : index === 2 ? "bg-orange-600" : "bg-gray-300"
+                              }`}
+                            >
+                              {index + 1}
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-800">{vendedor.name}</div>
+                              <div className="text-xs text-gray-600">Supervisor: {vendedor.supervisor}</div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold text-gray-800">{vendedor.ventas} ventas</div>
+                            <div className="text-xs text-gray-600">{vendedor.totalLeads} leads - {vendedor.conversion}%</div>
+                          </div>
+                        </div>
+                      ));
+                  })()}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
