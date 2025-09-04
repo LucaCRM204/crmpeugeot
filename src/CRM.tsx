@@ -818,6 +818,12 @@ export default function CRM() {
                       </option>
                     ))}
                   </select>
+                  <div className="mt-2 text-xs space-y-1">
+                    <div className="text-green-600">💬 Bot CM 1 → Equipo Sauer automáticamente</div>
+                    <div className="text-green-600">💬 Bot CM 2 → Equipo Daniel automáticamente</div>
+                    <div className="text-green-600">💬 Bot 100 → Distribución general</div>
+                    <div className="text-gray-500">Otras fuentes → Asignación manual o scope actual</div>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Info Usado</label>
@@ -1589,7 +1595,37 @@ export default function CRM() {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {users
-                      .filter((u: any) => visibleUserIds.includes(u.id))
+                      .filter((u: any) => {
+                        // Owner ve a todos
+                        if (currentUser?.role === "owner") return true;
+                        
+                        // Director ve a todos menos al owner
+                        if (currentUser?.role === "director") return u.role !== "owner";
+                        
+                        // Gerente solo ve a sus supervisores y vendedores bajo esos supervisores
+                        if (currentUser?.role === "gerente") {
+                          // Ve a sí mismo
+                          if (u.id === currentUser.id) return true;
+                          
+                          // Ve a sus supervisores directos
+                          if (u.reportsTo === currentUser.id) return true;
+                          
+                          // Ve a los vendedores que reportan a sus supervisores
+                          const userSupervisor = userById.get(u.reportsTo);
+                          return userSupervisor && userSupervisor.reportsTo === currentUser.id;
+                        }
+                        
+                        // Supervisor solo ve a sus vendedores directos
+                        if (currentUser?.role === "supervisor") {
+                          // Ve a sí mismo
+                          if (u.id === currentUser.id) return true;
+                          
+                          // Ve a sus vendedores directos
+                          return u.reportsTo === currentUser.id;
+                        }
+                        
+                        return false;
+                      })
                       .map((user: any) => {
                         const userLeads = leads.filter((l) => l.vendedor === user.id);
                         const userSales = userLeads.filter((l) => l.estado === "vendido").length;
