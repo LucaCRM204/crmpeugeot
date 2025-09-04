@@ -1727,3 +1727,4 @@ export default function CRM() {
       </div>
     </div>
   );
+}
