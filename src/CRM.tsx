@@ -71,6 +71,13 @@ const fuentes: Record<string, { label: string; color: string; icon: string }> = 
   otro: { label: "Otro", color: "bg-gray-400", icon: "❓" },
 };
 
+// Configuración de bots
+const botConfig: Record<string, { targetTeam: string | null; label: string }> = {
+  whatsapp_bot_cm1: { targetTeam: "sauer", label: "Bot CM 1" },
+  whatsapp_bot_cm2: { targetTeam: "daniel", label: "Bot CM 2" },
+  whatsapp_100: { targetTeam: null, label: "Bot 100" }, // null = distribución general
+};
+
 type LeadRow = {
   id: number;
   nombre: string;
@@ -177,15 +184,50 @@ export default function CRM() {
   const canManageUsers = () => currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
   const isOwner = () => currentUser?.role === "owner";
 
-  // ===== Round-robin =====
+  // ===== Round-robin con soporte para bots específicos =====
   const [rrIndex, setRrIndex] = useState(0);
+  
   const getActiveVendorIdsInScope = (scopeUser?: any) => {
     if (!scopeUser) return [] as number[];
     const scope = getAccessibleUserIds(scopeUser);
     return users.filter((u: any) => u.role === "vendedor" && u.active && scope.includes(u.id)).map((u: any) => u.id);
   };
-  const pickNextVendorId = (scopeUser?: any) => {
-    const pool = getActiveVendorIdsInScope(scopeUser || currentUser);
+
+  const getVendorsByTeam = (teamName: string) => {
+    // Buscar el gerente del equipo por nombre
+    const manager = users.find((u: any) => 
+      u.role === "gerente" && 
+      u.name.toLowerCase().includes(teamName.toLowerCase())
+    );
+    
+    if (!manager) return [];
+
+    // Obtener todos los descendientes del gerente
+    const descendants = getDescendantUserIds(manager.id, childrenIndex);
+    return users.filter((u: any) => 
+      u.role === "vendedor" && 
+      u.active && 
+      descendants.includes(u.id)
+    ).map((u: any) => u.id);
+  };
+
+  const pickNextVendorId = (scopeUser?: any, botSource?: string) => {
+    let pool: number[] = [];
+
+    if (botSource && botConfig[botSource]) {
+      const botConf = botConfig[botSource];
+      if (botConf.targetTeam) {
+        // Bot específico para un equipo
+        pool = getVendorsByTeam(botConf.targetTeam);
+      } else {
+        // Bot 100 - distribución general
+        pool = getActiveVendorIdsInScope(scopeUser || currentUser);
+      }
+    } else {
+      // Asignación manual normal
+      pool = getActiveVendorIdsInScope(scopeUser || currentUser);
+    }
+
     if (pool.length === 0) return null;
     const id = pool[rrIndex % pool.length];
     setRrIndex((i) => i + 1);
@@ -213,6 +255,43 @@ export default function CRM() {
   const getFilteredLeads = () => {
     if (!currentUser) return [] as LeadRow[];
     return leads.filter((l) => (l.vendedor ? visibleUserIds.includes(l.vendedor) : true));
+  };
+
+  // ===== Nueva función para filtrar usuarios visibles según rol =====
+  const getVisibleUsers = () => {
+    if (!currentUser) return [];
+    
+    return users.filter((u: any) => {
+      // Owner ve a todos
+      if (currentUser.role === "owner") return true;
+      
+      // Director ve a todos menos al owner
+      if (currentUser.role === "director") return u.role !== "owner";
+      
+      // Gerente solo ve a su equipo
+      if (currentUser.role === "gerente") {
+        // Ve a sí mismo
+        if (u.id === currentUser.id) return true;
+        
+        // Ve a sus supervisores directos
+        if (u.reportsTo === currentUser.id) return true;
+        
+        // Ve a los vendedores que reportan a sus supervisores
+        const userSupervisor = userById.get(u.reportsTo);
+        return userSupervisor && userSupervisor.reportsTo === currentUser.id;
+      }
+      
+      // Supervisor solo ve a su equipo directo
+      if (currentUser.role === "supervisor") {
+        // Ve a sí mismo
+        if (u.id === currentUser.id) return true;
+        
+        // Ve a sus vendedores directos
+        return u.reportsTo === currentUser.id;
+      }
+      
+      return false;
+    });
   };
 
   const getRanking = () => {
@@ -362,7 +441,14 @@ export default function CRM() {
 
     const vendedorIdSelRaw = parseInt(vendedorSelVal, 10);
     const vendedorIdSel = Number.isNaN(vendedorIdSelRaw) ? null : vendedorIdSelRaw;
-    const vendedorId = autoAssign ? pickNextVendorId(currentUser) ?? vendedorIdSel ?? null : vendedorIdSel ?? null;
+    
+    // Detectar si es un bot y asignar según configuración
+    let vendedorId: number | null = null;
+    if (autoAssign) {
+      vendedorId = pickNextVendorId(currentUser, fuente) ?? vendedorIdSel ?? null;
+    } else {
+      vendedorId = vendedorIdSel ?? null;
+    }
 
     if (nombre && telefono && modelo && fuente) {
       try {
@@ -396,7 +482,7 @@ export default function CRM() {
   const [selectedCalendarUserId, setSelectedCalendarUserId] = useState<number | null>(null);
   const [showNewEventModal, setShowNewEventModal] = useState(false);
   const visibleUsers = useMemo(
-    () => (currentUser ? users.filter((u: any) => getAccessibleUserIds(currentUser).includes(u.id)) : []),
+    () => (currentUser ? getVisibleUsers() : []),
     [currentUser, users]
   );
   const eventsForSelectedUser = useMemo(() => {
@@ -817,6 +903,10 @@ export default function CRM() {
                         {fuente.icon} {fuente.label}
                       </option>
                     ))}
+                    {/* Opciones específicas para bots */}
+                    <option value="whatsapp_bot_cm1">💬 Bot CM 1 (Equipo Sauer)</option>
+                    <option value="whatsapp_bot_cm2">💬 Bot CM 2 (Equipo Daniel)</option>
+                    <option value="whatsapp_100">💬 Bot 100 (Distribución general)</option>
                   </select>
                   <div className="mt-2 text-xs space-y-1">
                     <div className="text-green-600">💬 Bot CM 1 → Equipo Sauer automáticamente</div>
@@ -845,8 +935,8 @@ export default function CRM() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Asignar a vendedor (opcional)</label>
                   <select id="new-vendedor" className="w-full px-3 py-2 border border-gray-300 rounded-lg">
                     <option value="">Sin asignar</option>
-                    {users
-                      .filter((u: any) => u.role === "vendedor" && visibleUserIds.includes(u.id))
+                    {getVisibleUsers()
+                      .filter((u: any) => u.role === "vendedor")
                       .map((u: any) => (
                         <option key={u.id} value={u.id}>
                           {u.name} {u.active ? "" : "(inactivo)"}
@@ -1105,8 +1195,6 @@ export default function CRM() {
                         <table className="w-full text-sm">
                           <thead className="bg-gray-50">
                             <tr>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Teléfono</th>
                               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vehículo</th>
                               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fuente</th>
                               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vendedor</th>
@@ -1503,70 +1591,309 @@ export default function CRM() {
           </div>
         )}
 
-        {/* Sección Mi Equipo */}
+        {/* Sección Mi Equipo - Nueva vista */}
         {activeSection === "team" && ["supervisor", "gerente", "director", "owner"].includes(currentUser?.role) && (
           <div className="space-y-6">
             <h2 className="text-3xl font-bold text-gray-800">Mi Equipo</h2>
             
+            {/* Estadísticas por estado tipo dashboard */}
             <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4">Integrantes del Equipo</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {users
-                  .filter((u: any) => visibleUserIds.includes(u.id) && u.id !== currentUser?.id)
-                  .map((user: any) => {
-                    const userLeads = leads.filter((l) => l.vendedor === user.id);
-                    const userSales = userLeads.filter((l) => l.estado === "vendido").length;
-                    const conversionRate = userLeads.length > 0 ? ((userSales / userLeads.length) * 100).toFixed(1) : "0";
+              <h3 className="text-xl font-semibold text-gray-800 mb-4">Estados de Leads - Mi Equipo</h3>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                {Object.entries(estados).map(([key, estado]) => {
+                  const count = getFilteredLeads().filter((l) => l.estado === key).length;
+                  return (
+                    <div key={key} className="text-center">
+                      <div className={`${estado.color} text-white rounded-lg p-4 mb-2`}>
+                        <div className="text-2xl font-bold">{count}</div>
+                      </div>
+                      <div className="text-sm text-gray-600">{estado.label}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Top vendedores en mi organización */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h3 className="text-xl font-semibold text-gray-800 mb-4">Top Vendedores en Mi Organización</h3>
+              <div className="space-y-3">
+                {getRankingInScope().map((vendedor, index) => (
+                  <div key={vendedor.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
+                        index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-600' : 'bg-gray-300'
+                      }`}>
+                        {index + 1}
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{vendedor.nombre}</p>
+                        <p className="text-xs text-gray-500">{vendedor.team}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-green-600">{vendedor.ventas} ventas</p>
+                      <p className="text-xs text-gray-500">
+                        {vendedor.leadsAsignados} leads • {vendedor.leadsAsignados > 0 ? ((vendedor.ventas / vendedor.leadsAsignados) * 100).toFixed(0) : 0}%
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {getRankingInScope().length === 0 && (
+                <p className="text-gray-500 text-center py-8">No hay vendedores en tu equipo</p>
+              )}
+            </div>
+
+            {/* Estructura organizacional */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h3 className="text-xl font-semibold text-gray-800 mb-4">Estructura Organizacional</h3>
+              <div className="space-y-6">
+                {/* Mostrar solo los equipos dentro del scope del usuario */}
+                {(() => {
+                  const visibleUsers = getVisibleUsers();
+                  const managers = visibleUsers.filter((u: any) => 
+                    ["gerente", "supervisor"].includes(u.role) && u.id !== currentUser?.id
+                  );
+
+                  if (currentUser?.role === "owner" || currentUser?.role === "director") {
+                    // Owner y Director ven todos los gerentes y sus equipos
+                    const gerentes = visibleUsers.filter((u: any) => u.role === "gerente");
+                    
+                    return gerentes.map((gerente: any) => {
+                      const supervisores = visibleUsers.filter((u: any) => u.reportsTo === gerente.id);
+                      const gerenteLeads = leads.filter((l) => l.vendedor === gerente.id);
+                      const gerenteVentas = gerenteLeads.filter((l) => l.estado === "vendido").length;
+                      
+                      return (
+                        <div key={gerente.id} className="border border-gray-200 rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center">
+                                <span className="text-white font-medium text-sm">
+                                  {gerente.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
+                                </span>
+                              </div>
+                              <div>
+                                <h4 className="font-medium text-gray-900">{gerente.name}</h4>
+                                <p className="text-sm text-gray-500">Gerente</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-medium">{gerenteVentas} ventas</p>
+                              <p className="text-xs text-gray-500">{supervisores.length} supervisores</p>
+                            </div>
+                          </div>
+                          
+                          {/* Supervisores del gerente */}
+                          <div className="ml-6 space-y-3">
+                            {supervisores.map((supervisor: any) => {
+                              const vendedores = visibleUsers.filter((u: any) => u.reportsTo === supervisor.id);
+                              const supervisorLeads = leads.filter((l) => 
+                                vendedores.some((v: any) => v.id === l.vendedor)
+                              );
+                              const supervisorVentas = supervisorLeads.filter((l) => l.estado === "vendido").length;
+                              
+                              return (
+                                <div key={supervisor.id} className="border-l-2 border-gray-300 pl-4">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center space-x-2">
+                                      <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                                        <span className="text-white font-medium text-xs">
+                                          {supervisor.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <p className="font-medium text-gray-900 text-sm">{supervisor.name}</p>
+                                        <p className="text-xs text-gray-500">Supervisor • {vendedores.length} vendedores</p>
+                                      </div>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-sm font-medium text-green-600">{supervisorVentas} ventas</p>
+                                      <p className="text-xs text-gray-500">{supervisorLeads.length} leads</p>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Vendedores del supervisor */}
+                                  <div className="ml-4 grid grid-cols-1 md:grid-cols-2 gap-2">
+                                    {vendedores.map((vendedor: any) => {
+                                      const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
+                                      const vendedorVentas = vendedorLeads.filter((l) => l.estado === "vendido").length;
+                                      const conversion = vendedorLeads.length > 0 ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0) : "0";
+                                      
+                                      return (
+                                        <div key={vendedor.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
+                                          <div className="flex items-center space-x-2">
+                                            <div className="w-6 h-6 bg-gray-400 rounded-full flex items-center justify-center">
+                                              <span className="text-white font-medium text-xs">
+                                                {vendedor.name.split(' ')[0][0]}
+                                              </span>
+                                            </div>
+                                            <span className="text-gray-900">{vendedor.name}</span>
+                                          </div>
+                                          <div className="text-right">
+                                            <span className="font-medium text-green-600">{vendedorVentas}</span>
+                                            <span className="text-gray-500 ml-1">({conversion}%)</span>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    });
+                  } else if (currentUser?.role === "gerente") {
+                    // Gerente ve solo su equipo
+                    const supervisores = visibleUsers.filter((u: any) => u.reportsTo === currentUser.id);
                     
                     return (
-                      <div key={user.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                        <div className="flex items-center space-x-3 mb-3">
-                          <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-                            <span className="text-white font-medium text-sm">
-                              {user.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
-                            </span>
+                      <div className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center">
+                              <span className="text-white font-medium text-sm">
+                                {currentUser.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
+                              </span>
+                            </div>
+                            <div>
+                              <h4 className="font-medium text-gray-900">{currentUser.name} (Tú)</h4>
+                              <p className="text-sm text-gray-500">Gerente</p>
+                            </div>
                           </div>
-                          <div>
-                            <h4 className="font-medium text-gray-900">{user.name}</h4>
-                            <p className="text-xs text-gray-500">{roles[user.role] || user.role}</p>
+                          <div className="text-right">
+                            <p className="text-sm font-medium">{supervisores.length} supervisores</p>
                           </div>
                         </div>
                         
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Leads asignados:</span>
-                            <span className="font-medium">{userLeads.length}</span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Ventas:</span>
-                            <span className="font-medium text-green-600">{userSales}</span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Conversión:</span>
-                            <span className="font-medium">{conversionRate}%</span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Estado:</span>
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              user.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                            }`}>
-                              {user.active ? 'Activo' : 'Inactivo'}
-                            </span>
-                          </div>
+                        {/* Supervisores */}
+                        <div className="ml-6 space-y-3">
+                          {supervisores.map((supervisor: any) => {
+                            const vendedores = visibleUsers.filter((u: any) => u.reportsTo === supervisor.id);
+                            const supervisorLeads = leads.filter((l) => 
+                              vendedores.some((v: any) => v.id === l.vendedor)
+                            );
+                            const supervisorVentas = supervisorLeads.filter((l) => l.estado === "vendido").length;
+                            
+                            return (
+                              <div key={supervisor.id} className="border-l-2 border-gray-300 pl-4">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center space-x-2">
+                                    <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                                      <span className="text-white font-medium text-xs">
+                                        {supervisor.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <p className="font-medium text-gray-900 text-sm">{supervisor.name}</p>
+                                      <p className="text-xs text-gray-500">Supervisor • {vendedores.length} vendedores</p>
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-sm font-medium text-green-600">{supervisorVentas} ventas</p>
+                                    <p className="text-xs text-gray-500">{supervisorLeads.length} leads</p>
+                                  </div>
+                                </div>
+                                
+                                {/* Vendedores del supervisor */}
+                                <div className="ml-4 grid grid-cols-1 md:grid-cols-2 gap-2">
+                                  {vendedores.map((vendedor: any) => {
+                                    const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
+                                    const vendedorVentas = vendedorLeads.filter((l) => l.estado === "vendido").length;
+                                    const conversion = vendedorLeads.length > 0 ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0) : "0";
+                                    
+                                    return (
+                                      <div key={vendedor.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
+                                        <div className="flex items-center space-x-2">
+                                          <div className="w-6 h-6 bg-gray-400 rounded-full flex items-center justify-center">
+                                            <span className="text-white font-medium text-xs">
+                                              {vendedor.name.split(' ')[0][0]}
+                                            </span>
+                                          </div>
+                                          <span className="text-gray-900">{vendedor.name}</span>
+                                        </div>
+                                        <div className="text-right">
+                                          <span className="font-medium text-green-600">{vendedorVentas}</span>
+                                          <span className="text-gray-500 ml-1">({conversion}%)</span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     );
-                  })}
+                  } else if (currentUser?.role === "supervisor") {
+                    // Supervisor ve solo sus vendedores
+                    const vendedores = visibleUsers.filter((u: any) => u.reportsTo === currentUser.id);
+                    
+                    return (
+                      <div className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
+                              <span className="text-white font-medium text-sm">
+                                {currentUser.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
+                              </span>
+                            </div>
+                            <div>
+                              <h4 className="font-medium text-gray-900">{currentUser.name} (Tú)</h4>
+                              <p className="text-sm text-gray-500">Supervisor</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-medium">{vendedores.length} vendedores</p>
+                          </div>
+                        </div>
+                        
+                        {/* Vendedores */}
+                        <div className="ml-6 grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {vendedores.map((vendedor: any) => {
+                            const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
+                            const vendedorVentas = vendedorLeads.filter((l) => l.estado === "vendido").length;
+                            const conversion = vendedorLeads.length > 0 ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0) : "0";
+                            
+                            return (
+                              <div key={vendedor.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                                <div className="flex items-center space-x-2">
+                                  <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center">
+                                    <span className="text-white font-medium text-xs">
+                                      {vendedor.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-gray-900">{vendedor.name}</p>
+                                    <p className="text-xs text-gray-500">
+                                      {vendedorLeads.length} leads asignados
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-bold text-green-600">{vendedorVentas} ventas</p>
+                                  <p className="text-xs text-gray-500">{conversion}% conversión</p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  return null;
+                })()}
               </div>
-              
-              {users.filter((u: any) => visibleUserIds.includes(u.id) && u.id !== currentUser?.id).length === 0 && (
-                <p className="text-gray-500 text-center py-8">No tienes integrantes en tu equipo</p>
-              )}
             </div>
           </div>
         )}
 
-        {/* Sección Usuarios */}
+        {/* Sección Usuarios - Con filtrado mejorado */}
         {activeSection === "users" && canManageUsers() && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -1594,99 +1921,67 @@ export default function CRM() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {users
-                      .filter((u: any) => {
-                        // Owner ve a todos
-                        if (currentUser?.role === "owner") return true;
-                        
-                        // Director ve a todos menos al owner
-                        if (currentUser?.role === "director") return u.role !== "owner";
-                        
-                        // Gerente solo ve a sus supervisores y vendedores bajo esos supervisores
-                        if (currentUser?.role === "gerente") {
-                          // Ve a sí mismo
-                          if (u.id === currentUser.id) return true;
-                          
-                          // Ve a sus supervisores directos
-                          if (u.reportsTo === currentUser.id) return true;
-                          
-                          // Ve a los vendedores que reportan a sus supervisores
-                          const userSupervisor = userById.get(u.reportsTo);
-                          return userSupervisor && userSupervisor.reportsTo === currentUser.id;
-                        }
-                        
-                        // Supervisor solo ve a sus vendedores directos
-                        if (currentUser?.role === "supervisor") {
-                          // Ve a sí mismo
-                          if (u.id === currentUser.id) return true;
-                          
-                          // Ve a sus vendedores directos
-                          return u.reportsTo === currentUser.id;
-                        }
-                        
-                        return false;
-                      })
-                      .map((user: any) => {
-                        const userLeads = leads.filter((l) => l.vendedor === user.id);
-                        const userSales = userLeads.filter((l) => l.estado === "vendido").length;
-                        const manager = user.reportsTo ? userById.get(user.reportsTo) : null;
-                        
-                        return (
-                          <tr key={user.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-4">
-                              <div>
-                                <div className="font-medium text-gray-900">{user.name}</div>
-                                <div className="text-sm text-gray-500">{user.email}</div>
+                    {getVisibleUsers().map((user: any) => {
+                      const userLeads = leads.filter((l) => l.vendedor === user.id);
+                      const userSales = userLeads.filter((l) => l.estado === "vendido").length;
+                      const manager = user.reportsTo ? userById.get(user.reportsTo) : null;
+                      
+                      return (
+                        <tr key={user.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-4">
+                            <div>
+                              <div className="font-medium text-gray-900">{user.name}</div>
+                              <div className="text-sm text-gray-500">{user.email}</div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                              {roles[user.role] || user.role}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 text-sm text-gray-700">
+                            {manager?.name || "—"}
+                          </td>
+                          <td className="px-4 py-4">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              user.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              {user.active ? 'Activo' : 'Inactivo'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4">
+                            {user.role === "vendedor" ? (
+                              <div className="text-sm">
+                                <div>{userLeads.length} leads</div>
+                                <div className="text-green-600 font-medium">{userSales} ventas</div>
                               </div>
-                            </td>
-                            <td className="px-4 py-4">
-                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                                {roles[user.role] || user.role}
-                              </span>
-                            </td>
-                            <td className="px-4 py-4 text-sm text-gray-700">
-                              {manager?.name || "—"}
-                            </td>
-                            <td className="px-4 py-4">
-                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                user.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                              }`}>
-                                {user.active ? 'Activo' : 'Inactivo'}
-                              </span>
-                            </td>
-                            <td className="px-4 py-4">
-                              {user.role === "vendedor" ? (
-                                <div className="text-sm">
-                                  <div>{userLeads.length} leads</div>
-                                  <div className="text-green-600 font-medium">{userSales} ventas</div>
-                                </div>
-                              ) : (
-                                <span className="text-gray-400">—</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-4">
-                              <div className="flex items-center justify-center space-x-2">
+                            ) : (
+                              <span className="text-gray-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center justify-center space-x-2">
+                              <button
+                                onClick={() => openEditUser(user)}
+                                className="p-1 text-blue-600 hover:text-blue-800"
+                                title="Editar usuario"
+                              >
+                                <Edit3 size={16} />
+                              </button>
+                              {user.id !== currentUser?.id && (
                                 <button
-                                  onClick={() => openEditUser(user)}
-                                  className="p-1 text-blue-600 hover:text-blue-800"
-                                  title="Editar usuario"
+                                  onClick={() => deleteUser(user.id)}
+                                  className="p-1 text-red-600 hover:text-red-800"
+                                  title="Eliminar usuario"
                                 >
-                                  <Edit3 size={16} />
+                                  <Trash2 size={16} />
                                 </button>
-                                {user.id !== currentUser?.id && (
-                                  <button
-                                    onClick={() => deleteUser(user.id)}
-                                    className="p-1 text-red-600 hover:text-red-800"
-                                    title="Eliminar usuario"
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1763,4 +2058,6 @@ export default function CRM() {
       </div>
     </div>
   );
-}
+}left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Teléfono</th>
+                              <th className="px-4 py-2 text-
