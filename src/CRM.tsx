@@ -374,7 +374,6 @@ export default function CRM() {
   const createEvent = () => {
     const title = (document.getElementById("ev-title") as HTMLInputElement).value;
     const date = (document.getElementById("ev-date") as HTMLInputElement).value;
-    const time = (document.getElementById("ev-time") as HTMLInputElement).value;
     const userId = parseInt((document.getElementById("ev-user") as HTMLSelectElement).value, 10);
     if (title && date && userId) {
       // Event creation logic would go here
