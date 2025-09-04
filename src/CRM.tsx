@@ -1,15 +1,17 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
-import { Calendar, Users, Trophy, Phone, BarChart3, Settings, Home, X, Bell, UserCheck } from "lucide-react";
+import { Calendar, Users, Trophy, Plus, Phone, BarChart3, Settings, Home, X, Trash2, Edit3, Bell, UserCheck } from "lucide-react";
 import { api } from "./api";
 import {
   listUsers,
   createUser as apiCreateUser,
   updateUser as apiUpdateUser,
+  deleteUser as apiDeleteUser,
 } from "./services/users";
 import {
   listLeads,
   createLead as apiCreateLead,
   updateLead as apiUpdateLead,
+  deleteLead as apiDeleteLead,
 } from "./services/leads";
 
 // ===== Utilidades de jerarquía =====
@@ -173,6 +175,7 @@ export default function CRM() {
     return ids;
   };
   const canManageUsers = () => currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
+  const isOwner = () => currentUser?.role === "owner";
 
   // ===== Round-robin =====
   const [rrIndex, setRrIndex] = useState(0);
@@ -214,6 +217,17 @@ export default function CRM() {
 
   const getRanking = () => {
     const vendedores = users.filter((u: any) => u.role === "vendedor");
+    return vendedores
+      .map((v: any) => {
+        const ventas = leads.filter((l) => l.vendedor === v.id && l.estado === "vendido").length;
+        const leadsAsignados = leads.filter((l) => l.vendedor === v.id).length;
+        return { id: v.id, nombre: v.name, ventas, leadsAsignados, team: `Equipo de ${userById.get(v.reportsTo)?.name || "—"}` };
+      })
+      .sort((a, b) => b.ventas - a.ventas);
+  };
+
+  const getRankingInScope = () => {
+    const vendedores = users.filter((u: any) => u.role === "vendedor" && visibleUserIds.includes(u.id));
     return vendedores
       .map((v: any) => {
         const ventas = leads.filter((l) => l.vendedor === v.id && l.estado === "vendido").length;
@@ -304,10 +318,24 @@ export default function CRM() {
     ));
   };
 
+  const handleUpdateLeadStatus = async (leadId: number, newStatus: string) => {
+    try {
+      const updated = await apiUpdateLead(leadId, { estado: newStatus });
+      setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...mapLeadFromApi(updated) } : l)));
+      
+      // Agregar entrada al historial
+      addHistorialEntry(leadId, newStatus);
+    } catch (e) {
+      console.error("No pude actualizar estado del lead", e);
+    }
+  };
+
   // ===== Crear Lead y Modales =====
   const [showNewLeadModal, setShowNewLeadModal] = useState(false);
   const [showObservacionesModal, setShowObservacionesModal] = useState(false);
+  const [showHistorialModal, setShowHistorialModal] = useState(false);
   const [editingLeadObservaciones, setEditingLeadObservaciones] = useState<LeadRow | null>(null);
+  const [viewingLeadHistorial, setViewingLeadHistorial] = useState<LeadRow | null>(null);
 
   const handleUpdateObservaciones = async (leadId: number, observaciones: string) => {
     try {
@@ -349,14 +377,13 @@ export default function CRM() {
           infoUsado,
           entrega,
           fecha,
-          vendedor: vendedorId, // backend: assigned_to
+          vendedor: vendedorId,
         } as any);
         const mapped = mapLeadFromApi(created);
         if (mapped.vendedor) pushAlert(mapped.vendedor, "lead_assigned", `Nuevo lead asignado: ${mapped.nombre}`);
         setLeads((prev) => [mapped, ...prev]);
         setShowNewLeadModal(false);
         
-        // Agregar entrada inicial al historial
         addHistorialEntry(mapped.id, "nuevo");
       } catch (e) {
         console.error("No pude crear el lead", e);
@@ -365,25 +392,36 @@ export default function CRM() {
   };
 
   // ===== Calendario (UI local) =====
+  const [events, setEvents] = useState<any[]>([]);
+  const [selectedCalendarUserId, setSelectedCalendarUserId] = useState<number | null>(null);
   const [showNewEventModal, setShowNewEventModal] = useState(false);
   const visibleUsers = useMemo(
     () => (currentUser ? users.filter((u: any) => getAccessibleUserIds(currentUser).includes(u.id)) : []),
     [currentUser, users]
   );
+  const eventsForSelectedUser = useMemo(() => {
+    const uid = selectedCalendarUserId || currentUser?.id;
+    return events
+      .filter((e) => e.userId === uid)
+      .sort((a, b) => ((a.date + (a.time || "")) > (b.date + (b.time || "")) ? 1 : -1));
+  }, [events, selectedCalendarUserId, currentUser]);
+  const formatterEs = new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "2-digit", month: "long" });
 
   const createEvent = () => {
     const title = (document.getElementById("ev-title") as HTMLInputElement).value;
     const date = (document.getElementById("ev-date") as HTMLInputElement).value;
+    const time = (document.getElementById("ev-time") as HTMLInputElement).value;
     const userId = parseInt((document.getElementById("ev-user") as HTMLSelectElement).value, 10);
     if (title && date && userId) {
-      // Event creation logic would go here
+      setEvents((prev) => [...prev, { id: Math.max(0, ...prev.map((e: any) => e.id)) + 1, title, date, time: time || "09:00", userId }]);
       setShowNewEventModal(false);
     }
   };
+  const deleteEvent = (id: number) => setEvents((prev) => prev.filter((e: any) => e.id !== id));
 
   // ===== Gestión de Usuarios (API) =====
   const [showUserModal, setShowUserModal] = useState(false);
-  const [editingUser] = useState<any>(null);
+  const [editingUser, setEditingUser] = useState<any>(null);
   const [modalRole, setModalRole] = useState<"owner" | "director" | "gerente" | "supervisor" | "vendedor">("vendedor");
   const [modalReportsTo, setModalReportsTo] = useState<number | null>(null);
 
@@ -415,6 +453,30 @@ export default function CRM() {
       default:
         return [];
     }
+  };
+
+  const openCreateUser = () => {
+    setEditingUser(null);
+    const availableRoles = validRolesByUser(currentUser);
+    const roleDefault = (availableRoles?.[0] as typeof modalRole) || "vendedor";
+    const managers = validManagersByRole(roleDefault);
+    setModalRole(roleDefault);
+    setModalReportsTo(managers[0]?.id ?? null);
+    setShowUserModal(true);
+  };
+
+  const openEditUser = (u: any) => {
+    setEditingUser(u);
+    const roleCurrent = u.role as typeof modalRole;
+    const availableRoles: string[] =
+      currentUser.role === "owner" && u.id === currentUser.id
+        ? ["owner", ...validRolesByUser(currentUser)]
+        : validRolesByUser(currentUser);
+    const roleToSet = availableRoles.includes(roleCurrent) ? roleCurrent : (availableRoles[0] as any);
+    const managers = validManagersByRole(roleToSet);
+    setModalRole(roleToSet as any);
+    setModalReportsTo(roleToSet === "owner" ? null : u.reportsTo ?? managers[0]?.id ?? null);
+    setShowUserModal(true);
   };
 
   const saveUser = async () => {
@@ -449,6 +511,26 @@ export default function CRM() {
       setShowUserModal(false);
     } catch (e) {
       console.error("No pude guardar usuario", e);
+    }
+  };
+
+  const deleteUser = async (id: number) => {
+    const target = users.find((u: any) => u.id === id);
+    if (!target) return;
+    if (target.role === "owner") {
+      alert("No podés eliminar al Dueño.");
+      return;
+    }
+    const hasChildren = users.some((u: any) => u.reportsTo === id);
+    if (hasChildren) {
+      alert("No se puede eliminar: el usuario tiene integrantes a cargo.");
+      return;
+    }
+    try {
+      await apiDeleteUser(id);
+      setUsers((prev) => prev.filter((u: any) => u.id !== id));
+    } catch (e) {
+      console.error("No pude eliminar usuario", e);
     }
   };
 
@@ -636,6 +718,67 @@ export default function CRM() {
           </div>
         )}
 
+        {/* Modal: Historial del Lead */}
+        {showHistorialModal && viewingLeadHistorial && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">
+                  Historial - {viewingLeadHistorial.nombre}
+                </h3>
+                <button onClick={() => {
+                  setShowHistorialModal(false);
+                  setViewingLeadHistorial(null);
+                }}>
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+              
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-2">
+                  <span className="font-medium">Cliente:</span> {viewingLeadHistorial.nombre} | 
+                  <span className="font-medium ml-2">Teléfono:</span> {viewingLeadHistorial.telefono} | 
+                  <span className="font-medium ml-2">Vehículo:</span> {viewingLeadHistorial.modelo}
+                </p>
+              </div>
+              
+              <div className="max-h-96 overflow-y-auto">
+                {(viewingLeadHistorial.historial || []).length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">No hay historial disponible para este lead</p>
+                ) : (
+                  <div className="space-y-3">
+                    {viewingLeadHistorial.historial?.map((entry, index) => (
+                      <div key={index} className="border-l-4 border-blue-500 pl-4 py-2">
+                        <div className="flex items-center justify-between">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium text-white ${estados[entry.estado]?.color || 'bg-gray-500'}`}>
+                            {estados[entry.estado]?.label || entry.estado}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {new Date(entry.timestamp).toLocaleDateString('es-AR')} {new Date(entry.timestamp).toLocaleTimeString('es-AR')}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700 mt-1">Actualizado por: {entry.usuario}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex justify-end pt-6">
+                <button 
+                  onClick={() => {
+                    setShowHistorialModal(false);
+                    setViewingLeadHistorial(null);
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Modal: Nuevo Lead */}
         {showNewLeadModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -744,7 +887,7 @@ export default function CRM() {
                 </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Usuario</label>
-                  <select id="ev-user" defaultValue={currentUser?.id} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                  <select id="ev-user" defaultValue={selectedCalendarUserId ?? currentUser?.id} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
                     {visibleUsers.map((u: any) => (
                       <option key={u.id} value={u.id}>
                         {u.name} — {roles[u.role] || u.role}
@@ -859,7 +1002,7 @@ export default function CRM() {
           </div>
         </div>
 
-        {/* Dashboard con selector de equipo para Owner/Director */}
+        {/* Dashboard */}
         {activeSection === "dashboard" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -1071,7 +1214,516 @@ export default function CRM() {
             )}
           </div>
         )}
+
+        {/* Sección Leads */}
+        {activeSection === "leads" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-bold text-gray-800">Gestión de Leads</h2>
+              <button
+                onClick={() => setShowNewLeadModal(true)}
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                <Plus size={20} />
+                <span>Nuevo Lead</span>
+              </button>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contacto</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehículo</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fuente</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendedor</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {getFilteredLeads().map((lead) => {
+                      const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
+                      return (
+                        <tr key={lead.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-4">
+                            <div className="font-medium text-gray-900">{lead.nombre}</div>
+                            {lead.notas && (
+                              <div className="text-xs text-gray-500 mt-1 truncate max-w-xs">
+                                {lead.notas.substring(0, 50)}...
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center space-x-1">
+                              <Phone size={12} className="text-gray-400" />
+                              <span className="text-sm text-gray-700">{lead.telefono}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">{lead.modelo}</div>
+                              <div className="text-xs text-gray-500">{lead.formaPago}</div>
+                              {lead.infoUsado && (
+                                <div className="text-xs text-orange-600">Usado: {lead.infoUsado}</div>
+                              )}
+                              {lead.entrega && (
+                                <div className="text-xs text-blue-600">Entrega incluida</div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <select
+                              value={lead.estado}
+                              onChange={(e) => handleUpdateLeadStatus(lead.id, e.target.value)}
+                              className={`text-xs font-medium px-2 py-1 rounded-full text-white border-0 ${estados[lead.estado].color}`}
+                            >
+                              {Object.entries(estados).map(([key, estado]) => (
+                                <option key={key} value={key} className="text-gray-900">
+                                  {estado.label}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center space-x-1">
+                              <span className="text-sm">{fuentes[lead.fuente as string]?.icon || "❓"}</span>
+                              <span className="text-xs text-gray-600">
+                                {fuentes[lead.fuente as string]?.label || String(lead.fuente)}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 text-sm text-gray-700">
+                            {vendedor?.name || "Sin asignar"}
+                          </td>
+                          <td className="px-4 py-4 text-sm text-gray-500">
+                            {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center justify-center space-x-1">
+                              <button
+                                onClick={() => {
+                                  setEditingLeadObservaciones(lead);
+                                  setShowObservacionesModal(true);
+                                }}
+                                className="p-1 text-blue-600 hover:text-blue-800"
+                                title="Ver/Editar observaciones"
+                              >
+                                <Edit3 size={16} />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setViewingLeadHistorial(lead);
+                                  setShowHistorialModal(true);
+                                }}
+                                className="p-1 text-green-600 hover:text-green-800"
+                                title="Ver historial"
+                              >
+                                <Calendar size={16} />
+                              </button>
+                              {canManageUsers() && (
+                                <button
+                                  onClick={async () => {
+                                    if (confirm(`¿Estás seguro de eliminar el lead de ${lead.nombre}?`)) {
+                                      try {
+                                        await apiDeleteLead(lead.id);
+                                        setLeads((prev) => prev.filter((l) => l.id !== lead.id));
+                                      } catch (e) {
+                                        console.error("No pude eliminar el lead", e);
+                                      }
+                                    }
+                                  }}
+                                  className="p-1 text-red-600 hover:text-red-800"
+                                  title="Eliminar lead"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {getFilteredLeads().length === 0 && (
+                <div className="text-center py-12">
+                  <p className="text-gray-500">No hay leads para mostrar</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Sección Calendario */}
+        {activeSection === "calendar" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-bold text-gray-800">Calendario</h2>
+              <div className="flex items-center space-x-3">
+                <select
+                  value={selectedCalendarUserId ?? ""}
+                  onChange={(e) => setSelectedCalendarUserId(e.target.value ? parseInt(e.target.value, 10) : null)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg"
+                >
+                  <option value="">Mi calendario</option>
+                  {visibleUsers
+                    .filter((u: any) => u.id !== currentUser?.id)
+                    .map((u: any) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} — {roles[u.role] || u.role}
+                      </option>
+                    ))}
+                </select>
+                <button
+                  onClick={() => setShowNewEventModal(true)}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <Plus size={20} />
+                  <span>Nuevo Evento</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h3 className="text-xl font-semibold text-gray-800 mb-4">
+                Próximos eventos - {selectedCalendarUserId ? userById.get(selectedCalendarUserId)?.name : "Mi calendario"}
+              </h3>
+              
+              {eventsForSelectedUser.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No hay eventos programados</p>
+              ) : (
+                <div className="space-y-3">
+                  {eventsForSelectedUser.map((event: any) => (
+                    <div key={event.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                      <div>
+                        <h4 className="font-medium text-gray-900">{event.title}</h4>
+                        <p className="text-sm text-gray-600">
+                          {formatterEs.format(new Date(event.date))} a las {event.time}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {userById.get(event.userId)?.name || "Usuario desconocido"}
+                        </p>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => deleteEvent(event.id)}
+                          className="p-2 text-red-600 hover:text-red-800"
+                          title="Eliminar evento"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Sección Ranking */}
+        {activeSection === "ranking" && (
+          <div className="space-y-6">
+            <h2 className="text-3xl font-bold text-gray-800">Ranking de Vendedores</h2>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Ranking General */}
+              {isOwner() && (
+                <div className="bg-white rounded-xl shadow-lg p-6">
+                  <h3 className="text-xl font-semibold text-gray-800 mb-4">Ranking General</h3>
+                  <div className="space-y-3">
+                    {getRanking().map((vendedor, index) => (
+                      <div key={vendedor.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
+                            index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-600' : 'bg-gray-300'
+                          }`}>
+                            {index + 1}
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">{vendedor.nombre}</p>
+                            <p className="text-xs text-gray-500">{vendedor.team}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-green-600">{vendedor.ventas} ventas</p>
+                          <p className="text-xs text-gray-500">{vendedor.leadsAsignados} leads asignados</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {getRanking().length === 0 && (
+                    <p className="text-gray-500 text-center py-8">No hay vendedores registrados</p>
+                  )}
+                </div>
+              )}
+
+              {/* Ranking en Mi Scope */}
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <h3 className="text-xl font-semibold text-gray-800 mb-4">
+                  {isOwner() ? "Mi Scope" : "Ranking"}
+                </h3>
+                <div className="space-y-3">
+                  {getRankingInScope().map((vendedor, index) => (
+                    <div key={vendedor.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
+                          index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-600' : 'bg-gray-300'
+                        }`}>
+                          {index + 1}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">{vendedor.nombre}</p>
+                          <p className="text-xs text-gray-500">{vendedor.team}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-green-600">{vendedor.ventas} ventas</p>
+                        <p className="text-xs text-gray-500">{vendedor.leadsAsignados} leads asignados</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {getRankingInScope().length === 0 && (
+                  <p className="text-gray-500 text-center py-8">No hay vendedores en tu scope</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Sección Mi Equipo */}
+        {activeSection === "team" && ["supervisor", "gerente", "director", "owner"].includes(currentUser?.role) && (
+          <div className="space-y-6">
+            <h2 className="text-3xl font-bold text-gray-800">Mi Equipo</h2>
+            
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h3 className="text-xl font-semibold text-gray-800 mb-4">Integrantes del Equipo</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {users
+                  .filter((u: any) => visibleUserIds.includes(u.id) && u.id !== currentUser?.id)
+                  .map((user: any) => {
+                    const userLeads = leads.filter((l) => l.vendedor === user.id);
+                    const userSales = userLeads.filter((l) => l.estado === "vendido").length;
+                    const conversionRate = userLeads.length > 0 ? ((userSales / userLeads.length) * 100).toFixed(1) : "0";
+                    
+                    return (
+                      <div key={user.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                        <div className="flex items-center space-x-3 mb-3">
+                          <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                            <span className="text-white font-medium text-sm">
+                              {user.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
+                            </span>
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-gray-900">{user.name}</h4>
+                            <p className="text-xs text-gray-500">{roles[user.role] || user.role}</p>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Leads asignados:</span>
+                            <span className="font-medium">{userLeads.length}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Ventas:</span>
+                            <span className="font-medium text-green-600">{userSales}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Conversión:</span>
+                            <span className="font-medium">{conversionRate}%</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Estado:</span>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              user.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              {user.active ? 'Activo' : 'Inactivo'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+              
+              {users.filter((u: any) => visibleUserIds.includes(u.id) && u.id !== currentUser?.id).length === 0 && (
+                <p className="text-gray-500 text-center py-8">No tienes integrantes en tu equipo</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Sección Usuarios */}
+        {activeSection === "users" && canManageUsers() && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-bold text-gray-800">Gestión de Usuarios</h2>
+              <button
+                onClick={openCreateUser}
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                <Plus size={20} />
+                <span>Nuevo Usuario</span>
+              </button>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuario</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rol</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reporta a</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Performance</th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {users
+                      .filter((u: any) => visibleUserIds.includes(u.id))
+                      .map((user: any) => {
+                        const userLeads = leads.filter((l) => l.vendedor === user.id);
+                        const userSales = userLeads.filter((l) => l.estado === "vendido").length;
+                        const manager = user.reportsTo ? userById.get(user.reportsTo) : null;
+                        
+                        return (
+                          <tr key={user.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-4">
+                              <div>
+                                <div className="font-medium text-gray-900">{user.name}</div>
+                                <div className="text-sm text-gray-500">{user.email}</div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                {roles[user.role] || user.role}
+                              </span>
+                            </td>
+                            <td className="px-4 py-4 text-sm text-gray-700">
+                              {manager?.name || "—"}
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                user.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                              }`}>
+                                {user.active ? 'Activo' : 'Inactivo'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-4">
+                              {user.role === "vendedor" ? (
+                                <div className="text-sm">
+                                  <div>{userLeads.length} leads</div>
+                                  <div className="text-green-600 font-medium">{userSales} ventas</div>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center justify-center space-x-2">
+                                <button
+                                  onClick={() => openEditUser(user)}
+                                  className="p-1 text-blue-600 hover:text-blue-800"
+                                  title="Editar usuario"
+                                >
+                                  <Edit3 size={16} />
+                                </button>
+                                {user.id !== currentUser?.id && (
+                                  <button
+                                    onClick={() => deleteUser(user.id)}
+                                    className="p-1 text-red-600 hover:text-red-800"
+                                    title="Eliminar usuario"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Sección Alertas */}
+        {activeSection === "alerts" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-bold text-gray-800">Alertas y Notificaciones</h2>
+              <button
+                onClick={() => {
+                  setAlerts((prev) => prev.map((a) => a.userId === currentUser?.id ? { ...a, read: true } : a));
+                }}
+                className="px-4 py-2 text-sm text-blue-600 hover:text-blue-800"
+              >
+                Marcar todas como leídas
+              </button>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              {alerts.filter((a) => a.userId === currentUser?.id).length === 0 ? (
+                <div className="text-center py-12">
+                  <Bell size={48} className="mx-auto text-gray-300 mb-4" />
+                  <p className="text-gray-500">No tienes alertas pendientes</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {alerts
+                    .filter((a) => a.userId === currentUser?.id)
+                    .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
+                    .map((alert) => (
+                      <div
+                        key={alert.id}
+                        className={`p-4 border rounded-lg ${
+                          alert.read ? 'border-gray-200 bg-gray-50' : 'border-blue-200 bg-blue-50'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start space-x-3">
+                            <div className={`mt-1 w-2 h-2 rounded-full ${alert.read ? 'bg-gray-400' : 'bg-blue-500'}`} />
+                            <div>
+                              <p className={`font-medium ${alert.read ? 'text-gray-700' : 'text-gray-900'}`}>
+                                {alert.type === "lead_assigned" ? "Nuevo Lead Asignado" : "Cambio en Ranking"}
+                              </p>
+                              <p className={`text-sm ${alert.read ? 'text-gray-500' : 'text-gray-700'}`}>
+                                {alert.message}
+                              </p>
+                              <p className="text-xs text-gray-400 mt-1">
+                                {new Date(alert.ts).toLocaleDateString('es-AR')} {new Date(alert.ts).toLocaleTimeString('es-AR')}
+                              </p>
+                            </div>
+                          </div>
+                          {!alert.read && (
+                            <button
+                              onClick={() => {
+                                setAlerts((prev) => prev.map((a) => a.id === alert.id ? { ...a, read: true } : a));
+                              }}
+                              className="text-blue-600 hover:text-blue-800 text-sm"
+                            >
+                              Marcar como leída
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
-}
