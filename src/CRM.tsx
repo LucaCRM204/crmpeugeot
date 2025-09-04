@@ -184,6 +184,36 @@ export default function CRM() {
   const canManageUsers = () => currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
   const isOwner = () => currentUser?.role === "owner";
 
+  // ===== Funciones de filtro por equipo =====
+  const getTeamManagerByName = (teamName: string) => {
+    return users.find((u: any) => 
+      u.role === "gerente" && 
+      u.name.toLowerCase().includes(teamName.toLowerCase())
+    );
+  };
+
+  const getTeamUserIds = (teamName: string) => {
+    const manager = getTeamManagerByName(teamName);
+    if (!manager) return [];
+    
+    const descendants = getDescendantUserIds(manager.id, childrenIndex);
+    return [manager.id, ...descendants];
+  };
+
+  const getFilteredLeadsByTeam = (teamName?: string) => {
+    if (!currentUser) return [] as LeadRow[];
+    
+    if (teamName && ["owner", "director"].includes(currentUser.role)) {
+      // Filtrar por equipo específico
+      const teamUserIds = getTeamUserIds(teamName);
+      return leads.filter((l) => (l.vendedor ? teamUserIds.includes(l.vendedor) : false));
+    }
+    
+    // Filtro normal por scope del usuario
+    const visibleUserIds = getAccessibleUserIds(currentUser);
+    return leads.filter((l) => (l.vendedor ? visibleUserIds.includes(l.vendedor) : true));
+  };
+
   // ===== Round-robin con soporte para bots específicos =====
   const [rrIndex, setRrIndex] = useState(0);
   
@@ -333,15 +363,15 @@ export default function CRM() {
     prevRankingRef.current = curr;
   }, [leads, users, userById]);
 
-  const getDashboardStats = () => {
-    const filteredLeads = getFilteredLeads();
+  const getDashboardStats = (teamFilter?: string) => {
+    const filteredLeads = teamFilter ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
     const vendidos = filteredLeads.filter((lead) => lead.estado === "vendido").length;
     const conversion = filteredLeads.length > 0 ? ((vendidos / filteredLeads.length) * 100).toFixed(1) : 0;
     return { totalLeads: filteredLeads.length, vendidos, conversion };
   };
 
-  const getSourceMetrics = () => {
-    const filteredLeads = getFilteredLeads();
+  const getSourceMetrics = (teamFilter?: string) => {
+    const filteredLeads = teamFilter ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
     const sourceData = Object.keys(fuentes)
       .map((source) => {
         const sourceLeads = filteredLeads.filter((lead) => lead.fuente === source);
@@ -569,6 +599,8 @@ export default function CRM() {
     const name = (document.getElementById("u-name") as HTMLInputElement).value.trim();
     const email = (document.getElementById("u-email") as HTMLInputElement).value.trim();
     const password = (document.getElementById("u-pass") as HTMLInputElement).value;
+    const active = (document.getElementById("u-active") as HTMLInputElement).checked;
+    
     if (!name || !email) return;
     const finalReportsTo = modalRole === "owner" ? null : modalReportsTo ?? null;
 
@@ -580,7 +612,7 @@ export default function CRM() {
           password: password || undefined,
           role: modalRole,
           reportsTo: finalReportsTo,
-          active: editingUser.active,
+          active: active ? 1 : 0,
         });
         setUsers((prev) => prev.map((u: any) => (u.id === editingUser.id ? updated : u)));
       } else {
@@ -590,7 +622,7 @@ export default function CRM() {
           password: password || "123456",
           role: modalRole,
           reportsTo: finalReportsTo,
-          active: 1,
+          active: active ? 1 : 0,
         } as any);
         setUsers((prev) => [...prev, created]);
       }
@@ -1070,6 +1102,16 @@ export default function CRM() {
                     )}
                   </select>
                 </div>
+
+                <div className="col-span-2 flex items-center space-x-3">
+                  <input 
+                    type="checkbox" 
+                    id="u-active" 
+                    defaultChecked={editingUser ? editingUser.active : true} 
+                    className="rounded border-gray-300 text-blue-600" 
+                  />
+                  <span className="text-sm text-gray-700">Usuario activo (puede recibir leads automáticamente)</span>
+                </div>
               </div>
 
               <div className="flex space-x-3 pt-6">
@@ -1116,7 +1158,8 @@ export default function CRM() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {(() => {
-                const stats = getDashboardStats();
+                const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
+                const stats = getDashboardStats(teamFilter);
                 const cards = [
                   { label: "Total Leads", value: stats.totalLeads, Icon: Users },
                   { label: "Vendidos", value: stats.vendidos, Icon: BarChart3 },
@@ -1151,7 +1194,9 @@ export default function CRM() {
               </div>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {Object.entries(estados).map(([key, estado]) => {
-                  const count = getFilteredLeads().filter((l) => l.estado === key).length;
+                  const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
+                  const filteredLeads = teamFilter ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
+                  const count = filteredLeads.filter((l) => l.estado === key).length;
                   return (
                     <button
                       key={key}
@@ -1180,7 +1225,9 @@ export default function CRM() {
                   </h4>
                   
                   {(() => {
-                    const leadsFiltrados = getFilteredLeads().filter(l => l.estado === selectedEstado);
+                    const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
+                    const filteredLeads = teamFilter ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
+                    const leadsFiltrados = filteredLeads.filter(l => l.estado === selectedEstado);
                     
                     if (leadsFiltrados.length === 0) {
                       return (
@@ -1280,32 +1327,38 @@ export default function CRM() {
               <div className="bg-white rounded-xl shadow-lg p-6">
                 <h3 className="text-xl font-semibold text-gray-800 mb-4">Rendimiento por Fuente de Lead</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {getSourceMetrics().map((source) => (
-                    <div key={source.source} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xl">{source.icon}</span>
-                          <h4 className="font-medium text-gray-800">{source.label}</h4>
+                  {(() => {
+                    const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
+                    return getSourceMetrics(teamFilter).map((source) => (
+                      <div key={source.source} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-xl">{source.icon}</span>
+                            <h4 className="font-medium text-gray-800">{source.label}</h4>
+                          </div>
+                          <span className={`${source.color} text-white px-2 py-1 rounded-full text-xs font-bold`}>{source.conversion}%</span>
                         </div>
-                        <span className={`${source.color} text-white px-2 py-1 rounded-full text-xs font-bold`}>{source.conversion}%</span>
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Total leads:</span>
+                            <span className="font-medium">{source.total}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Vendidos:</span>
+                            <span className="font-medium text-green-600">{source.vendidos}</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div className={`${source.color} h-2 rounded-full`} style={{ width: `${source.conversion}%` }}></div>
+                          </div>
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Total leads:</span>
-                          <span className="font-medium">{source.total}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Vendidos:</span>
-                          <span className="font-medium text-green-600">{source.vendidos}</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div className={`${source.color} h-2 rounded-full`} style={{ width: `${source.conversion}%` }}></div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    ));
+                  })()}
                 </div>
-                {getSourceMetrics().length === 0 && <p className="text-gray-500 text-center py-8">No hay leads con fuentes registradas</p>}
+                {(() => {
+                  const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
+                  return getSourceMetrics(teamFilter).length === 0;
+                })() && <p className="text-gray-500 text-center py-8">No hay leads con fuentes registradas</p>}
               </div>
             )}
           </div>
@@ -1593,10 +1646,22 @@ export default function CRM() {
           </div>
         )}
 
-        {/* Sección Mi Equipo - Nueva vista */}
+        {/* Sección Mi Equipo - Con filtro por equipo */}
         {activeSection === "team" && ["supervisor", "gerente", "director", "owner"].includes(currentUser?.role) && (
           <div className="space-y-6">
-            <h2 className="text-3xl font-bold text-gray-800">Mi Equipo</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-bold text-gray-800">Mi Equipo</h2>
+              {["owner", "director"].includes(currentUser?.role) && (
+                <select
+                  value={selectedTeam}
+                  onChange={(e) => setSelectedTeam(e.target.value as 'roberto' | 'daniel')}
+                  className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                >
+                  <option value="roberto">Equipo Roberto</option>
+                  <option value="daniel">Equipo Daniel</option>
+                </select>
+              )}
+            </div>
             
             {/* Estadísticas por estado tipo dashboard */}
             <div className="bg-white rounded-xl shadow-lg p-6">
@@ -1614,7 +1679,9 @@ export default function CRM() {
               </div>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {Object.entries(estados).map(([key, estado]) => {
-                  const count = getFilteredLeads().filter((l) => l.estado === key).length;
+                  const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
+                  const filteredLeads = teamFilter ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
+                  const count = filteredLeads.filter((l) => l.estado === key).length;
                   return (
                     <button
                       key={key}
@@ -1643,7 +1710,9 @@ export default function CRM() {
                   </h4>
                   
                   {(() => {
-                    const leadsFiltrados = getFilteredLeads().filter(l => l.estado === selectedEstado);
+                    const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
+                    const filteredLeads = teamFilter ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
+                    const leadsFiltrados = filteredLeads.filter(l => l.estado === selectedEstado);
                     
                     if (leadsFiltrados.length === 0) {
                       return (
@@ -1774,7 +1843,6 @@ export default function CRM() {
             <div className="bg-white rounded-xl shadow-lg p-6">
               <h3 className="text-xl font-semibold text-gray-800 mb-4">Estructura Organizacional</h3>
               <div className="space-y-6">
-                {/* Mostrar solo los equipos dentro del scope del usuario */}
                 {(() => {
                   const visibleUsers = getVisibleUsers();
                   
@@ -1782,7 +1850,14 @@ export default function CRM() {
                     // Owner y Director ven todos los gerentes y sus equipos
                     const gerentes = visibleUsers.filter((u: any) => u.role === "gerente");
                     
-                    return gerentes.map((gerente: any) => {
+                    // Si hay filtro de equipo activo, filtrar solo ese gerente
+                    const gerentesAMostrar = ["owner", "director"].includes(currentUser?.role) 
+                      ? gerentes.filter((g: any) => 
+                          g.name.toLowerCase().includes(selectedTeam.toLowerCase())
+                        )
+                      : gerentes;
+                    
+                    return gerentesAMostrar.map((gerente: any) => {
                       const supervisores = visibleUsers.filter((u: any) => u.reportsTo === gerente.id);
                       const gerenteLeads = leads.filter((l) => l.vendedor === gerente.id);
                       const gerenteVentas = gerenteLeads.filter((l) => l.estado === "vendido").length;
@@ -1852,6 +1927,7 @@ export default function CRM() {
                                               </span>
                                             </div>
                                             <span className="text-gray-900">{vendedor.name}</span>
+                                            {!vendedor.active && <span className="text-red-500 text-xs">(Inactivo)</span>}
                                           </div>
                                           <div className="text-right">
                                             <span className="font-medium text-green-600">{vendedorVentas}</span>
@@ -1936,6 +2012,7 @@ export default function CRM() {
                                             </span>
                                           </div>
                                           <span className="text-gray-900">{vendedor.name}</span>
+                                          {!vendedor.active && <span className="text-red-500 text-xs">(Inactivo)</span>}
                                         </div>
                                         <div className="text-right">
                                           <span className="font-medium text-green-600">{vendedorVentas}</span>
@@ -1993,6 +2070,7 @@ export default function CRM() {
                                     <p className="font-medium text-gray-900">{vendedor.name}</p>
                                     <p className="text-xs text-gray-500">
                                       {vendedorLeads.length} leads asignados
+                                      {!vendedor.active && <span className="text-red-500"> (Inactivo)</span>}
                                     </p>
                                   </div>
                                 </div>
@@ -2015,7 +2093,7 @@ export default function CRM() {
           </div>
         )}
 
-        {/* Sección Usuarios - Con filtrado mejorado */}
+        {/* Sección Usuarios - Con activación/desactivación mejorada */}
         {activeSection === "users" && canManageUsers() && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -2065,11 +2143,36 @@ export default function CRM() {
                             {manager?.name || "—"}
                           </td>
                           <td className="px-4 py-4">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              user.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                            }`}>
-                              {user.active ? 'Activo' : 'Inactivo'}
-                            </span>
+                            <div className="flex items-center space-x-2">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                user.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                              }`}>
+                                {user.active ? 'Activo' : 'Inactivo'}
+                              </span>
+                              {user.role === "vendedor" && (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      const updated = await apiUpdateUser(user.id, {
+                                        ...user,
+                                        active: user.active ? 0 : 1,
+                                      });
+                                      setUsers((prev) => prev.map((u: any) => (u.id === user.id ? updated : u)));
+                                    } catch (e) {
+                                      console.error("No pude cambiar estado del usuario", e);
+                                    }
+                                  }}
+                                  className={`px-2 py-1 text-xs rounded ${
+                                    user.active 
+                                      ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                                      : 'bg-green-100 text-green-700 hover:bg-green-200'
+                                  }`}
+                                  title={user.active ? "Desactivar vendedor" : "Activar vendedor"}
+                                >
+                                  {user.active ? 'Desactivar' : 'Activar'}
+                                </button>
+                              )}
+                            </div>
                           </td>
                           <td className="px-4 py-4">
                             {user.role === "vendedor" ? (
