@@ -1912,81 +1912,98 @@ export default function CRM() {
                             </div>
                           </div>
                           
-                          {/* Supervisores del gerente */}
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            {supervisores.map((supervisor: any) => {
-                              const vendedores = visibleUsers.filter((u: any) => u.reportsTo === supervisor.id);
-                              const supervisorLeads = leads.filter((l) => 
-                                vendedores.some((v: any) => v.id === l.vendedor)
-                              );
-                              const supervisorVentas = supervisorLeads.filter((l) => l.estado === "vendido").length;
-                              
-                              return (
-                                <div key={supervisor.id} className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
-                                  {/* Header del Supervisor */}
-                                  <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
-                                    <div className="flex items-center space-x-3">
-                                      <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
-                                        <span className="text-white font-medium text-sm">
-                                          {supervisor.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
-                                        </span>
+                          {/* Mensaje cuando no hay supervisores */}
+                          {supervisores.length === 0 ? (
+                            <div className="text-center py-12 bg-white rounded-lg border-2 border-dashed border-gray-300">
+                              <div className="text-4xl mb-2">👨‍💼</div>
+                              <h5 className="text-lg font-medium text-gray-700 mb-2">
+                                {gerente.name} aún no tiene supervisores asignados
+                              </h5>
+                              <p className="text-sm text-gray-500">
+                                Ve a la sección "Usuarios" para asignar supervisores a este gerente
+                              </p>
+                            </div>
+                          ) : (
+                            /* Supervisores del gerente */
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                              {supervisores.map((supervisor: any) => {
+                                const vendedores = visibleUsers.filter((u: any) => u.reportsTo === supervisor.id);
+                                const supervisorLeads = leads.filter((l) => 
+                                  vendedores.some((v: any) => v.id === l.vendedor)
+                                );
+                                const supervisorVentas = supervisorLeads.filter((l) => l.estado === "vendido").length;
+                                
+                                return (
+                                  <div key={supervisor.id} className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+                                    {/* Header del Supervisor */}
+                                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+                                      <div className="flex items-center space-x-3">
+                                        <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                                          <span className="text-white font-medium text-sm">
+                                            {supervisor.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
+                                          </span>
+                                        </div>
+                                        <div>
+                                          <p className="font-semibold text-gray-900">{supervisor.name}</p>
+                                          <p className="text-xs text-gray-500">👨‍💼 Supervisor • {vendedores.length} vendedores</p>
+                                        </div>
                                       </div>
-                                      <div>
-                                        <p className="font-semibold text-gray-900">{supervisor.name}</p>
-                                        <p className="text-xs text-gray-500">👨‍💼 Supervisor • {vendedores.length} vendedores</p>
+                                      <div className="text-right">
+                                        <p className="text-lg font-bold text-green-600">{supervisorVentas}</p>
+                                        <p className="text-xs text-gray-500">{supervisorLeads.length} leads</p>
                                       </div>
                                     </div>
-                                    <div className="text-right">
-                                      <p className="text-lg font-bold text-green-600">{supervisorVentas}</p>
-                                      <p className="text-xs text-gray-500">{supervisorLeads.length} leads</p>
-                                    </div>
-                                  </div>
-                                  
-                                  {/* Vendedores del supervisor */}
-                                  <div className="space-y-2">
-                                    {vendedores.map((vendedor: any) => {
-                                      const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
-                                      const vendedorVentas = vendedorLeads.filter((l) => l.estado === "vendido").length;
-                                      const conversion = vendedorLeads.length > 0 ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0) : "0";
-                                      
-                                      return (
-                                        <div key={vendedor.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                                          <div className="flex items-center space-x-3">
-                                            <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center">
-                                              <span className="text-white font-medium text-xs">
-                                                {vendedor.name.split(' ')[0][0]}
-                                              </span>
-                                            </div>
-                                            <div>
-                                              <span className="font-medium text-gray-900">{vendedor.name}</span>
-                                              {!vendedor.active && <span className="ml-2 text-red-500 text-xs font-medium">(Inactivo)</span>}
-                                              <div className="text-xs text-gray-500">
-                                                {vendedorLeads.length} leads asignados
+                                    
+                                    {/* Vendedores del supervisor */}
+                                    {vendedores.length === 0 ? (
+                                      <div className="text-center py-6 bg-gray-50 rounded-lg border border-gray-200">
+                                        <div className="text-2xl mb-1">👤</div>
+                                        <p className="text-sm font-medium text-gray-600">
+                                          {supervisor.name} no tiene vendedores asignados
+                                        </p>
+                                        <p className="text-xs text-gray-400 mt-1">
+                                          Asigna vendedores en la sección "Usuarios"
+                                        </p>
+                                      </div>
+                                    ) : (
+                                      <div className="space-y-2">
+                                        {vendedores.map((vendedor: any) => {
+                                          const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
+                                          const vendedorVentas = vendedorLeads.filter((l) => l.estado === "vendido").length;
+                                          const conversion = vendedorLeads.length > 0 ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0) : "0";
+                                          
+                                          return (
+                                            <div key={vendedor.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                                              <div className="flex items-center space-x-3">
+                                                <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center">
+                                                  <span className="text-white font-medium text-xs">
+                                                    {vendedor.name.split(' ')[0][0]}
+                                                  </span>
+                                                </div>
+                                                <div>
+                                                  <span className="font-medium text-gray-900">{vendedor.name}</span>
+                                                  {!vendedor.active && <span className="ml-2 text-red-500 text-xs font-medium">(Inactivo)</span>}
+                                                  <div className="text-xs text-gray-500">
+                                                    {vendedorLeads.length} leads asignados
+                                                  </div>
+                                                </div>
+                                              </div>
+                                              <div className="text-right">
+                                                <span className="font-bold text-green-600 text-lg">{vendedorVentas}</span>
+                                                <div className="text-xs text-gray-500">
+                                                  {conversion}% conversión
+                                                </div>
                                               </div>
                                             </div>
-                                          </div>
-                                          <div className="text-right">
-                                            <span className="font-bold text-green-600 text-lg">{vendedorVentas}</span>
-                                            <div className="text-xs text-gray-500">
-                                              {conversion}% conversión
-                                            </div>
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                    {vendedores.length === 0 && (
-                                      <p className="text-center text-gray-400 py-4 text-sm">No hay vendedores asignados</p>
+                                          );
+                                        })}
+                                      </div>
                                     )}
                                   </div>
-                                </div>
-                              );
-                            })}
-                            {supervisores.length === 0 && (
-                              <div className="col-span-2 text-center text-gray-400 py-8">
-                                <p>No hay supervisores asignados a este gerente</p>
-                              </div>
-                            )}
-                          </div>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                       );
                     });
