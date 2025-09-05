@@ -941,10 +941,23 @@ export default function CRM() {
                     <option value="whatsapp_100">💬 Bot 100 (Distribución general)</option>
                   </select>
                   <div className="mt-2 text-xs space-y-1">
-                    <div className="text-green-600">💬 Bot CM 1 → Equipo Sauer automáticamente</div>
-                    <div className="text-green-600">💬 Bot CM 2 → Equipo Daniel automáticamente</div>
-                    <div className="text-green-600">💬 Bot 100 → Distribución general</div>
-                    <div className="text-gray-500">Otras fuentes → Asignación manual o scope actual</div>
+                    {(() => {
+                      const robertoManager = users.find((u: any) => u.role === "gerente" && u.name.toLowerCase().includes("roberto"));
+                      const danielManager = users.find((u: any) => u.role === "gerente" && u.name.toLowerCase().includes("daniel"));
+                      
+                      return (
+                        <>
+                          {robertoManager && (
+                            <div className="text-green-600">💬 Bot CM 1 → Equipo {robertoManager.name} automáticamente</div>
+                          )}
+                          {danielManager && (
+                            <div className="text-green-600">💬 Bot CM 2 → Equipo {danielManager.name} automáticamente</div>
+                          )}
+                          <div className="text-green-600">💬 Bot 100 → Distribución general</div>
+                          <div className="text-gray-500">Otras fuentes → Asignación manual o scope actual</div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
                 <div>
