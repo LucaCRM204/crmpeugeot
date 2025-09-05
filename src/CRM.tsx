@@ -117,7 +117,7 @@ export default function CRM() {
   const [activeSection, setActiveSection] = useState<"dashboard" | "leads" | "calendar" | "ranking" | "users" | "alerts" | "team">("dashboard");
   const [loginError, setLoginError] = useState("");
   const [selectedEstado, setSelectedEstado] = useState<string | null>(null);
-  const [selectedTeam, setSelectedTeam] = useState<'roberto' | 'daniel'>('roberto');
+  const [selectedTeam, setSelectedTeam] = useState<'roberto' | 'daniel' | 'todos'>('todos');
 
   // ===== Login contra backend =====
   const handleLogin = async (email: string, password: string) => {
@@ -203,7 +203,7 @@ export default function CRM() {
   const getFilteredLeadsByTeam = (teamName?: string) => {
     if (!currentUser) return [] as LeadRow[];
     
-    if (teamName && ["owner", "director"].includes(currentUser.role)) {
+    if (teamName && teamName !== 'todos' && ["owner", "director"].includes(currentUser.role)) {
       // Filtrar por equipo específico
       const teamUserIds = getTeamUserIds(teamName);
       return leads.filter((l) => (l.vendedor ? teamUserIds.includes(l.vendedor) : false));
@@ -364,14 +364,14 @@ export default function CRM() {
   }, [leads, users, userById]);
 
   const getDashboardStats = (teamFilter?: string) => {
-    const filteredLeads = teamFilter ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
+    const filteredLeads = teamFilter && teamFilter !== 'todos' ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
     const vendidos = filteredLeads.filter((lead) => lead.estado === "vendido").length;
     const conversion = filteredLeads.length > 0 ? ((vendidos / filteredLeads.length) * 100).toFixed(1) : 0;
     return { totalLeads: filteredLeads.length, vendidos, conversion };
   };
 
   const getSourceMetrics = (teamFilter?: string) => {
-    const filteredLeads = teamFilter ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
+    const filteredLeads = teamFilter && teamFilter !== 'todos' ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
     const sourceData = Object.keys(fuentes)
       .map((source) => {
         const sourceLeads = filteredLeads.filter((lead) => lead.fuente === source);
@@ -1148,9 +1148,10 @@ export default function CRM() {
               {["owner", "director"].includes(currentUser?.role) && (
                 <select
                   value={selectedTeam}
-                  onChange={(e) => setSelectedTeam(e.target.value as 'roberto' | 'daniel')}
+                  onChange={(e) => setSelectedTeam(e.target.value as 'roberto' | 'daniel' | 'todos')}
                   className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
                 >
+                  <option value="todos">Todos los equipos</option>
                   <option value="roberto">Equipo Roberto</option>
                   <option value="daniel">Equipo Daniel</option>
                 </select>
@@ -1195,7 +1196,7 @@ export default function CRM() {
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {Object.entries(estados).map(([key, estado]) => {
                   const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
-                  const filteredLeads = teamFilter ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
+                  const filteredLeads = teamFilter && teamFilter !== 'todos' ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
                   const count = filteredLeads.filter((l) => l.estado === key).length;
                   return (
                     <button
@@ -1226,7 +1227,7 @@ export default function CRM() {
                   
                   {(() => {
                     const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
-                    const filteredLeads = teamFilter ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
+                    const filteredLeads = teamFilter && teamFilter !== 'todos' ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
                     const leadsFiltrados = filteredLeads.filter(l => l.estado === selectedEstado);
                     
                     if (leadsFiltrados.length === 0) {
@@ -1329,7 +1330,7 @@ export default function CRM() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {(() => {
                     const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
-                    return getSourceMetrics(teamFilter).map((source) => (
+                    return getSourceMetrics(teamFilter && teamFilter !== 'todos' ? teamFilter : undefined).map((source) => (
                       <div key={source.source} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center space-x-2">
@@ -1357,7 +1358,7 @@ export default function CRM() {
                 </div>
                 {(() => {
                   const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
-                  return getSourceMetrics(teamFilter).length === 0;
+                  return getSourceMetrics(teamFilter && teamFilter !== 'todos' ? teamFilter : undefined).length === 0;
                 })() && <p className="text-gray-500 text-center py-8">No hay leads con fuentes registradas</p>}
               </div>
             )}
@@ -1646,7 +1647,7 @@ export default function CRM() {
           </div>
         )}
 
-        {/* Sección Mi Equipo - Con filtro por equipo */}
+        {/* Sección Mi Equipo - CORREGIDA PARA MOSTRAR TODOS LOS GERENTES */}
         {activeSection === "team" && ["supervisor", "gerente", "director", "owner"].includes(currentUser?.role) && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -1654,9 +1655,10 @@ export default function CRM() {
               {["owner", "director"].includes(currentUser?.role) && (
                 <select
                   value={selectedTeam}
-                  onChange={(e) => setSelectedTeam(e.target.value as 'roberto' | 'daniel')}
+                  onChange={(e) => setSelectedTeam(e.target.value as 'roberto' | 'daniel' | 'todos')}
                   className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
                 >
+                  <option value="todos">Todos los equipos</option>
                   <option value="roberto">Equipo Roberto</option>
                   <option value="daniel">Equipo Daniel</option>
                 </select>
@@ -1680,7 +1682,7 @@ export default function CRM() {
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {Object.entries(estados).map(([key, estado]) => {
                   const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
-                  const filteredLeads = teamFilter ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
+                  const filteredLeads = teamFilter && teamFilter !== 'todos' ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
                   const count = filteredLeads.filter((l) => l.estado === key).length;
                   return (
                     <button
@@ -1711,7 +1713,7 @@ export default function CRM() {
                   
                   {(() => {
                     const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
-                    const filteredLeads = teamFilter ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
+                    const filteredLeads = teamFilter && teamFilter !== 'todos' ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
                     const leadsFiltrados = filteredLeads.filter(l => l.estado === selectedEstado);
                     
                     if (leadsFiltrados.length === 0) {
@@ -1839,7 +1841,7 @@ export default function CRM() {
               )}
             </div>
 
-            {/* Estructura organizacional */}
+            {/* Estructura organizacional CORREGIDA */}
             <div className="bg-white rounded-xl shadow-lg p-6">
               <h3 className="text-xl font-semibold text-gray-800 mb-4">Estructura Organizacional</h3>
               <div className="space-y-6">
@@ -1847,15 +1849,15 @@ export default function CRM() {
                   const visibleUsers = getVisibleUsers();
                   
                   if (currentUser?.role === "owner" || currentUser?.role === "director") {
-                    // Owner y Director ven todos los gerentes y sus equipos
+                    // Owner y Director ven todos los gerentes (o filtrados por equipo)
                     const gerentes = visibleUsers.filter((u: any) => u.role === "gerente");
                     
-                    // Si hay filtro de equipo activo, filtrar solo ese gerente
-                    const gerentesAMostrar = ["owner", "director"].includes(currentUser?.role) 
-                      ? gerentes.filter((g: any) => 
+                    // CORREGIDO: Si selectedTeam es 'todos', mostrar TODOS los gerentes
+                    const gerentesAMostrar = selectedTeam === 'todos' 
+                      ? gerentes
+                      : gerentes.filter((g: any) => 
                           g.name.toLowerCase().includes(selectedTeam.toLowerCase())
-                        )
-                      : gerentes;
+                        );
                     
                     return gerentesAMostrar.map((gerente: any) => {
                       const supervisores = visibleUsers.filter((u: any) => u.reportsTo === gerente.id);
