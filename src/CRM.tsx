@@ -1855,9 +1855,7 @@ export default function CRM() {
                     // CORREGIDO: Si selectedTeam es 'todos', mostrar TODOS los gerentes
                     const gerentesAMostrar = selectedTeam === 'todos' 
                       ? gerentes
-                      : gerentes.filter((g: any) => 
-                          g.name.toLowerCase().includes(selectedTeam.toLowerCase())
-                        );
+                      : gerentes.filter((g: any) => g.id.toString() === selectedTeam);
                     
                     return gerentesAMostrar.map((gerente: any, gerenteIndex: number) => {
                       const supervisores = visibleUsers.filter((u: any) => u.reportsTo === gerente.id);
