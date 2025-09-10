@@ -1958,13 +1958,319 @@ export default function CRM() {
             <div className="bg-white rounded-xl shadow-lg p-6">
               <h3 className="text-xl font-semibold text-gray-800 mb-6">Estructura Organizacional</h3>
               <div className="space-y-8">
-                <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-                  <div className="text-4xl mb-2">🏢</div>
-                  <h5 className="text-lg font-medium text-gray-700 mb-2">Estructura organizacional disponible</h5>
-                  <p className="text-sm text-gray-500">
-                    La visualización completa de la estructura se mostrará aquí basada en tu rol y permisos.
-                  </p>
-                </div>
+                {(() => {
+                  const visibleUsers = getVisibleUsers();
+                  
+                  if (currentUser?.role === "owner" || currentUser?.role === "director") {
+                    // Owner y Director ven todos los gerentes (o filtrados por equipo)
+                    const gerentes = visibleUsers.filter((u: any) => u.role === "gerente");
+                    
+                    // Filtrar gerentes según selectedTeam
+                    const gerentesAMostrar = selectedTeam === 'todos' 
+                      ? gerentes
+                      : gerentes.filter((g: any) => g.id.toString() === selectedTeam);
+                    
+                    if (gerentesAMostrar.length === 0) {
+                      return (
+                        <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                          <div className="text-4xl mb-2">🏢</div>
+                          <h5 className="text-lg font-medium text-gray-700 mb-2">Sin equipos para mostrar</h5>
+                          <p className="text-sm text-gray-500">
+                            No hay gerentes asignados para el filtro seleccionado.
+                          </p>
+                        </div>
+                      );
+                    }
+                    
+                    return gerentesAMostrar.map((gerente: any, gerenteIndex: number) => {
+                      const supervisores = visibleUsers.filter((u: any) => u.reportsTo === gerente.id);
+                      const gerenteLeads = leads.filter((l) => l.vendedor === gerente.id);
+                      const gerenteVentas = gerenteLeads.filter((l) => l.estado === "vendido").length;
+                      
+                      // Colores distintos para cada gerente
+                      const gerenteColors = [
+                        { bg: "bg-blue-600", border: "border-blue-200", accent: "bg-blue-50" },
+                        { bg: "bg-purple-600", border: "border-purple-200", accent: "bg-purple-50" },
+                        { bg: "bg-indigo-600", border: "border-indigo-200", accent: "bg-indigo-50" },
+                        { bg: "bg-teal-600", border: "border-teal-200", accent: "bg-teal-50" },
+                      ];
+                      const colorScheme = gerenteColors[gerenteIndex % gerenteColors.length];
+                      
+                      return (
+                        <div key={gerente.id} className={`border-2 ${colorScheme.border} ${colorScheme.accent} rounded-xl p-6 shadow-md`}>
+                          {/* Header del Gerente */}
+                          <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center space-x-4">
+                              <div className={`w-16 h-16 ${colorScheme.bg} rounded-full flex items-center justify-center shadow-lg`}>
+                                <span className="text-white font-bold text-lg">
+                                  {gerente.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
+                                </span>
+                              </div>
+                              <div>
+                                <h4 className="text-xl font-bold text-gray-900">{gerente.name}</h4>
+                                <p className="text-sm font-medium text-gray-600 mb-1">🏢 Gerente</p>
+                                <div className="flex items-center space-x-4 text-sm text-gray-500">
+                                  <span>📊 {supervisores.length} supervisores</span>
+                                  <span>👥 {supervisores.reduce((total, sup) => total + visibleUsers.filter(u => u.reportsTo === sup.id).length, 0)} vendedores</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right bg-white rounded-lg p-4 shadow-sm border">
+                              <p className="text-2xl font-bold text-green-600">{gerenteVentas}</p>
+                              <p className="text-sm text-gray-500">ventas totales</p>
+                              <p className="text-xs text-gray-400 mt-1">
+                                {gerenteLeads.length} leads • {gerenteLeads.length > 0 ? ((gerenteVentas / gerenteLeads.length) * 100).toFixed(0) : 0}%
+                              </p>
+                            </div>
+                          </div>
+                          
+                          {/* Mensaje cuando no hay supervisores */}
+                          {supervisores.length === 0 ? (
+                            <div className="text-center py-12 bg-white rounded-lg border-2 border-dashed border-gray-300">
+                              <div className="text-4xl mb-2">👨‍💼</div>
+                              <h5 className="text-lg font-medium text-gray-700 mb-2">
+                                {gerente.name} aún no tiene supervisores asignados
+                              </h5>
+                              <p className="text-sm text-gray-500">
+                                Ve a la sección "Usuarios" para asignar supervisores a este gerente
+                              </p>
+                            </div>
+                          ) : (
+                            /* Supervisores del gerente */
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                              {supervisores.map((supervisor: any) => {
+                                const vendedores = visibleUsers.filter((u: any) => u.reportsTo === supervisor.id);
+                                const supervisorLeads = leads.filter((l) => 
+                                  vendedores.some((v: any) => v.id === l.vendedor)
+                                );
+                                const supervisorVentas = supervisorLeads.filter((l) => l.estado === "vendido").length;
+                                
+                                return (
+                                  <div key={supervisor.id} className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+                                    {/* Header del Supervisor */}
+                                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+                                      <div className="flex items-center space-x-3">
+                                        <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                                          <span className="text-white font-medium text-sm">
+                                            {supervisor.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
+                                          </span>
+                                        </div>
+                                        <div>
+                                          <p className="font-semibold text-gray-900">{supervisor.name}</p>
+                                          <p className="text-xs text-gray-500">👨‍💼 Supervisor • {vendedores.length} vendedores</p>
+                                        </div>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className="text-lg font-bold text-green-600">{supervisorVentas}</p>
+                                        <p className="text-xs text-gray-500">{supervisorLeads.length} leads</p>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Vendedores del supervisor */}
+                                    {vendedores.length === 0 ? (
+                                      <div className="text-center py-6 bg-gray-50 rounded-lg border border-gray-200">
+                                        <div className="text-2xl mb-1">👤</div>
+                                        <p className="text-sm font-medium text-gray-600">
+                                          {supervisor.name} no tiene vendedores asignados
+                                        </p>
+                                        <p className="text-xs text-gray-400 mt-1">
+                                          Asigna vendedores en la sección "Usuarios"
+                                        </p>
+                                      </div>
+                                    ) : (
+                                      <div className="space-y-2">
+                                        {vendedores.map((vendedor: any) => {
+                                          const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
+                                          const vendedorVentas = vendedorLeads.filter((l) => l.estado === "vendido").length;
+                                          const conversion = vendedorLeads.length > 0 ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0) : "0";
+                                          
+                                          return (
+                                            <div key={vendedor.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                                              <div className="flex items-center space-x-3">
+                                                <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center">
+                                                  <span className="text-white font-medium text-xs">
+                                                    {vendedor.name.split(' ')[0][0]}
+                                                  </span>
+                                                </div>
+                                                <div>
+                                                  <span className="font-medium text-gray-900">{vendedor.name}</span>
+                                                  {!vendedor.active && <span className="ml-2 text-red-500 text-xs font-medium">(Inactivo)</span>}
+                                                  <div className="text-xs text-gray-500">
+                                                    {vendedorLeads.length} leads asignados
+                                                  </div>
+                                                </div>
+                                              </div>
+                                              <div className="text-right">
+                                                <span className="font-bold text-green-600 text-lg">{vendedorVentas}</span>
+                                                <div className="text-xs text-gray-500">
+                                                  {conversion}% conversión
+                                                </div>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    });
+                  } else if (currentUser?.role === "gerente") {
+                    // Gerente ve solo su equipo
+                    const supervisores = visibleUsers.filter((u: any) => u.reportsTo === currentUser.id);
+                    
+                    return (
+                      <div className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center">
+                              <span className="text-white font-medium text-sm">
+                                {currentUser.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
+                              </span>
+                            </div>
+                            <div>
+                              <h4 className="font-medium text-gray-900">{currentUser.name} (Tú)</h4>
+                              <p className="text-sm text-gray-500">Gerente</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-medium">{supervisores.length} supervisores</p>
+                          </div>
+                        </div>
+                        
+                        {/* Supervisores */}
+                        <div className="ml-6 space-y-3">
+                          {supervisores.map((supervisor: any) => {
+                            const vendedores = visibleUsers.filter((u: any) => u.reportsTo === supervisor.id);
+                            const supervisorLeads = leads.filter((l) => 
+                              vendedores.some((v: any) => v.id === l.vendedor)
+                            );
+                            const supervisorVentas = supervisorLeads.filter((l) => l.estado === "vendido").length;
+                            
+                            return (
+                              <div key={supervisor.id} className="border-l-2 border-gray-300 pl-4">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center space-x-2">
+                                    <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                                      <span className="text-white font-medium text-xs">
+                                        {supervisor.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <p className="font-medium text-gray-900 text-sm">{supervisor.name}</p>
+                                      <p className="text-xs text-gray-500">Supervisor • {vendedores.length} vendedores</p>
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-sm font-medium text-green-600">{supervisorVentas} ventas</p>
+                                    <p className="text-xs text-gray-500">{supervisorLeads.length} leads</p>
+                                  </div>
+                                </div>
+                                
+                                {/* Vendedores del supervisor */}
+                                <div className="ml-4 grid grid-cols-1 md:grid-cols-2 gap-2">
+                                  {vendedores.map((vendedor: any) => {
+                                    const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
+                                    const vendedorVentas = vendedorLeads.filter((l) => l.estado === "vendido").length;
+                                    const conversion = vendedorLeads.length > 0 ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0) : "0";
+                                    
+                                    return (
+                                      <div key={vendedor.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
+                                        <div className="flex items-center space-x-2">
+                                          <div className="w-6 h-6 bg-gray-400 rounded-full flex items-center justify-center">
+                                            <span className="text-white font-medium text-xs">
+                                              {vendedor.name.split(' ')[0][0]}
+                                            </span>
+                                          </div>
+                                          <span className="text-gray-900">{vendedor.name}</span>
+                                          {!vendedor.active && <span className="text-red-500 text-xs">(Inactivo)</span>}
+                                        </div>
+                                        <div className="text-right">
+                                          <span className="font-medium text-green-600">{vendedorVentas}</span>
+                                          <span className="text-gray-500 ml-1">({conversion}%)</span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  } else if (currentUser?.role === "supervisor") {
+                    // Supervisor ve solo sus vendedores
+                    const vendedores = visibleUsers.filter((u: any) => u.reportsTo === currentUser.id);
+                    
+                    return (
+                      <div className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
+                              <span className="text-white font-medium text-sm">
+                                {currentUser.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
+                              </span>
+                            </div>
+                            <div>
+                              <h4 className="font-medium text-gray-900">{currentUser.name} (Tú)</h4>
+                              <p className="text-sm text-gray-500">Supervisor</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-medium">{vendedores.length} vendedores</p>
+                          </div>
+                        </div>
+                        
+                        {/* Vendedores */}
+                        <div className="ml-6 grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {vendedores.map((vendedor: any) => {
+                            const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
+                            const vendedorVentas = vendedorLeads.filter((l) => l.estado === "vendido").length;
+                            const conversion = vendedorLeads.length > 0 ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0) : "0";
+                            
+                            return (
+                              <div key={vendedor.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                                <div className="flex items-center space-x-2">
+                                  <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center">
+                                    <span className="text-white font-medium text-xs">
+                                      {vendedor.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-gray-900">{vendedor.name}</p>
+                                    <p className="text-xs text-gray-500">
+                                      {vendedorLeads.length} leads asignados
+                                      {!vendedor.active && <span className="text-red-500"> (Inactivo)</span>}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-bold text-green-600">{vendedorVentas} ventas</p>
+                                  <p className="text-xs text-gray-500">{conversion}% conversión</p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  return (
+                    <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                      <div className="text-4xl mb-2">🏢</div>
+                      <h5 className="text-lg font-medium text-gray-700 mb-2">Estructura organizacional</h5>
+                      <p className="text-sm text-gray-500">
+                        La visualización se mostrará basada en tu rol y permisos.
+                      </p>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>
