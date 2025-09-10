@@ -1,849 +1,4 @@
-﻿{/* Sección Calendario */}
-        {activeSection === "calendar" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-bold text-gray-800">Calendario</h2>
-              <div className="flex items-center space-x-3">
-                <select
-                  value={selectedCalendarUserId ?? ""}
-                  onChange={(e) => setSelectedCalendarUserId(e.target.value ? parseInt(e.target.value, 10) : null)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg"
-                >
-                  <option value="">Mi calendario</option>
-                  {visibleUsers
-                    .filter((u: any) => u.id !== currentUser?.id)
-                    .map((u: any) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name} — {roles[u.role] || u.role}
-                      </option>
-                    ))}
-                </select>
-                <button
-                  onClick={() => setShowNewEventModal(true)}
-                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  <Plus size={20} />
-                  <span>Nuevo Evento</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4">
-                Próximos eventos - {selectedCalendarUserId ? userById.get(selectedCalendarUserId)?.name : "Mi calendario"}
-              </h3>
-              
-              {eventsForSelectedUser.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No hay eventos programados</p>
-              ) : (
-                <div className="space-y-3">
-                  {eventsForSelectedUser.map((event: any) => (
-                    <div key={event.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
-                      <div>
-                        <h4 className="font-medium text-gray-900">{event.title}</h4>
-                        <p className="text-sm text-gray-600">
-                          {formatterEs.format(new Date(event.date))} a las {event.time}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {userById.get(event.userId)?.name || "Usuario desconocido"}
-                        </p>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => deleteEvent(event.id)}
-                          className="p-2 text-red-600 hover:text-red-800"
-                          title="Eliminar evento"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Sección Ranking */}
-        {activeSection === "ranking" && (
-          <div className="space-y-6">
-            <h2 className="text-3xl font-bold text-gray-800">Ranking de Vendedores</h2>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Ranking General */}
-              {isOwner() && (
-                <div className="bg-white rounded-xl shadow-lg p-6">
-                  <h3 className="text-xl font-semibold text-gray-800 mb-4">Ranking General</h3>
-                  <div className="space-y-3">
-                    {getRanking().map((vendedor, index) => (
-                      <div key={vendedor.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
-                            index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-600' : 'bg-gray-300'
-                          }`}>
-                            {index + 1}
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900">{vendedor.nombre}</p>
-                            <p className="text-xs text-gray-500">{vendedor.team}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-green-600">{vendedor.ventas} ventas</p>
-                          <p className="text-xs text-gray-500">{vendedor.leadsAsignados} leads asignados</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  {getRanking().length === 0 && (
-                    <p className="text-gray-500 text-center py-8">No hay vendedores registrados</p>
-                  )}
-                </div>
-              )}
-
-              {/* Ranking en Mi Scope */}
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <h3 className="text-xl font-semibold text-gray-800 mb-4">
-                  {isOwner() ? "Mi Scope" : "Ranking"}
-                </h3>
-                <div className="space-y-3">
-                  {getRankingInScope().map((vendedor, index) => (
-                    <div key={vendedor.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
-                          index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-600' : 'bg-gray-300'
-                        }`}>
-                          {index + 1}
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900">{vendedor.nombre}</p>
-                          <p className="text-xs text-gray-500">{vendedor.team}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-green-600">{vendedor.ventas} ventas</p>
-                        <p className="text-xs text-gray-500">{vendedor.leadsAsignados} leads asignados</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {getRankingInScope().length === 0 && (
-                  <p className="text-gray-500 text-center py-8">No hay vendedores en tu scope</p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Sección Mi Equipo */}
-        {activeSection === "team" && ["supervisor", "gerente", "director", "owner"].includes(currentUser?.role) && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-bold text-gray-800">Mi Equipo</h2>
-              {["owner", "director"].includes(currentUser?.role) && (
-                <select
-                  value={selectedTeam}
-                  onChange={(e) => setSelectedTeam(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
-                >
-                  <option value="todos">Todos los equipos</option>
-                  {users
-                    .filter((u: any) => u.role === "gerente")
-                    .map((gerente: any) => (
-                      <option key={gerente.id} value={gerente.id}>
-                        Equipo {gerente.name}
-                      </option>
-                    ))
-                  }
-                </select>
-              )}
-            </div>
-            
-            {/* Estadísticas por estado tipo dashboard */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold text-gray-800">Estados de Leads - Mi Equipo</h3>
-                {selectedEstado && (
-                  <button 
-                    onClick={() => setSelectedEstado(null)}
-                    className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
-                  >
-                    <X size={16} />
-                    <span>Cerrar filtro</span>
-                  </button>
-                )}
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                {Object.entries(estados).map(([key, estado]) => {
-                  const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
-                  const filteredLeads = teamFilter && teamFilter !== 'todos' ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
-                  const count = filteredLeads.filter((l) => l.estado === key).length;
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => setSelectedEstado(selectedEstado === key ? null : key)}
-                      className={`text-center transition-all duration-200 transform hover:scale-105 ${
-                        selectedEstado === key ? "ring-4 ring-blue-300 ring-opacity-50" : ""
-                      }`}
-                      title={`Ver todos los leads en estado: ${estado.label}`}
-                    >
-                      <div className={`${estado.color} text-white rounded-lg p-4 mb-2 hover:opacity-90`}>
-                        <div className="text-2xl font-bold">{count}</div>
-                      </div>
-                      <div className="text-sm text-gray-600">{estado.label}</div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Lista filtrada de leads por estado en Mi Equipo */}
-              {selectedEstado && (
-                <div className="mt-6 border-t pt-6">
-                  <h4 className="text-lg font-semibold text-gray-800 mb-4">
-                    Leads de mi equipo en estado: <span className={`px-3 py-1 rounded-full text-white text-sm ${estados[selectedEstado].color}`}>
-                      {estados[selectedEstado].label}
-                    </span>
-                  </h4>
-                  
-                  {(() => {
-                    const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
-                    const filteredLeads = teamFilter && teamFilter !== 'todos' ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
-                    const leadsFiltrados = filteredLeads.filter(l => l.estado === selectedEstado);
-                    
-                    if (leadsFiltrados.length === 0) {
-                      return (
-                        <p className="text-gray-500 text-center py-8">
-                          No hay leads de tu equipo en estado "{estados[selectedEstado].label}"
-                        </p>
-                      );
-                    }
-
-                    return (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Contacto</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vehículo</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fuente</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vendedor</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                              <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-200">
-                            {leadsFiltrados.map((lead) => {
-                              const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
-                              return (
-                                <tr key={lead.id} className="hover:bg-gray-50">
-                                  <td className="px-4 py-2">
-                                    <div className="font-medium text-gray-900">{lead.nombre}</div>
-                                  </td>
-                                  <td className="px-4 py-2">
-                                    <div className="flex items-center space-x-1">
-                                      <Phone size={12} className="text-gray-400" />
-                                      <span className="text-gray-700">{lead.telefono}</span>
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-2">
-                                    <div>
-                                      <div className="font-medium text-gray-900">{lead.modelo}</div>
-                                      <div className="text-xs text-gray-500">{lead.formaPago}</div>
-                                      {lead.infoUsado && <div className="text-xs text-orange-600">Usado: {lead.infoUsado}</div>}
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-2">
-                                    <div className="flex items-center space-x-1">
-                                      <span className="text-sm">{fuentes[lead.fuente as string]?.icon || "❓"}</span>
-                                      <span className="text-xs text-gray-600">
-                                        {fuentes[lead.fuente as string]?.label || String(lead.fuente)}
-                                      </span>
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-2 text-gray-700">
-                                    {vendedor?.name || "Sin asignar"}
-                                  </td>
-                                  <td className="px-4 py-2 text-gray-500 text-xs">
-                                    {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
-                                  </td>
-                                  <td className="px-4 py-2 text-center">
-                                    <div className="flex items-center justify-center space-x-1">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setEditingLeadObservaciones(lead);
-                                          setShowObservacionesModal(true);
-                                        }}
-                                        className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                        title="Ver/Editar observaciones"
-                                      >
-                                        {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
-                                      </button>
-                                      {canTransferLeads() && (
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setTransferringLead(lead);
-                                            setShowTransferModal(true);
-                                          }}
-                                          className="px-2 py-1 text-xs rounded bg-orange-100 text-orange-700 hover:bg-orange-200"
-                                          title="Derivar lead"
-                                        >
-                                          Derivar
-                                        </button>
-                                      )}
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setActiveSection("leads");
-                                        }}
-                                        className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                        title="Ver en tabla completa"
-                                      >
-                                        Ver
-                                      </button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-            </div>
-
-            {/* Top vendedores en mi organización */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4">Top Vendedores en Mi Organización</h3>
-              <div className="space-y-3">
-                {getRankingInScope().map((vendedor, index) => (
-                  <div key={vendedor.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
-                    <div className="flex items-center space-x-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
-                        index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-600' : 'bg-gray-300'
-                      }`}>
-                        {index + 1}
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900">{vendedor.nombre}</p>
-                        <p className="text-xs text-gray-500">{vendedor.team}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-green-600">{vendedor.ventas} ventas</p>
-                      <p className="text-xs text-gray-500">
-                        {vendedor.leadsAsignados} leads • {vendedor.leadsAsignados > 0 ? ((vendedor.ventas / vendedor.leadsAsignados) * 100).toFixed(0) : 0}%
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {getRankingInScope().length === 0 && (
-                <p className="text-gray-500 text-center py-8">No hay vendedores en tu equipo</p>
-              )}
-            </div>
-
-            {/* Estructura organizacional */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-semibold text-gray-800 mb-6">Estructura Organizacional</h3>
-              <div className="space-y-8">
-                {(() => {
-                  const visibleUsers = getVisibleUsers();
-                  
-                  if (currentUser?.role === "owner" || currentUser?.role === "director") {
-                    // Owner y Director ven todos los gerentes (o filtrados por equipo)
-                    const gerentes = visibleUsers.filter((u: any) => u.role === "gerente");
-                    
-                    // Filtrar gerentes según selectedTeam
-                    const gerentesAMostrar = selectedTeam === 'todos' 
-                      ? gerentes
-                      : gerentes.filter((g: any) => g.id.toString() === selectedTeam);
-                    
-                    return gerentesAMostrar.map((gerente: any, gerenteIndex: number) => {
-                      const supervisores = visibleUsers.filter((u: any) => u.reportsTo === gerente.id);
-                      const gerenteLeads = leads.filter((l) => l.vendedor === gerente.id);
-                      const gerenteVentas = gerenteLeads.filter((l) => l.estado === "vendido").length;
-                      
-                      // Colores distintos para cada gerente
-                      const gerenteColors = [
-                        { bg: "bg-blue-600", border: "border-blue-200", accent: "bg-blue-50" },
-                        { bg: "bg-purple-600", border: "border-purple-200", accent: "bg-purple-50" },
-                        { bg: "bg-indigo-600", border: "border-indigo-200", accent: "bg-indigo-50" },
-                        { bg: "bg-teal-600", border: "border-teal-200", accent: "bg-teal-50" },
-                      ];
-                      const colorScheme = gerenteColors[gerenteIndex % gerenteColors.length];
-                      
-                      return (
-                        <div key={gerente.id} className={`border-2 ${colorScheme.border} ${colorScheme.accent} rounded-xl p-6 shadow-md`}>
-                          {/* Header del Gerente */}
-                          <div className="flex items-center justify-between mb-6">
-                            <div className="flex items-center space-x-4">
-                              <div className={`w-16 h-16 ${colorScheme.bg} rounded-full flex items-center justify-center shadow-lg`}>
-                                <span className="text-white font-bold text-lg">
-                                  {gerente.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
-                                </span>
-                              </div>
-                              <div>
-                                <h4 className="text-xl font-bold text-gray-900">{gerente.name}</h4>
-                                <p className="text-sm font-medium text-gray-600 mb-1">🏢 Gerente</p>
-                                <div className="flex items-center space-x-4 text-sm text-gray-500">
-                                  <span>📊 {supervisores.length} supervisores</span>
-                                  <span>👥 {supervisores.reduce((total, sup) => total + visibleUsers.filter(u => u.reportsTo === sup.id).length, 0)} vendedores</span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="text-right bg-white rounded-lg p-4 shadow-sm border">
-                              <p className="text-2xl font-bold text-green-600">{gerenteVentas}</p>
-                              <p className="text-sm text-gray-500">ventas totales</p>
-                              <p className="text-xs text-gray-400 mt-1">
-                                {gerenteLeads.length} leads • {gerenteLeads.length > 0 ? ((gerenteVentas / gerenteLeads.length) * 100).toFixed(0) : 0}%
-                              </p>
-                            </div>
-                          </div>
-                          
-                          {/* Mensaje cuando no hay supervisores */}
-                          {supervisores.length === 0 ? (
-                            <div className="text-center py-12 bg-white rounded-lg border-2 border-dashed border-gray-300">
-                              <div className="text-4xl mb-2">👨‍💼</div>
-                              <h5 className="text-lg font-medium text-gray-700 mb-2">
-                                {gerente.name} aún no tiene supervisores asignados
-                              </h5>
-                              <p className="text-sm text-gray-500">
-                                Ve a la sección "Usuarios" para asignar supervisores a este gerente
-                              </p>
-                            </div>
-                          ) : (
-                            /* Supervisores del gerente */
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                              {supervisores.map((supervisor: any) => {
-                                const vendedores = visibleUsers.filter((u: any) => u.reportsTo === supervisor.id);
-                                const supervisorLeads = leads.filter((l) => 
-                                  vendedores.some((v: any) => v.id === l.vendedor)
-                                );
-                                const supervisorVentas = supervisorLeads.filter((l) => l.estado === "vendido").length;
-                                
-                                return (
-                                  <div key={supervisor.id} className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
-                                    {/* Header del Supervisor */}
-                                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
-                                      <div className="flex items-center space-x-3">
-                            <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
-                              <span className="text-white font-medium text-sm">
-                                {currentUser.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
-                              </span>
-                            </div>
-                            <div>
-                              <h4 className="font-medium text-gray-900">{currentUser.name} (Tú)</h4>
-                              <p className="text-sm text-gray-500">Supervisor</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-medium">{vendedores.length} vendedores</p>
-                          </div>
-                        </div>
-                        
-                        {/* Vendedores */}
-                        <div className="ml-6 grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {vendedores.map((vendedor: any) => {
-                            const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
-                            const vendedorVentas = vendedorLeads.filter((l) => l.estado === "vendido").length;
-                            const conversion = vendedorLeads.length > 0 ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0) : "0";
-                            
-                            return (
-                              <div key={vendedor.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                                <div className="flex items-center space-x-2">
-                                  <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center">
-                                    <span className="text-white font-medium text-xs">
-                                      {vendedor.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <p className="font-medium text-gray-900">{vendedor.name}</p>
-                                    <p className="text-xs text-gray-500">
-                                      {vendedorLeads.length} leads asignados
-                                      {!vendedor.active && <span className="text-red-500"> (Inactivo)</span>}
-                                    </p>
-                                  </div>
-                                </div>
-                                <div className="text-right">
-                                  <p className="font-bold text-green-600">{vendedorVentas} ventas</p>
-                                  <p className="text-xs text-gray-500">{conversion}% conversión</p>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  }
-                  
-                  return null;
-                })()}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Sección Usuarios */}
-        {activeSection === "users" && canManageUsers() && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-bold text-gray-800">Gestión de Usuarios</h2>
-              <button
-                onClick={openCreateUser}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <Plus size={20} />
-                <span>Nuevo Usuario</span>
-              </button>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuario</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rol</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reporta a</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Performance</th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {getVisibleUsers().map((user: any) => {
-                      const userLeads = leads.filter((l) => l.vendedor === user.id);
-                      const userSales = userLeads.filter((l) => l.estado === "vendido").length;
-                      const manager = user.reportsTo ? userById.get(user.reportsTo) : null;
-                      
-                      return (
-                        <tr key={user.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-4">
-                            <div>
-                              <div className="font-medium text-gray-900">{user.name}</div>
-                              <div className="text-sm text-gray-500">{user.email}</div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                              {roles[user.role] || user.role}
-                            </span>
-                          </td>
-                          <td className="px-4 py-4 text-sm text-gray-700">
-                            {manager?.name || "—"}
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="flex items-center space-x-2">
-                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                user.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                              }`}>
-                                {user.active ? 'Activo' : 'Inactivo'}
-                              </span>
-                              {user.role === "vendedor" && (
-                                <button
-                                  onClick={async () => {
-                                    try {
-                                      const updated = await apiUpdateUser(user.id, {
-                                        ...user,
-                                        active: user.active ? 0 : 1,
-                                      });
-                                      setUsers((prev) => prev.map((u: any) => (u.id === user.id ? updated : u)));
-                                    } catch (e) {
-                                      console.error("No pude cambiar estado del usuario", e);
-                                    }
-                                  }}
-                                  className={`px-2 py-1 text-xs rounded ${
-                                    user.active 
-                                      ? 'bg-red-100 text-red-700 hover:bg-red-200' 
-                                      : 'bg-green-100 text-green-700 hover:bg-green-200'
-                                  }`}
-                                  title={user.active ? "Desactivar vendedor" : "Activar vendedor"}
-                                >
-                                  {user.active ? 'Desactivar' : 'Activar'}
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            {user.role === "vendedor" ? (
-                              <div className="text-sm">
-                                <div>{userLeads.length} leads</div>
-                                <div className="text-green-600 font-medium">{userSales} ventas</div>
-                              </div>
-                            ) : (
-                              <span className="text-gray-400">—</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="flex items-center justify-center space-x-2">
-                              <button
-                                onClick={() => openEditUser(user)}
-                                className="p-1 text-blue-600 hover:text-blue-800"
-                                title="Editar usuario"
-                              >
-                                <Edit3 size={16} />
-                              </button>
-                              {user.id !== currentUser?.id && (
-                                <button
-                                  onClick={() => deleteUser(user.id)}
-                                  className="p-1 text-red-600 hover:text-red-800"
-                                  title="Eliminar usuario"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Sección Alertas */}
-        {activeSection === "alerts" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-bold text-gray-800">Alertas y Notificaciones</h2>
-              <button
-                onClick={() => {
-                  setAlerts((prev) => prev.map((a) => a.userId === currentUser?.id ? { ...a, read: true } : a));
-                }}
-                className="px-4 py-2 text-sm text-blue-600 hover:text-blue-800"
-              >
-                Marcar todas como leídas
-              </button>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              {alerts.filter((a) => a.userId === currentUser?.id).length === 0 ? (
-                <div className="text-center py-12">
-                  <Bell size={48} className="mx-auto text-gray-300 mb-4" />
-                  <p className="text-gray-500">No tienes alertas pendientes</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {alerts
-                    .filter((a) => a.userId === currentUser?.id)
-                    .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
-                    .map((alert) => (
-                      <div
-                        key={alert.id}
-                        className={`p-4 border rounded-lg ${
-                          alert.read ? 'border-gray-200 bg-gray-50' : 'border-blue-200 bg-blue-50'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-start space-x-3">
-                            <div className={`mt-1 w-2 h-2 rounded-full ${alert.read ? 'bg-gray-400' : 'bg-blue-500'}`} />
-                            <div>
-                              <p className={`font-medium ${alert.read ? 'text-gray-700' : 'text-gray-900'}`}>
-                                {alert.type === "lead_assigned" ? "Nuevo Lead Asignado" : 
-                                 alert.type === "ranking_change" ? "Cambio en Ranking" : 
-                                 "Lead Derivado"}
-                              </p>
-                              <p className={`text-sm ${alert.read ? 'text-gray-500' : 'text-gray-700'}`}>
-                                {alert.message}
-                              </p>
-                              <p className="text-xs text-gray-400 mt-1">
-                                {new Date(alert.ts).toLocaleDateString('es-AR')} {new Date(alert.ts).toLocaleTimeString('es-AR')}
-                              </p>
-                            </div>
-                          </div>
-                          {!alert.read && (
-                            <button
-                              onClick={() => {
-                                setAlerts((prev) => prev.map((a) => a.id === alert.id ? { ...a, read: true } : a));
-                              }}
-                              className="text-blue-600 hover:text-blue-800 text-sm"
-                            >
-                              Marcar como leída
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}">
-                                        <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
-                                          <span className="text-white font-medium text-sm">
-                                            {supervisor.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
-                                          </span>
-                                        </div>
-                                        <div>
-                                          <p className="font-semibold text-gray-900">{supervisor.name}</p>
-                                          <p className="text-xs text-gray-500">👨‍💼 Supervisor • {vendedores.length} vendedores</p>
-                                        </div>
-                                      </div>
-                                      <div className="text-right">
-                                        <p className="text-lg font-bold text-green-600">{supervisorVentas}</p>
-                                        <p className="text-xs text-gray-500">{supervisorLeads.length} leads</p>
-                                      </div>
-                                    </div>
-                                    
-                                    {/* Vendedores del supervisor */}
-                                    {vendedores.length === 0 ? (
-                                      <div className="text-center py-6 bg-gray-50 rounded-lg border border-gray-200">
-                                        <div className="text-2xl mb-1">👤</div>
-                                        <p className="text-sm font-medium text-gray-600">
-                                          {supervisor.name} no tiene vendedores asignados
-                                        </p>
-                                        <p className="text-xs text-gray-400 mt-1">
-                                          Asigna vendedores en la sección "Usuarios"
-                                        </p>
-                                      </div>
-                                    ) : (
-                                      <div className="space-y-2">
-                                        {vendedores.map((vendedor: any) => {
-                                          const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
-                                          const vendedorVentas = vendedorLeads.filter((l) => l.estado === "vendido").length;
-                                          const conversion = vendedorLeads.length > 0 ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0) : "0";
-                                          
-                                          return (
-                                            <div key={vendedor.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                                              <div className="flex items-center space-x-3">
-                                                <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center">
-                                                  <span className="text-white font-medium text-xs">
-                                                    {vendedor.name.split(' ')[0][0]}
-                                                  </span>
-                                                </div>
-                                                <div>
-                                                  <span className="font-medium text-gray-900">{vendedor.name}</span>
-                                                  {!vendedor.active && <span className="ml-2 text-red-500 text-xs font-medium">(Inactivo)</span>}
-                                                  <div className="text-xs text-gray-500">
-                                                    {vendedorLeads.length} leads asignados
-                                                  </div>
-                                                </div>
-                                              </div>
-                                              <div className="text-right">
-                                                <span className="font-bold text-green-600 text-lg">{vendedorVentas}</span>
-                                                <div className="text-xs text-gray-500">
-                                                  {conversion}% conversión
-                                                </div>
-                                              </div>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    });
-                  } else if (currentUser?.role === "gerente") {
-                    // Gerente ve solo su equipo
-                    const supervisores = visibleUsers.filter((u: any) => u.reportsTo === currentUser.id);
-                    
-                    return (
-                      <div className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center">
-                              <span className="text-white font-medium text-sm">
-                                {currentUser.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
-                              </span>
-                            </div>
-                            <div>
-                              <h4 className="font-medium text-gray-900">{currentUser.name} (Tú)</h4>
-                              <p className="text-sm text-gray-500">Gerente</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-medium">{supervisores.length} supervisores</p>
-                          </div>
-                        </div>
-                        
-                        {/* Supervisores */}
-                        <div className="ml-6 space-y-3">
-                          {supervisores.map((supervisor: any) => {
-                            const vendedores = visibleUsers.filter((u: any) => u.reportsTo === supervisor.id);
-                            const supervisorLeads = leads.filter((l) => 
-                              vendedores.some((v: any) => v.id === l.vendedor)
-                            );
-                            const supervisorVentas = supervisorLeads.filter((l) => l.estado === "vendido").length;
-                            
-                            return (
-                              <div key={supervisor.id} className="border-l-2 border-gray-300 pl-4">
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center space-x-2">
-                                    <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                                      <span className="text-white font-medium text-xs">
-                                        {supervisor.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
-                                      </span>
-                                    </div>
-                                    <div>
-                                      <p className="font-medium text-gray-900 text-sm">{supervisor.name}</p>
-                                      <p className="text-xs text-gray-500">Supervisor • {vendedores.length} vendedores</p>
-                                    </div>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className="text-sm font-medium text-green-600">{supervisorVentas} ventas</p>
-                                    <p className="text-xs text-gray-500">{supervisorLeads.length} leads</p>
-                                  </div>
-                                </div>
-                                
-                                {/* Vendedores del supervisor */}
-                                <div className="ml-4 grid grid-cols-1 md:grid-cols-2 gap-2">
-                                  {vendedores.map((vendedor: any) => {
-                                    const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
-                                    const vendedorVentas = vendedorLeads.filter((l) => l.estado === "vendido").length;
-                                    const conversion = vendedorLeads.length > 0 ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0) : "0";
-                                    
-                                    return (
-                                      <div key={vendedor.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
-                                        <div className="flex items-center space-x-2">
-                                          <div className="w-6 h-6 bg-gray-400 rounded-full flex items-center justify-center">
-                                            <span className="text-white font-medium text-xs">
-                                              {vendedor.name.split(' ')[0][0]}
-                                            </span>
-                                          </div>
-                                          <span className="text-gray-900">{vendedor.name}</span>
-                                          {!vendedor.active && <span className="text-red-500 text-xs">(Inactivo)</span>}
-                                        </div>
-                                        <div className="text-right">
-                                          <span className="font-medium text-green-600">{vendedorVentas}</span>
-                                          <span className="text-gray-500 ml-1">({conversion}%)</span>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  } else if (currentUser?.role === "supervisor") {
-                    // Supervisor ve solo sus vendedores
-                    const vendedores = visibleUsers.filter((u: any) => u.reportsTo === currentUser.id);
-                    
-                    return (
-                      <div className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center space-x-3import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { Calendar, Users, Trophy, Plus, Phone, BarChart3, Settings, Home, X, Trash2, Edit3, Bell, UserCheck, ArrowRight } from "lucide-react";
 import { api } from "./api";
 import {
@@ -964,9 +119,9 @@ export default function CRM() {
   const [selectedEstado, setSelectedEstado] = useState<string | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<string>('todos');
 
-  // ===== Estados para derivación de leads =====
-  const [showTransferModal, setShowTransferModal] = useState(false);
-  const [transferringLead, setTransferringLead] = useState<LeadRow | null>(null);
+  // Estados para derivación de leads
+  const [showDerivarModal, setShowDerivarModal] = useState(false);
+  const [leadToDerive, setLeadToDerive] = useState<LeadRow | null>(null);
 
   // ===== Login contra backend =====
   const handleLogin = async (email: string, password: string) => {
@@ -1032,9 +187,7 @@ export default function CRM() {
   };
   const canManageUsers = () => currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
   const isOwner = () => currentUser?.role === "owner";
-  
-  // ===== Verificar si puede derivar leads =====
-  const canTransferLeads = () => currentUser && ["owner", "gerente", "supervisor"].includes(currentUser.role);
+  const canDeriveLeads = () => currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
 
   // ===== Funciones de filtro por equipo =====
   const getTeamManagerById = (teamId: string) => {
@@ -1115,6 +268,53 @@ export default function CRM() {
     return id;
   };
 
+  // ===== Funciones para derivación de leads =====
+  const getDerivableVendors = () => {
+    if (!currentUser) return [];
+    
+    if (["owner", "director"].includes(currentUser.role)) {
+      // Owner y Director pueden derivar a cualquier vendedor activo
+      return users.filter((u: any) => u.role === "vendedor" && u.active);
+    } else if (currentUser.role === "gerente") {
+      // Gerente solo puede derivar dentro de su equipo
+      const teamUserIds = getDescendantUserIds(currentUser.id, childrenIndex);
+      return users.filter((u: any) => 
+        u.role === "vendedor" && 
+        u.active && 
+        teamUserIds.includes(u.id)
+      );
+    }
+    
+    return [];
+  };
+
+  const handleDerivarLead = async (leadId: number, newVendorId: number) => {
+    if (!leadToDerive) return;
+    
+    try {
+      const updated = await apiUpdateLead(leadId, { assigned_to: newVendorId });
+      setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...mapLeadFromApi(updated) } : l)));
+      
+      const newVendor = userById.get(newVendorId);
+      const oldVendor = leadToDerive.vendedor ? userById.get(leadToDerive.vendedor) : null;
+      
+      // Notificar al nuevo vendedor
+      if (newVendor) {
+        pushAlert(newVendorId, "lead_transferred", 
+          `Lead derivado: ${leadToDerive.nombre} (de ${oldVendor?.name || 'sin asignar'}) por ${currentUser.name}`
+        );
+      }
+      
+      // Agregar entrada al historial
+      addHistorialEntry(leadId, `derivado_a_${newVendor?.name || 'vendedor'}`);
+      
+      setShowDerivarModal(false);
+      setLeadToDerive(null);
+    } catch (e) {
+      console.error("No pude derivar el lead", e);
+    }
+  };
+
   // ===== Alertas (locales de UI) =====
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const nextAlertId = useRef(1);
@@ -1173,56 +373,6 @@ export default function CRM() {
       
       return false;
     });
-  };
-
-  // ===== Funciones para derivación de leads =====
-  const getAvailableVendorsForTransfer = (currentVendorId: number | null) => {
-    if (!currentUser || !canTransferLeads()) return [];
-    
-    const visibleUsers = getVisibleUsers();
-    return visibleUsers.filter((u: any) => 
-      u.role === "vendedor" && 
-      u.active && 
-      u.id !== currentVendorId
-    );
-  };
-
-  const handleTransferLead = async (leadId: number, newVendorId: number, reason?: string) => {
-    try {
-      const oldVendorId = transferringLead?.vendedor;
-      const newVendor = userById.get(newVendorId);
-      const oldVendor = oldVendorId ? userById.get(oldVendorId) : null;
-      
-      // Actualizar el lead en el backend
-      const updated = await apiUpdateLead(leadId, { assigned_to: newVendorId });
-      
-      // Actualizar el estado local
-      setLeads((prev) => prev.map((l) => 
-        l.id === leadId 
-          ? { ...l, vendedor: newVendorId, ...mapLeadFromApi(updated) } 
-          : l
-      ));
-
-      // Enviar alertas
-      const leadName = transferringLead?.nombre || "Lead";
-      const transferMessage = `Lead "${leadName}" derivado ${oldVendor ? `de ${oldVendor.name} ` : ''}a ti${reason ? ` - Motivo: ${reason}` : ''}`;
-      
-      pushAlert(newVendorId, "lead_transferred", transferMessage);
-      
-      if (oldVendorId) {
-        const fromMessage = `Lead "${leadName}" derivado a ${newVendor?.name || 'otro vendedor'}${reason ? ` - Motivo: ${reason}` : ''}`;
-        pushAlert(oldVendorId, "lead_transferred", fromMessage);
-      }
-
-      // Agregar entrada al historial
-      addHistorialEntry(leadId, `Derivado a ${newVendor?.name || 'vendedor'}`);
-      
-      setShowTransferModal(false);
-      setTransferringLead(null);
-      
-    } catch (e) {
-      console.error("No pude derivar el lead", e);
-    }
   };
 
   const getRanking = () => {
@@ -1594,6 +744,852 @@ export default function CRM() {
                 <p className="text-red-700 text-sm">{loginError}</p>
               </div>
             )}
+
+        {/* Sección Calendario */}
+        {activeSection === "calendar" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-bold text-gray-800">Calendario</h2>
+              <div className="flex items-center space-x-3">
+                <select
+                  value={selectedCalendarUserId ?? ""}
+                  onChange={(e) => setSelectedCalendarUserId(e.target.value ? parseInt(e.target.value, 10) : null)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg"
+                >
+                  <option value="">Mi calendario</option>
+                  {visibleUsers
+                    .filter((u: any) => u.id !== currentUser?.id)
+                    .map((u: any) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} — {roles[u.role] || u.role}
+                      </option>
+                    ))}
+                </select>
+                <button
+                  onClick={() => setShowNewEventModal(true)}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <Plus size={20} />
+                  <span>Nuevo Evento</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h3 className="text-xl font-semibold text-gray-800 mb-4">
+                Próximos eventos - {selectedCalendarUserId ? userById.get(selectedCalendarUserId)?.name : "Mi calendario"}
+              </h3>
+              
+              {eventsForSelectedUser.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No hay eventos programados</p>
+              ) : (
+                <div className="space-y-3">
+                  {eventsForSelectedUser.map((event: any) => (
+                    <div key={event.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                      <div>
+                        <h4 className="font-medium text-gray-900">{event.title}</h4>
+                        <p className="text-sm text-gray-600">
+                          {formatterEs.format(new Date(event.date))} a las {event.time}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {userById.get(event.userId)?.name || "Usuario desconocido"}
+                        </p>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => deleteEvent(event.id)}
+                          className="p-2 text-red-600 hover:text-red-800"
+                          title="Eliminar evento"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Sección Ranking */}
+        {activeSection === "ranking" && (
+          <div className="space-y-6">
+            <h2 className="text-3xl font-bold text-gray-800">Ranking de Vendedores</h2>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Ranking General */}
+              {isOwner() && (
+                <div className="bg-white rounded-xl shadow-lg p-6">
+                  <h3 className="text-xl font-semibold text-gray-800 mb-4">Ranking General</h3>
+                  <div className="space-y-3">
+                    {getRanking().map((vendedor, index) => (
+                      <div key={vendedor.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
+                            index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-600' : 'bg-gray-300'
+                          }`}>
+                            {index + 1}
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">{vendedor.nombre}</p>
+                            <p className="text-xs text-gray-500">{vendedor.team}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-green-600">{vendedor.ventas} ventas</p>
+                          <p className="text-xs text-gray-500">{vendedor.leadsAsignados} leads asignados</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {getRanking().length === 0 && (
+                    <p className="text-gray-500 text-center py-8">No hay vendedores registrados</p>
+                  )}
+                </div>
+              )}
+
+              {/* Ranking en Mi Scope */}
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <h3 className="text-xl font-semibold text-gray-800 mb-4">
+                  {isOwner() ? "Mi Scope" : "Ranking"}
+                </h3>
+                <div className="space-y-3">
+                  {getRankingInScope().map((vendedor, index) => (
+                    <div key={vendedor.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
+                          index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-600' : 'bg-gray-300'
+                        }`}>
+                          {index + 1}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">{vendedor.nombre}</p>
+                          <p className="text-xs text-gray-500">{vendedor.team}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-green-600">{vendedor.ventas} ventas</p>
+                        <p className="text-xs text-gray-500">{vendedor.leadsAsignados} leads asignados</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {getRankingInScope().length === 0 && (
+                  <p className="text-gray-500 text-center py-8">No hay vendedores en tu scope</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Sección Mi Equipo */}
+        {activeSection === "team" && ["supervisor", "gerente", "director", "owner"].includes(currentUser?.role) && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-bold text-gray-800">Mi Equipo</h2>
+              {["owner", "director"].includes(currentUser?.role) && (
+                <select
+                  value={selectedTeam}
+                  onChange={(e) => setSelectedTeam(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                >
+                  <option value="todos">Todos los equipos</option>
+                  {users
+                    .filter((u: any) => u.role === "gerente")
+                    .map((gerente: any) => (
+                      <option key={gerente.id} value={gerente.id}>
+                        Equipo {gerente.name}
+                      </option>
+                    ))
+                  }
+                </select>
+              )}
+            </div>
+            
+            {/* Estadísticas por estado tipo dashboard */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold text-gray-800">Estados de Leads - Mi Equipo</h3>
+                {selectedEstado && (
+                  <button 
+                    onClick={() => setSelectedEstado(null)}
+                    className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
+                  >
+                    <X size={16} />
+                    <span>Cerrar filtro</span>
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                {Object.entries(estados).map(([key, estado]) => {
+                  const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
+                  const filteredLeads = teamFilter && teamFilter !== 'todos' ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
+                  const count = filteredLeads.filter((l) => l.estado === key).length;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setSelectedEstado(selectedEstado === key ? null : key)}
+                      className={`text-center transition-all duration-200 transform hover:scale-105 ${
+                        selectedEstado === key ? "ring-4 ring-blue-300 ring-opacity-50" : ""
+                      }`}
+                      title={`Ver todos los leads en estado: ${estado.label}`}
+                    >
+                      <div className={`${estado.color} text-white rounded-lg p-4 mb-2 hover:opacity-90`}>
+                        <div className="text-2xl font-bold">{count}</div>
+                      </div>
+                      <div className="text-sm text-gray-600">{estado.label}</div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Lista filtrada de leads por estado en Mi Equipo */}
+              {selectedEstado && (
+                <div className="mt-6 border-t pt-6">
+                  <h4 className="text-lg font-semibold text-gray-800 mb-4">
+                    Leads de mi equipo en estado: <span className={`px-3 py-1 rounded-full text-white text-sm ${estados[selectedEstado].color}`}>
+                      {estados[selectedEstado].label}
+                    </span>
+                  </h4>
+                  
+                  {(() => {
+                    const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
+                    const filteredLeads = teamFilter && teamFilter !== 'todos' ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
+                    const leadsFiltrados = filteredLeads.filter(l => l.estado === selectedEstado);
+                    
+                    if (leadsFiltrados.length === 0) {
+                      return (
+                        <p className="text-gray-500 text-center py-8">
+                          No hay leads de tu equipo en estado "{estados[selectedEstado].label}"
+                        </p>
+                      );
+                    }
+
+                    return (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Contacto</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vehículo</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fuente</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vendedor</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                              <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {leadsFiltrados.map((lead) => {
+                              const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
+                              return (
+                                <tr key={lead.id} className="hover:bg-gray-50">
+                                  <td className="px-4 py-2">
+                                    <div className="font-medium text-gray-900">{lead.nombre}</div>
+                                  </td>
+                                  <td className="px-4 py-2">
+                                    <div className="flex items-center space-x-1">
+                                      <Phone size={12} className="text-gray-400" />
+                                      <span className="text-gray-700">{lead.telefono}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2">
+                                    <div>
+                                      <div className="font-medium text-gray-900">{lead.modelo}</div>
+                                      <div className="text-xs text-gray-500">{lead.formaPago}</div>
+                                      {lead.infoUsado && <div className="text-xs text-orange-600">Usado: {lead.infoUsado}</div>}
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2">
+                                    <div className="flex items-center space-x-1">
+                                      <span className="text-sm">{fuentes[lead.fuente as string]?.icon || "❓"}</span>
+                                      <span className="text-xs text-gray-600">
+                                        {fuentes[lead.fuente as string]?.label || String(lead.fuente)}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2 text-gray-700">
+                                    {vendedor?.name || "Sin asignar"}
+                                  </td>
+                                  <td className="px-4 py-2 text-gray-500 text-xs">
+                                    {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
+                                  </td>
+                                  <td className="px-4 py-2 text-center">
+                                    <div className="flex items-center justify-center space-x-1">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEditingLeadObservaciones(lead);
+                                          setShowObservacionesModal(true);
+                                        }}
+                                        className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                        title="Ver/Editar observaciones"
+                                      >
+                                        {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
+                                      </button>
+                                      {canDeriveLeads() && lead.vendedor && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setLeadToDerive(lead);
+                                            setShowDerivarModal(true);
+                                          }}
+                                          className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
+                                          title="Derivar lead"
+                                        >
+                                          Derivar
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setActiveSection("leads");
+                                        }}
+                                        className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                        title="Ver en tabla completa"
+                                      >
+                                        Ver
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+
+            {/* Top vendedores en mi organización */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h3 className="text-xl font-semibold text-gray-800 mb-4">Top Vendedores en Mi Organización</h3>
+              <div className="space-y-3">
+                {getRankingInScope().map((vendedor, index) => (
+                  <div key={vendedor.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
+                        index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-600' : 'bg-gray-300'
+                      }`}>
+                        {index + 1}
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{vendedor.nombre}</p>
+                        <p className="text-xs text-gray-500">{vendedor.team}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-green-600">{vendedor.ventas} ventas</p>
+                      <p className="text-xs text-gray-500">
+                        {vendedor.leadsAsignados} leads • {vendedor.leadsAsignados > 0 ? ((vendedor.ventas / vendedor.leadsAsignados) * 100).toFixed(0) : 0}%
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {getRankingInScope().length === 0 && (
+                <p className="text-gray-500 text-center py-8">No hay vendedores en tu equipo</p>
+              )}
+            </div>
+
+            {/* Estructura organizacional */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h3 className="text-xl font-semibold text-gray-800 mb-6">Estructura Organizacional</h3>
+              <div className="space-y-8">
+                {(() => {
+                  const visibleUsers = getVisibleUsers();
+                  
+                  if (currentUser?.role === "owner" || currentUser?.role === "director") {
+                    // Owner y Director ven todos los gerentes (o filtrados por equipo)
+                    const gerentes = visibleUsers.filter((u: any) => u.role === "gerente");
+                    
+                    // Filtrar gerentes según selectedTeam
+                    const gerentesAMostrar = selectedTeam === 'todos' 
+                      ? gerentes
+                      : gerentes.filter((g: any) => g.id.toString() === selectedTeam);
+                    
+                    return gerentesAMostrar.map((gerente: any, gerenteIndex: number) => {
+                      const supervisores = visibleUsers.filter((u: any) => u.reportsTo === gerente.id);
+                      const gerenteLeads = leads.filter((l) => l.vendedor === gerente.id);
+                      const gerenteVentas = gerenteLeads.filter((l) => l.estado === "vendido").length;
+                      
+                      // Colores distintos para cada gerente
+                      const gerenteColors = [
+                        { bg: "bg-blue-600", border: "border-blue-200", accent: "bg-blue-50" },
+                        { bg: "bg-purple-600", border: "border-purple-200", accent: "bg-purple-50" },
+                        { bg: "bg-indigo-600", border: "border-indigo-200", accent: "bg-indigo-50" },
+                        { bg: "bg-teal-600", border: "border-teal-200", accent: "bg-teal-50" },
+                      ];
+                      const colorScheme = gerenteColors[gerenteIndex % gerenteColors.length];
+                      
+                      return (
+                        <div key={gerente.id} className={`border-2 ${colorScheme.border} ${colorScheme.accent} rounded-xl p-6 shadow-md`}>
+                          {/* Header del Gerente */}
+                          <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center space-x-4">
+                              <div className={`w-16 h-16 ${colorScheme.bg} rounded-full flex items-center justify-center shadow-lg`}>
+                                <span className="text-white font-bold text-lg">
+                                  {gerente.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
+                                </span>
+                              </div>
+                              <div>
+                                <h4 className="text-xl font-bold text-gray-900">{gerente.name}</h4>
+                                <p className="text-sm font-medium text-gray-600 mb-1">🏢 Gerente</p>
+                                <div className="flex items-center space-x-4 text-sm text-gray-500">
+                                  <span>📊 {supervisores.length} supervisores</span>
+                                  <span>👥 {supervisores.reduce((total, sup) => total + visibleUsers.filter(u => u.reportsTo === sup.id).length, 0)} vendedores</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right bg-white rounded-lg p-4 shadow-sm border">
+                              <p className="text-2xl font-bold text-green-600">{gerenteVentas}</p>
+                              <p className="text-sm text-gray-500">ventas totales</p>
+                              <p className="text-xs text-gray-400 mt-1">
+                                {gerenteLeads.length} leads • {gerenteLeads.length > 0 ? ((gerenteVentas / gerenteLeads.length) * 100).toFixed(0) : 0}%
+                              </p>
+                            </div>
+                          </div>
+                          
+                          {/* Mensaje cuando no hay supervisores */}
+                          {supervisores.length === 0 ? (
+                            <div className="text-center py-12 bg-white rounded-lg border-2 border-dashed border-gray-300">
+                              <div className="text-4xl mb-2">👨‍💼</div>
+                              <h5 className="text-lg font-medium text-gray-700 mb-2">
+                                {gerente.name} aún no tiene supervisores asignados
+                              </h5>
+                              <p className="text-sm text-gray-500">
+                                Ve a la sección "Usuarios" para asignar supervisores a este gerente
+                              </p>
+                            </div>
+                          ) : (
+                            /* Supervisores del gerente */
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                              {supervisores.map((supervisor: any) => {
+                                const vendedores = visibleUsers.filter((u: any) => u.reportsTo === supervisor.id);
+                                const supervisorLeads = leads.filter((l) => 
+                                  vendedores.some((v: any) => v.id === l.vendedor)
+                                );
+                                const supervisorVentas = supervisorLeads.filter((l) => l.estado === "vendido").length;
+                                
+                                return (
+                                  <div key={supervisor.id} className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+                                    {/* Header del Supervisor */}
+                                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+                                      <div className="flex items-center space-x-3">
+                                        <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                                          <span className="text-white font-medium text-sm">
+                                            {supervisor.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
+                                          </span>
+                                        </div>
+                                        <div>
+                                          <p className="font-semibold text-gray-900">{supervisor.name}</p>
+                                          <p className="text-xs text-gray-500">👨‍💼 Supervisor • {vendedores.length} vendedores</p>
+                                        </div>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className="text-lg font-bold text-green-600">{supervisorVentas}</p>
+                                        <p className="text-xs text-gray-500">{supervisorLeads.length} leads</p>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Vendedores del supervisor */}
+                                    {vendedores.length === 0 ? (
+                                      <div className="text-center py-6 bg-gray-50 rounded-lg border border-gray-200">
+                                        <div className="text-2xl mb-1">👤</div>
+                                        <p className="text-sm font-medium text-gray-600">
+                                          {supervisor.name} no tiene vendedores asignados
+                                        </p>
+                                        <p className="text-xs text-gray-400 mt-1">
+                                          Asigna vendedores en la sección "Usuarios"
+                                        </p>
+                                      </div>
+                                    ) : (
+                                      <div className="space-y-2">
+                                        {vendedores.map((vendedor: any) => {
+                                          const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
+                                          const vendedorVentas = vendedorLeads.filter((l) => l.estado === "vendido").length;
+                                          const conversion = vendedorLeads.length > 0 ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0) : "0";
+                                          
+                                          return (
+                                            <div key={vendedor.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                                              <div className="flex items-center space-x-3">
+                                                <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center">
+                                                  <span className="text-white font-medium text-xs">
+                                                    {vendedor.name.split(' ')[0][0]}
+                                                  </span>
+                                                </div>
+                                                <div>
+                                                  <span className="font-medium text-gray-900">{vendedor.name}</span>
+                                                  {!vendedor.active && <span className="ml-2 text-red-500 text-xs font-medium">(Inactivo)</span>}
+                                                  <div className="text-xs text-gray-500">
+                                                    {vendedorLeads.length} leads asignados
+                                                  </div>
+                                                </div>
+                                              </div>
+                                              <div className="text-right">
+                                                <span className="font-bold text-green-600 text-lg">{vendedorVentas}</span>
+                                                <div className="text-xs text-gray-500">
+                                                  {conversion}% conversión
+                                                </div>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    });
+                  } else if (currentUser?.role === "gerente") {
+                    // Gerente ve solo su equipo
+                    const supervisores = visibleUsers.filter((u: any) => u.reportsTo === currentUser.id);
+                    
+                    return (
+                      <div className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center">
+                              <span className="text-white font-medium text-sm">
+                                {currentUser.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
+                              </span>
+                            </div>
+                            <div>
+                              <h4 className="font-medium text-gray-900">{currentUser.name} (Tú)</h4>
+                              <p className="text-sm text-gray-500">Gerente</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-medium">{supervisores.length} supervisores</p>
+                          </div>
+                        </div>
+                        
+                        {/* Supervisores */}
+                        <div className="ml-6 space-y-3">
+                          {supervisores.map((supervisor: any) => {
+                            const vendedores = visibleUsers.filter((u: any) => u.reportsTo === supervisor.id);
+                            const supervisorLeads = leads.filter((l) => 
+                              vendedores.some((v: any) => v.id === l.vendedor)
+                            );
+                            const supervisorVentas = supervisorLeads.filter((l) => l.estado === "vendido").length;
+                            
+                            return (
+                              <div key={supervisor.id} className="border-l-2 border-gray-300 pl-4">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center space-x-2">
+                                    <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                                      <span className="text-white font-medium text-xs">
+                                        {supervisor.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <p className="font-medium text-gray-900 text-sm">{supervisor.name}</p>
+                                      <p className="text-xs text-gray-500">Supervisor • {vendedores.length} vendedores</p>
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-sm font-medium text-green-600">{supervisorVentas} ventas</p>
+                                    <p className="text-xs text-gray-500">{supervisorLeads.length} leads</p>
+                                  </div>
+                                </div>
+                                
+                                {/* Vendedores del supervisor */}
+                                <div className="ml-4 grid grid-cols-1 md:grid-cols-2 gap-2">
+                                  {vendedores.map((vendedor: any) => {
+                                    const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
+                                    const vendedorVentas = vendedorLeads.filter((l) => l.estado === "vendido").length;
+                                    const conversion = vendedorLeads.length > 0 ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0) : "0";
+                                    
+                                    return (
+                                      <div key={vendedor.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
+                                        <div className="flex items-center space-x-2">
+                                          <div className="w-6 h-6 bg-gray-400 rounded-full flex items-center justify-center">
+                                            <span className="text-white font-medium text-xs">
+                                              {vendedor.name.split(' ')[0][0]}
+                                            </span>
+                                          </div>
+                                          <span className="text-gray-900">{vendedor.name}</span>
+                                          {!vendedor.active && <span className="text-red-500 text-xs">(Inactivo)</span>}
+                                        </div>
+                                        <div className="text-right">
+                                          <span className="font-medium text-green-600">{vendedorVentas}</span>
+                                          <span className="text-gray-500 ml-1">({conversion}%)</span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  } else if (currentUser?.role === "supervisor") {
+                    // Supervisor ve solo sus vendedores
+                    const vendedores = visibleUsers.filter((u: any) => u.reportsTo === currentUser.id);
+                    
+                    return (
+                      <div className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
+                              <span className="text-white font-medium text-sm">
+                                {currentUser.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
+                              </span>
+                            </div>
+                            <div>
+                              <h4 className="font-medium text-gray-900">{currentUser.name} (Tú)</h4>
+                              <p className="text-sm text-gray-500">Supervisor</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-medium">{vendedores.length} vendedores</p>
+                          </div>
+                        </div>
+                        
+                        {/* Vendedores */}
+                        <div className="ml-6 grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {vendedores.map((vendedor: any) => {
+                            const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
+                            const vendedorVentas = vendedorLeads.filter((l) => l.estado === "vendido").length;
+                            const conversion = vendedorLeads.length > 0 ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0) : "0";
+                            
+                            return (
+                              <div key={vendedor.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                                <div className="flex items-center space-x-2">
+                                  <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center">
+                                    <span className="text-white font-medium text-xs">
+                                      {vendedor.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-gray-900">{vendedor.name}</p>
+                                    <p className="text-xs text-gray-500">
+                                      {vendedorLeads.length} leads asignados
+                                      {!vendedor.active && <span className="text-red-500"> (Inactivo)</span>}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-bold text-green-600">{vendedorVentas} ventas</p>
+                                  <p className="text-xs text-gray-500">{conversion}% conversión</p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  return null;
+                })()}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Sección Usuarios */}
+        {activeSection === "users" && canManageUsers() && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-bold text-gray-800">Gestión de Usuarios</h2>
+              <button
+                onClick={openCreateUser}
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                <Plus size={20} />
+                <span>Nuevo Usuario</span>
+              </button>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuario</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rol</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reporta a</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Performance</th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {getVisibleUsers().map((user: any) => {
+                      const userLeads = leads.filter((l) => l.vendedor === user.id);
+                      const userSales = userLeads.filter((l) => l.estado === "vendido").length;
+                      const manager = user.reportsTo ? userById.get(user.reportsTo) : null;
+                      
+                      return (
+                        <tr key={user.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-4">
+                            <div>
+                              <div className="font-medium text-gray-900">{user.name}</div>
+                              <div className="text-sm text-gray-500">{user.email}</div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                              {roles[user.role] || user.role}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 text-sm text-gray-700">
+                            {manager?.name || "—"}
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center space-x-2">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                user.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                              }`}>
+                                {user.active ? 'Activo' : 'Inactivo'}
+                              </span>
+                              {user.role === "vendedor" && (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      const updated = await apiUpdateUser(user.id, {
+                                        ...user,
+                                        active: user.active ? 0 : 1,
+                                      });
+                                      setUsers((prev) => prev.map((u: any) => (u.id === user.id ? updated : u)));
+                                    } catch (e) {
+                                      console.error("No pude cambiar estado del usuario", e);
+                                    }
+                                  }}
+                                  className={`px-2 py-1 text-xs rounded ${
+                                    user.active 
+                                      ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                                      : 'bg-green-100 text-green-700 hover:bg-green-200'
+                                  }`}
+                                  title={user.active ? "Desactivar vendedor" : "Activar vendedor"}
+                                >
+                                  {user.active ? 'Desactivar' : 'Activar'}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            {user.role === "vendedor" ? (
+                              <div className="text-sm">
+                                <div>{userLeads.length} leads</div>
+                                <div className="text-green-600 font-medium">{userSales} ventas</div>
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center justify-center space-x-2">
+                              <button
+                                onClick={() => openEditUser(user)}
+                                className="p-1 text-blue-600 hover:text-blue-800"
+                                title="Editar usuario"
+                              >
+                                <Edit3 size={16} />
+                              </button>
+                              {user.id !== currentUser?.id && (
+                                <button
+                                  onClick={() => deleteUser(user.id)}
+                                  className="p-1 text-red-600 hover:text-red-800"
+                                  title="Eliminar usuario"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Sección Alertas */}
+        {activeSection === "alerts" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-bold text-gray-800">Alertas y Notificaciones</h2>
+              <button
+                onClick={() => {
+                  setAlerts((prev) => prev.map((a) => a.userId === currentUser?.id ? { ...a, read: true } : a));
+                }}
+                className="px-4 py-2 text-sm text-blue-600 hover:text-blue-800"
+              >
+                Marcar todas como leídas
+              </button>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              {alerts.filter((a) => a.userId === currentUser?.id).length === 0 ? (
+                <div className="text-center py-12">
+                  <Bell size={48} className="mx-auto text-gray-300 mb-4" />
+                  <p className="text-gray-500">No tienes alertas pendientes</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {alerts
+                    .filter((a) => a.userId === currentUser?.id)
+                    .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
+                    .map((alert) => (
+                      <div
+                        key={alert.id}
+                        className={`p-4 border rounded-lg ${
+                          alert.read ? 'border-gray-200 bg-gray-50' : 'border-blue-200 bg-blue-50'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start space-x-3">
+                            <div className={`mt-1 w-2 h-2 rounded-full ${alert.read ? 'bg-gray-400' : 'bg-blue-500'}`} />
+                            <div>
+                              <p className={`font-medium ${alert.read ? 'text-gray-700' : 'text-gray-900'}`}>
+                                {alert.type === "lead_assigned" ? "Nuevo Lead Asignado" : 
+                                 alert.type === "lead_transferred" ? "Lead Derivado" : "Cambio en Ranking"}
+                              </p>
+                              <p className={`text-sm ${alert.read ? 'text-gray-500' : 'text-gray-700'}`}>
+                                {alert.message}
+                              </p>
+                              <p className="text-xs text-gray-400 mt-1">
+                                {new Date(alert.ts).toLocaleDateString('es-AR')} {new Date(alert.ts).toLocaleTimeString('es-AR')}
+                              </p>
+                            </div>
+                          </div>
+                          {!alert.read && (
+                            <button
+                              onClick={() => {
+                                setAlerts((prev) => prev.map((a) => a.id === alert.id ? { ...a, read: true } : a));
+                              }}
+                              className="text-blue-600 hover:text-blue-800 text-sm"
+                            >
+                              Marcar como leída
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
             <button
               onClick={() =>
                 handleLogin(
@@ -1671,106 +1667,85 @@ export default function CRM() {
 
       {/* Main */}
       <div className="flex-1 p-6">
-        {/* Modal: Derivación de Lead */}
-        {showTransferModal && transferringLead && canTransferLeads() && (
+        {/* Modal: Derivar Lead */}
+        {showDerivarModal && leadToDerive && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
+            <div className="bg-white rounded-xl p-6 w-full max-w-xl">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">
-                  Derivar Lead - {transferringLead.nombre}
-                </h3>
+                <h3 className="text-xl font-semibold text-gray-800">Derivar Lead</h3>
                 <button onClick={() => {
-                  setShowTransferModal(false);
-                  setTransferringLead(null);
+                  setShowDerivarModal(false);
+                  setLeadToDerive(null);
                 }}>
                   <X size={24} className="text-gray-600" />
                 </button>
               </div>
-              
-              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                <h4 className="font-medium text-gray-900 mb-2">Información del Lead</h4>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="font-medium text-gray-600">Cliente:</span> {transferringLead.nombre}
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-600">Teléfono:</span> {transferringLead.telefono}
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-600">Vehículo:</span> {transferringLead.modelo}
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-600">Estado:</span>
-                    <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium text-white ${estados[transferringLead.estado].color}`}>
-                      {estados[transferringLead.estado].label}
+
+              <div className="mb-6 bg-gray-50 rounded-lg p-4">
+                <h4 className="font-medium text-gray-800 mb-2">Lead a derivar:</h4>
+                <div className="space-y-1 text-sm text-gray-600">
+                  <p><strong>Cliente:</strong> {leadToDerive.nombre}</p>
+                  <p><strong>Teléfono:</strong> {leadToDerive.telefono}</p>
+                  <p><strong>Vehículo:</strong> {leadToDerive.modelo}</p>
+                  <p><strong>Estado:</strong> 
+                    <span className={`ml-2 px-2 py-1 rounded-full text-xs text-white ${estados[leadToDerive.estado].color}`}>
+                      {estados[leadToDerive.estado].label}
                     </span>
-                  </div>
-                </div>
-                <div className="mt-2">
-                  <span className="font-medium text-gray-600">Vendedor actual:</span> {
-                    transferringLead.vendedor 
-                      ? userById.get(transferringLead.vendedor)?.name || "Desconocido"
-                      : "Sin asignar"
-                  }
+                  </p>
+                  <p><strong>Vendedor actual:</strong> {leadToDerive.vendedor ? userById.get(leadToDerive.vendedor)?.name : 'Sin asignar'}</p>
                 </div>
               </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Derivar a vendedor:
-                  </label>
-                  <select 
-                    id="transfer-vendedor" 
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Seleccionar vendedor...</option>
-                    {getAvailableVendorsForTransfer(transferringLead.vendedor).map((vendedor: any) => (
+
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Derivar a vendedor:
+                </label>
+                <select 
+                  id="derive-vendedor" 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  defaultValue=""
+                >
+                  <option value="">Selecciona un vendedor</option>
+                  {getDerivableVendors()
+                    .filter(v => v.id !== leadToDerive.vendedor) // No mostrar el vendedor actual
+                    .map((vendedor) => (
                       <option key={vendedor.id} value={vendedor.id}>
-                        {vendedor.name} - {userById.get(vendedor.reportsTo)?.name || "Sin supervisor"}
+                        {vendedor.name} - {userById.get(vendedor.reportsTo)?.name || 'Sin supervisor'}
                       </option>
-                    ))}
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Motivo de la derivación (opcional):
-                  </label>
-                  <textarea
-                    id="transfer-reason"
-                    placeholder="Ej: Cliente específicamente solicita otro vendedor, especialización en modelo, etc..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500"
-                    rows={3}
-                  />
-                </div>
+                    ))
+                  }
+                </select>
+                {getDerivableVendors().length === 0 && (
+                  <p className="text-sm text-red-600 mt-2">
+                    No hay vendedores disponibles para derivar en tu scope.
+                  </p>
+                )}
+                {currentUser?.role === "gerente" && (
+                  <p className="text-xs text-gray-500 mt-2">
+                    Como gerente, solo puedes derivar leads dentro de tu equipo.
+                  </p>
+                )}
               </div>
-              
-              <div className="flex space-x-3 pt-6">
+
+              <div className="flex space-x-3">
                 <button 
                   onClick={() => {
-                    const selectElement = document.getElementById("transfer-vendedor") as HTMLSelectElement;
-                    const reasonElement = document.getElementById("transfer-reason") as HTMLTextAreaElement;
-                    
-                    const newVendorId = parseInt(selectElement.value, 10);
-                    const reason = reasonElement.value.trim();
-                    
-                    if (!newVendorId || isNaN(newVendorId)) {
-                      alert("Por favor selecciona un vendedor para la derivación");
-                      return;
+                    const select = document.getElementById("derive-vendedor") as HTMLSelectElement;
+                    const newVendorId = parseInt(select.value);
+                    if (newVendorId) {
+                      handleDerivarLead(leadToDerive.id, newVendorId);
                     }
-                    
-                    handleTransferLead(transferringLead.id, newVendorId, reason || undefined);
                   }}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center space-x-2"
+                  disabled={getDerivableVendors().length === 0}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
                 >
                   <ArrowRight size={16} />
                   <span>Derivar Lead</span>
                 </button>
                 <button 
                   onClick={() => {
-                    setShowTransferModal(false);
-                    setTransferringLead(null);
+                    setShowDerivarModal(false);
+                    setLeadToDerive(null);
                   }}
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
                 >
@@ -1879,8 +1854,15 @@ export default function CRM() {
                     {viewingLeadHistorial.historial?.map((entry, index) => (
                       <div key={index} className="border-l-4 border-blue-500 pl-4 py-2">
                         <div className="flex items-center justify-between">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium text-white ${estados[entry.estado]?.color || 'bg-gray-500'}`}>
-                            {estados[entry.estado]?.label || entry.estado}
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium text-white ${
+                            entry.estado.startsWith('derivado_a_') 
+                              ? 'bg-purple-500' 
+                              : estados[entry.estado]?.color || 'bg-gray-500'
+                          }`}>
+                            {entry.estado.startsWith('derivado_a_') 
+                              ? `Derivado a ${entry.estado.replace('derivado_a_', '')}`
+                              : estados[entry.estado]?.label || entry.estado
+                            }
                           </span>
                           <span className="text-xs text-gray-500">
                             {new Date(entry.timestamp).toLocaleDateString('es-AR')} {new Date(entry.timestamp).toLocaleTimeString('es-AR')}
@@ -2049,4 +2031,17 @@ export default function CRM() {
                 </div>
               </div>
               <div className="flex space-x-3 pt-6">
-                <button onClick={createEvent} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:
+                <button onClick={createEvent} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  Crear evento
+                </button>
+                <button onClick={() => setShowNewEventModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Crear/Editar Usuario */}
+        {showUserModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-
