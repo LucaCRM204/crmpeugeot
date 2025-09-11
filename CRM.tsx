@@ -11,7 +11,6 @@ import {
   listLeads,
   createLead as apiCreateLead,
   updateLead as apiUpdateLead,
-  deleteLead as apiDeleteLead,
 } from "./services/leads";
 
 // ===== Utilidades de jerarquía =====
@@ -278,8 +277,8 @@ export default function CRM() {
     if (!leadToReassign) return;
     
     try {
-      const updated = await apiUpdateLead(leadToReassign.id, { 
-        assigned_to: selectedVendorForReassign 
+      await apiUpdateLead(leadToReassign.id, { 
+        vendedor: selectedVendorForReassign 
       });
       
       // Actualizar estado local
