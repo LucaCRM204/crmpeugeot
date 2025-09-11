@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+﻿ import { useEffect, useMemo, useRef, useState } from "react";
 import { Calendar, Users, Trophy, Plus, Phone, BarChart3, Settings, Home, X, Trash2, Edit3, Bell, UserCheck } from "lucide-react";
 import { api } from "./api";
 import {
@@ -119,6 +119,11 @@ export default function CRM() {
   const [selectedEstado, setSelectedEstado] = useState<string | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<string>('todos');
 
+  // Estados para reasignación
+  const [showReassignModal, setShowReassignModal] = useState(false);
+  const [leadToReassign, setLeadToReassign] = useState<LeadRow | null>(null);
+  const [selectedVendorForReassign, setSelectedVendorForReassign] = useState<number | null>(null);
+
   // ===== Login contra backend =====
   const handleLogin = async (email: string, password: string) => {
     try {
@@ -213,6 +218,97 @@ export default function CRM() {
     return leads.filter((l) => (l.vendedor ? visibleUserIds.includes(l.vendedor) : true));
   };
 
+  // ===== Nueva función para filtrar usuarios visibles según rol =====
+  const getVisibleUsers = () => {
+    if (!currentUser) return [];
+    
+    return users.filter((u: any) => {
+      // Owner ve a todos
+      if (currentUser.role === "owner") return true;
+      
+      // Director ve a todos menos al owner
+      if (currentUser.role === "director") return u.role !== "owner";
+      
+      // Gerente solo ve a su equipo
+      if (currentUser.role === "gerente") {
+        // Ve a sí mismo
+        if (u.id === currentUser.id) return true;
+        
+        // Ve a sus supervisores directos
+        if (u.reportsTo === currentUser.id) return true;
+        
+        // Ve a los vendedores que reportan a sus supervisores
+        const userSupervisor = userById.get(u.reportsTo);
+        return userSupervisor && userSupervisor.reportsTo === currentUser.id;
+      }
+      
+      // Supervisor solo ve a su equipo directo
+      if (currentUser.role === "supervisor") {
+        // Ve a sí mismo
+        if (u.id === currentUser.id) return true;
+        
+        // Ve a sus vendedores directos
+        return u.reportsTo === currentUser.id;
+      }
+      
+      return false;
+    });
+  };
+
+  // ===== Función para obtener vendedores disponibles según el rol del usuario =====
+  const getAvailableVendorsForReassign = () => {
+    if (!currentUser) return [];
+    
+    // Obtener usuarios visibles según el rol
+    const visibleUsers = getVisibleUsers();
+    
+    // Filtrar solo vendedores activos
+    return visibleUsers.filter((u: any) => u.role === "vendedor" && u.active);
+  };
+
+  // ===== Función para abrir modal de reasignación =====
+  const openReassignModal = (lead: LeadRow) => {
+    setLeadToReassign(lead);
+    setSelectedVendorForReassign(lead.vendedor);
+    setShowReassignModal(true);
+  };
+
+  // ===== Función para reasignar lead =====
+  const handleReassignLead = async () => {
+    if (!leadToReassign) return;
+    
+    try {
+      const updated = await apiUpdateLead(leadToReassign.id, { 
+        assigned_to: selectedVendorForReassign 
+      });
+      
+      // Actualizar estado local
+      setLeads((prev) => prev.map((l) => 
+        l.id === leadToReassign.id 
+          ? { ...l, vendedor: selectedVendorForReassign } 
+          : l
+      ));
+      
+      // Enviar notificación al nuevo vendedor
+      if (selectedVendorForReassign) {
+        pushAlert(
+          selectedVendorForReassign, 
+          "lead_assigned", 
+          `Lead reasignado: ${leadToReassign.nombre} - ${leadToReassign.modelo}`
+        );
+      }
+      
+      // Agregar entrada al historial
+      addHistorialEntry(leadToReassign.id, `Reasignado a ${selectedVendorForReassign ? userById.get(selectedVendorForReassign)?.name : 'Sin asignar'}`);
+      
+      setShowReassignModal(false);
+      setLeadToReassign(null);
+      setSelectedVendorForReassign(null);
+    } catch (e) {
+      console.error("No pude reasignar el lead", e);
+    }
+  };
+
   // ===== Round-robin con soporte para bots específicos =====
   const [rrIndex, setRrIndex] = useState(0);
   
@@ -284,43 +380,6 @@ export default function CRM() {
   const getFilteredLeads = () => {
     if (!currentUser) return [] as LeadRow[];
     return leads.filter((l) => (l.vendedor ? visibleUserIds.includes(l.vendedor) : true));
-  };
-
-  // ===== Nueva función para filtrar usuarios visibles según rol =====
-  const getVisibleUsers = () => {
-    if (!currentUser) return [];
-    
-    return users.filter((u: any) => {
-      // Owner ve a todos
-      if (currentUser.role === "owner") return true;
-      
-      // Director ve a todos menos al owner
-      if (currentUser.role === "director") return u.role !== "owner";
-      
-      // Gerente solo ve a su equipo
-      if (currentUser.role === "gerente") {
-        // Ve a sí mismo
-        if (u.id === currentUser.id) return true;
-        
-        // Ve a sus supervisores directos
-        if (u.reportsTo === currentUser.id) return true;
-        
-        // Ve a los vendedores que reportan a sus supervisores
-        const userSupervisor = userById.get(u.reportsTo);
-        return userSupervisor && userSupervisor.reportsTo === currentUser.id;
-      }
-      
-      // Supervisor solo ve a su equipo directo
-      if (currentUser.role === "supervisor") {
-        // Ve a sí mismo
-        if (u.id === currentUser.id) return true;
-        
-        // Ve a sus vendedores directos
-        return u.reportsTo === currentUser.id;
-      }
-      
-      return false;
-    });
   };
 
   const getRanking = () => {
@@ -769,6 +828,168 @@ export default function CRM() {
 
       {/* Main */}
       <div className="flex-1 p-6">
+        {/* Modal: Reasignación de Lead */}
+        {showReassignModal && leadToReassign && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">
+                  Reasignar Lead - {leadToReassign.nombre}
+                </h3>
+                <button onClick={() => {
+                  setShowReassignModal(false);
+                  setLeadToReassign(null);
+                  setSelectedVendorForReassign(null);
+                }}>
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+              
+              <div className="mb-6">
+                <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                  <h4 className="font-medium text-gray-800 mb-2">Información del Lead</h4>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium text-gray-600">Cliente:</span> {leadToReassign.nombre}
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Teléfono:</span> {leadToReassign.telefono}
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Vehículo:</span> {leadToReassign.modelo}
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Estado:</span>
+                      <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium text-white ${estados[leadToReassign.estado].color}`}>
+                        {estados[leadToReassign.estado].label}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Fuente:</span>
+                      <span className="ml-2">
+                        {fuentes[leadToReassign.fuente as string]?.icon || "❓"} {fuentes[leadToReassign.fuente as string]?.label || String(leadToReassign.fuente)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Vendedor actual:</span> {leadToReassign.vendedor ? userById.get(leadToReassign.vendedor)?.name : "Sin asignar"}
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    Seleccionar nuevo vendedor
+                  </label>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {/* Opción para no asignar */}
+                    <div 
+                      onClick={() => setSelectedVendorForReassign(null)}
+                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                        selectedVendorForReassign === null 
+                          ? 'border-blue-500 bg-blue-50' 
+                          : 'border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-gray-400 rounded-full flex items-center justify-center">
+                            <span className="text-white font-medium text-sm">--</span>
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">Sin asignar</p>
+                            <p className="text-sm text-gray-500">Dejar el lead sin vendedor asignado</p>
+                          </div>
+                        </div>
+                        {selectedVendorForReassign === null && (
+                          <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                            <div className="w-2 h-2 bg-white rounded-full"></div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Lista de vendedores disponibles */}
+                    {getAvailableVendorsForReassign().map((vendedor: any) => {
+                      const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
+                      const vendedorVentas = vendedorLeads.filter((l) => l.estado === "vendido").length;
+                      const conversion = vendedorLeads.length > 0 ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0) : "0";
+                      
+                      return (
+                        <div 
+                          key={vendedor.id}
+                          onClick={() => setSelectedVendorForReassign(vendedor.id)}
+                          className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                            selectedVendorForReassign === vendedor.id 
+                              ? 'border-blue-500 bg-blue-50' 
+                              : 'border-gray-200 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                                <span className="text-white font-medium text-sm">
+                                  {vendedor.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
+                                </span>
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900">{vendedor.name}</p>
+                                <p className="text-sm text-gray-500">
+                                  {vendedorLeads.length} leads • {vendedorVentas} ventas • {conversion}% conversión
+                                </p>
+                                <p className="text-xs text-gray-400">
+                                  Equipo de {userById.get(vendedor.reportsTo)?.name || "—"}
+                                </p>
+                              </div>
+                            </div>
+                            {selectedVendorForReassign === vendedor.id && (
+                              <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                                <div className="w-2 h-2 bg-white rounded-full"></div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  {getAvailableVendorsForReassign().length === 0 && (
+                    <div className="text-center py-8 bg-gray-50 rounded-lg border">
+                      <p className="text-gray-500">No hay vendedores disponibles en tu scope para reasignar</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="flex space-x-3">
+                <button 
+                  onClick={handleReassignLead}
+                  disabled={selectedVendorForReassign === leadToReassign.vendedor}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium ${
+                    selectedVendorForReassign === leadToReassign.vendedor
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  {selectedVendorForReassign === leadToReassign.vendedor 
+                    ? 'Ya está asignado a este vendedor' 
+                    : 'Reasignar Lead'
+                  }
+                </button>
+                <button 
+                  onClick={() => {
+                    setShowReassignModal(false);
+                    setLeadToReassign(null);
+                    setSelectedVendorForReassign(null);
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Modal: Observaciones del Lead */}
         {showObservacionesModal && editingLeadObservaciones && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -989,543 +1210,7 @@ export default function CRM() {
                   </select>
                   <p className="text-xs text-gray-500 mt-1">Si está tildado "Asignación automática", se ignorará esta selección.</p>
                 </div>
-              </div>
-              <div className="flex space-x-3 pt-6">
-                <button onClick={() => setShowNewLeadModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
-                  Cancelar
-                </button>
-                <button onClick={handleCreateLead} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                  Crear Lead
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Nuevo Evento */}
-        {showNewEventModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-xl">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">Nuevo evento</h3>
-                <button onClick={() => setShowNewEventModal(false)}>
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
-                  <input type="text" id="ev-title" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
-                  <input type="date" id="ev-date" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Hora</label>
-                  <input type="time" id="ev-time" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Usuario</label>
-                  <select id="ev-user" defaultValue={selectedCalendarUserId ?? currentUser?.id} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                    {visibleUsers.map((u: any) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name} — {roles[u.role] || u.role}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="flex space-x-3 pt-6">
-                <button onClick={createEvent} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                  Crear evento
-                </button>
-                <button onClick={() => setShowNewEventModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Crear/Editar Usuario */}
-        {showUserModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-xl">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">{editingUser ? "Editar usuario" : "Nuevo usuario"}</h3>
-                <button onClick={() => setShowUserModal(false)}>
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
-                  <input type="text" id="u-name" defaultValue={editingUser?.name || ""} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input type="email" id="u-email" defaultValue={editingUser?.email || ""} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-                  <input type="password" id="u-pass" placeholder={editingUser ? "(sin cambio)" : ""} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
-                  <select
-                    id="u-role"
-                    value={modalRole}
-                    onChange={(e) => {
-                      const r = e.target.value as typeof modalRole;
-                      setModalRole(r);
-                      const validManagers = validManagersByRole(r);
-                      setModalReportsTo(r === "owner" ? null : validManagers[0]?.id ?? null);
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    {currentUser?.role === "owner" && editingUser?.id === currentUser?.id && <option value="owner">{roles["owner"]}</option>}
-                    {validRolesByUser(currentUser).map((role) => (
-                      <option key={role} value={role}>
-                        {roles[role]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Reporta a</label>
-                  <select
-                    id="u-reportsTo"
-                    value={modalReportsTo ?? ""}
-                    onChange={(e) => setModalReportsTo(e.target.value ? parseInt(e.target.value, 10) : null)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    disabled={modalRole === "owner"}
-                  >
-                    {modalRole === "owner" ? (
-                      <option value="">N/A - Dueño</option>
-                    ) : (
-                      validManagersByRole(modalRole).map((m: any) => (
-                        <option key={m.id} value={m.id}>
-                          {m.name} — {roles[m.role] || m.role}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </div>
-
-                <div className="col-span-2 flex items-center space-x-3">
-                  <input 
-                    type="checkbox" 
-                    id="u-active" 
-                    defaultChecked={editingUser ? editingUser.active : true} 
-                    className="rounded border-gray-300 text-blue-600" 
-                  />
-                  <span className="text-sm text-gray-700">Usuario activo (puede recibir leads automáticamente)</span>
-                </div>
-              </div>
-
-              <div className="flex space-x-3 pt-6">
-                <button onClick={saveUser} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                  Guardar
-                </button>
-                <button onClick={() => setShowUserModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Topbar con alertas */}
-        <div className="flex items-center justify-end mb-4">
-          <div className="relative">
-            <button onClick={() => setActiveSection("alerts")} className="p-2 rounded-lg hover:bg-gray-200 relative">
-              <Bell size={20} />
-              {currentUser && unreadCount(currentUser.id) > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full px-1">
-                  {unreadCount(currentUser.id)}
-                </span>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Dashboard */}
-        {activeSection === "dashboard" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-bold text-gray-800">Dashboard</h2>
-              {["owner", "director"].includes(currentUser?.role) && (
-                <select
-                  value={selectedTeam}
-                  onChange={(e) => setSelectedTeam(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
-                >
-                  <option value="todos">Todos los equipos</option>
-                  {users
-                    .filter((u: any) => u.role === "gerente")
-                    .map((gerente: any) => (
-                      <option key={gerente.id} value={gerente.id}>
-                        Equipo {gerente.name}
-                      </option>
-                    ))
-                  }
-                </select>
-              )}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {(() => {
-                const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
-                const stats = getDashboardStats(teamFilter);
-                const cards = [
-                  { label: "Total Leads", value: stats.totalLeads, Icon: Users },
-                  { label: "Vendidos", value: stats.vendidos, Icon: BarChart3 },
-                  { label: "Conversión", value: stats.conversion + "%", Icon: BarChart3 },
-                ];
-                return cards.map(({ label, value, Icon }, i) => (
-                  <div key={i} className="bg-white rounded-xl shadow-lg p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-gray-600 text-sm font-medium">{label}</p>
-                        <p className="text-3xl font-bold text-gray-800">{value}</p>
-                      </div>
-                      <Icon className="text-blue-500" size={32} />
-                    </div>
-                  </div>
-                ));
-              })()}
-            </div>
-
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold text-gray-800">Leads por Estado</h3>
-                {selectedEstado && (
-                  <button 
-                    onClick={() => setSelectedEstado(null)}
-                    className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
-                  >
-                    <X size={16} />
-                    <span>Cerrar filtro</span>
-                  </button>
-                )}
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                {Object.entries(estados).map(([key, estado]) => {
-                  const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
-                  const filteredLeads = teamFilter && teamFilter !== 'todos' ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
-                  const count = filteredLeads.filter((l) => l.estado === key).length;
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => setSelectedEstado(selectedEstado === key ? null : key)}
-                      className={`text-center transition-all duration-200 transform hover:scale-105 ${
-                        selectedEstado === key ? "ring-4 ring-blue-300 ring-opacity-50" : ""
-                      }`}
-                      title={`Ver todos los leads en estado: ${estado.label}`}
-                    >
-                      <div className={`${estado.color} text-white rounded-lg p-4 mb-2 hover:opacity-90`}>
-                        <div className="text-2xl font-bold">{count}</div>
-                      </div>
-                      <div className="text-sm text-gray-600">{estado.label}</div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Lista filtrada de leads por estado */}
-              {selectedEstado && (
-                <div className="mt-6 border-t pt-6">
-                  <h4 className="text-lg font-semibold text-gray-800 mb-4">
-                    Leads en estado: <span className={`px-3 py-1 rounded-full text-white text-sm ${estados[selectedEstado].color}`}>
-                      {estados[selectedEstado].label}
-                    </span>
-                  </h4>
-                  
-                  {(() => {
-                    const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
-                    const filteredLeads = teamFilter && teamFilter !== 'todos' ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
-                    const leadsFiltrados = filteredLeads.filter(l => l.estado === selectedEstado);
-                    
-                    if (leadsFiltrados.length === 0) {
-                      return (
-                        <p className="text-gray-500 text-center py-8">
-                          No hay leads en estado "{estados[selectedEstado].label}"
-                        </p>
-                      );
-                    }
-
-                    return (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Contacto</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vehículo</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fuente</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vendedor</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                              <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-200">
-                            {leadsFiltrados.map((lead) => {
-                              const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
-                              return (
-                                <tr key={lead.id} className="hover:bg-gray-50">
-                                  <td className="px-4 py-2">
-                                    <div className="font-medium text-gray-900">{lead.nombre}</div>
-                                  </td>
-                                  <td className="px-4 py-2">
-                                    <div className="flex items-center space-x-1">
-                                      <Phone size={12} className="text-gray-400" />
-                                      <span className="text-gray-700">{lead.telefono}</span>
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-2">
-                                    <div>
-                                      <div className="font-medium text-gray-900">{lead.modelo}</div>
-                                      <div className="text-xs text-gray-500">{lead.formaPago}</div>
-                                      {lead.infoUsado && <div className="text-xs text-orange-600">Usado: {lead.infoUsado}</div>}
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-2">
-                                    <div className="flex items-center space-x-1">
-                                      <span className="text-sm">{fuentes[lead.fuente as string]?.icon || "❓"}</span>
-                                      <span className="text-xs text-gray-600">
-                                        {fuentes[lead.fuente as string]?.label || String(lead.fuente)}
-                                      </span>
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-2 text-gray-700">
-                                    {vendedor?.name || "Sin asignar"}
-                                  </td>
-                                  <td className="px-4 py-2 text-gray-500 text-xs">
-                                    {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
-                                  </td>
-                                  <td className="px-4 py-2 text-center">
-                                    <div className="flex items-center justify-center space-x-1">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setEditingLeadObservaciones(lead);
-                                          setShowObservacionesModal(true);
-                                        }}
-                                        className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                        title="Ver/Editar observaciones"
-                                      >
-                                        {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
-                                      </button>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setActiveSection("leads");
-                                        }}
-                                        className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                        title="Ver en tabla completa"
-                                      >
-                                        Ver
-                                      </button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-            </div>
-
-            {["owner", "director", "gerente"].includes(currentUser?.role) && (
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <h3 className="text-xl font-semibold text-gray-800 mb-4">Rendimiento por Fuente de Lead</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {(() => {
-                    const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
-                    return getSourceMetrics(teamFilter && teamFilter !== 'todos' ? teamFilter : undefined).map((source) => (
-                      <div key={source.source} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-xl">{source.icon}</span>
-                            <h4 className="font-medium text-gray-800">{source.label}</h4>
-                          </div>
-                          <span className={`${source.color} text-white px-2 py-1 rounded-full text-xs font-bold`}>{source.conversion}%</span>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Total leads:</span>
-                            <span className="font-medium">{source.total}</span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Vendidos:</span>
-                            <span className="font-medium text-green-600">{source.vendidos}</span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div className={`${source.color} h-2 rounded-full`} style={{ width: `${source.conversion}%` }}></div>
-                          </div>
-                        </div>
-                      </div>
-                    ));
-                  })()}
-                </div>
-                {(() => {
-                  const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
-                  return getSourceMetrics(teamFilter && teamFilter !== 'todos' ? teamFilter : undefined).length === 0;
-                })() && <p className="text-gray-500 text-center py-8">No hay leads con fuentes registradas</p>}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Sección Leads */}
-        {activeSection === "leads" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-bold text-gray-800">Gestión de Leads</h2>
-              <button
-                onClick={() => setShowNewLeadModal(true)}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <Plus size={20} />
-                <span>Nuevo Lead</span>
-              </button>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contacto</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehículo</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fuente</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendedor</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {getFilteredLeads().map((lead) => {
-                      const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
-                      return (
-                        <tr key={lead.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-4">
-                            <div className="font-medium text-gray-900">{lead.nombre}</div>
-                            {lead.notas && (
-                              <div className="text-xs text-gray-500 mt-1 truncate max-w-xs">
-                                {lead.notas.substring(0, 50)}...
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="flex items-center space-x-1">
-                              <Phone size={12} className="text-gray-400" />
-                              <span className="text-sm text-gray-700">{lead.telefono}</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div>
-                              <div className="text-sm font-medium text-gray-900">{lead.modelo}</div>
-                              <div className="text-xs text-gray-500">{lead.formaPago}</div>
-                              {lead.infoUsado && (
-                                <div className="text-xs text-orange-600">Usado: {lead.infoUsado}</div>
-                              )}
-                              {lead.entrega && (
-                                <div className="text-xs text-blue-600">Entrega incluida</div>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <select
-                              value={lead.estado}
-                              onChange={(e) => handleUpdateLeadStatus(lead.id, e.target.value)}
-                              className={`text-xs font-medium px-2 py-1 rounded-full text-white border-0 ${estados[lead.estado].color}`}
-                            >
-                              {Object.entries(estados).map(([key, estado]) => (
-                                <option key={key} value={key} className="text-gray-900">
-                                  {estado.label}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="flex items-center space-x-1">
-                              <span className="text-sm">{fuentes[lead.fuente as string]?.icon || "❓"}</span>
-                              <span className="text-xs text-gray-600">
-                                {fuentes[lead.fuente as string]?.label || String(lead.fuente)}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-4 text-sm text-gray-700">
-                            {vendedor?.name || "Sin asignar"}
-                          </td>
-                          <td className="px-4 py-4 text-sm text-gray-500">
-                            {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="flex items-center justify-center space-x-1">
-                              <button
-                                onClick={() => {
-                                  setEditingLeadObservaciones(lead);
-                                  setShowObservacionesModal(true);
-                                }}
-                                className="p-1 text-blue-600 hover:text-blue-800"
-                                title="Ver/Editar observaciones"
-                              >
-                                <Edit3 size={16} />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setViewingLeadHistorial(lead);
-                                  setShowHistorialModal(true);
-                                }}
-                                className="p-1 text-green-600 hover:text-green-800"
-                                title="Ver historial"
-                              >
-                                <Calendar size={16} />
-                              </button>
-                              {canManageUsers() && (
-                                <button
-                                  onClick={async () => {
-                                    if (confirm(`¿Estás seguro de eliminar el lead de ${lead.nombre}?`)) {
-                                      try {
-                                        await apiDeleteLead(lead.id);
-                                        setLeads((prev) => prev.filter((l) => l.id !== lead.id));
-                                      } catch (e) {
-                                        console.error("No pude eliminar el lead", e);
-                                      }
-                                    }
-                                  }}
-                                  className="p-1 text-red-600 hover:text-red-800"
-                                  title="Eliminar lead"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              {getFilteredLeads().length === 0 && (
-                <div className="text-center py-12">
-                  <p className="text-gray-500">No hay leads para mostrar</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+)}
 
         {/* Sección Calendario */}
         {activeSection === "calendar" && (
@@ -1810,6 +1495,20 @@ export default function CRM() {
                                       >
                                         {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
                                       </button>
+                                      {/* Botón de reasignación en Mi Equipo */}
+                                      {(canManageUsers() || (currentUser?.role === "supervisor" && lead.vendedor && 
+                                        getVisibleUsers().some((u: any) => u.id === lead.vendedor))) && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            openReassignModal(lead);
+                                          }}
+                                          className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
+                                          title="Reasignar lead"
+                                        >
+                                          Reasignar
+                                        </button>
+                                      )}
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -2358,3 +2057,4 @@ export default function CRM() {
     </div>
   );
 }
+                                               
