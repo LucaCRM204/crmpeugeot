@@ -469,7 +469,7 @@ export default function CRM() {
         return;
       }
 
-      const updated = await apiUpdateLead(leadId, { assigned_to: newVendedorId });
+      const updated = await apiUpdateLead(leadId, { vendedor: newVendedorId });
       setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...mapLeadFromApi(updated) } : l)));
 
       const oldVendedor = userById.get(lead.vendedor || 0);
