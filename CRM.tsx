@@ -1,5 +1,19 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
-import { Calendar, Users, Trophy, Plus, Phone, BarChart3, Settings, Home, X, Trash2, Edit3, Bell, UserCheck } from "lucide-react";
+import {
+  Calendar,
+  Users,
+  Trophy,
+  Plus,
+  Phone,
+  BarChart3,
+  Settings,
+  Home,
+  X,
+  Trash2,
+  Edit3,
+  Bell,
+  UserCheck,
+} from "lucide-react";
 import { api } from "./api";
 import {
   listUsers,
@@ -24,7 +38,10 @@ function buildIndex(users: any[]) {
   return { byId, children };
 }
 
-function getDescendantUserIds(rootId: number, childrenIndex: Map<number, number[]>) {
+function getDescendantUserIds(
+  rootId: number,
+  childrenIndex: Map<number, number[]>
+) {
   const out: number[] = [];
   const stack = [...(childrenIndex.get(rootId) || [])];
   while (stack.length) {
@@ -57,7 +74,10 @@ const estados: Record<string, { label: string; color: string }> = {
   no_contesta_3: { label: "No contesta 3", color: "bg-red-600" },
 };
 
-const fuentes: Record<string, { label: string; color: string; icon: string }> = {
+const fuentes: Record<
+  string,
+  { label: string; color: string; icon: string }
+> = {
   meta: { label: "Meta/Facebook", color: "bg-blue-600", icon: "📱" },
   whatsapp: { label: "WhatsApp Bot", color: "bg-green-500", icon: "💬" },
   whatsapp_100: { label: "WhatsApp Bot 100", color: "bg-green-700", icon: "💬" },
@@ -71,11 +91,12 @@ const fuentes: Record<string, { label: string; color: string; icon: string }> = 
 };
 
 // Configuración de bots
-const botConfig: Record<string, { targetTeam: string | null; label: string }> = {
-  whatsapp_bot_cm1: { targetTeam: "sauer", label: "Bot CM 1" },
-  whatsapp_bot_cm2: { targetTeam: "daniel", label: "Bot CM 2" },
-  whatsapp_100: { targetTeam: null, label: "Bot 100" }, // null = distribución general
-};
+const botConfig: Record<string, { targetTeam: string | null; label: string }> =
+  {
+    whatsapp_bot_cm1: { targetTeam: "sauer", label: "Bot CM 1" },
+    whatsapp_bot_cm2: { targetTeam: "daniel", label: "Bot CM 2" },
+    whatsapp_100: { targetTeam: null, label: "Bot 100" }, // null = distribución general
+  };
 
 type LeadRow = {
   id: number;
@@ -109,43 +130,50 @@ type Alert = {
 export default function CRM() {
   const [users, setUsers] = useState<any[]>([]);
   const [leads, setLeads] = useState<LeadRow[]>([]);
-  const { byId: userById, children: childrenIndex } = useMemo(() => buildIndex(users), [users]);
+  const { byId: userById, children: childrenIndex } = useMemo(
+    () => buildIndex(users),
+    [users]
+  );
 
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [activeSection, setActiveSection] = useState<"dashboard" | "leads" | "calendar" | "ranking" | "users" | "alerts" | "team">("dashboard");
+  const [activeSection, setActiveSection] = useState<
+    "dashboard" | "leads" | "calendar" | "ranking" | "users" | "alerts" | "team"
+  >("dashboard");
   const [loginError, setLoginError] = useState("");
   const [selectedEstado, setSelectedEstado] = useState<string | null>(null);
-  const [selectedTeam, setSelectedTeam] = useState<string>('todos');
+  const [selectedTeam, setSelectedTeam] = useState<string>("todos");
 
   // Estados para reasignación
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [leadToReassign, setLeadToReassign] = useState<LeadRow | null>(null);
-  const [selectedVendorForReassign, setSelectedVendorForReassign] = useState<number | null>(null);
+  const [selectedVendorForReassign, setSelectedVendorForReassign] =
+    useState<number | null>(null);
 
   // ===== Login contra backend =====
   const handleLogin = async (email: string, password: string) => {
     try {
       const r = await api.post("/auth/login", { email, password });
-      
+
       // Verificar respuesta exitosa
       if (r.data?.ok && r.data?.token) {
         // Guardar token
-        localStorage.setItem('token', r.data.token);
-        localStorage.setItem('user', JSON.stringify(r.data.user));
-        
+        localStorage.setItem("token", r.data.token);
+        localStorage.setItem("user", JSON.stringify(r.data.user));
+
         // Configurar axios para futuras peticiones
-        api.defaults.headers.common['Authorization'] = `Bearer ${r.data.token}`;
-        
-        const u = r.data.user || {
-          id: 0,
-          name: r.data?.user?.email || email,
-          email,
-          role: r.data?.user?.role || "owner",
-          reportsTo: null,
-          active: true,
-        };
-        
+        api.defaults.headers.common["Authorization"] = `Bearer ${r.data.token}`;
+
+        const u =
+          r.data.user || {
+            id: 0,
+            name: r.data?.user?.email || email,
+            email,
+            role: r.data?.user?.role || "owner",
+            reportsTo: null,
+            active: true,
+          };
+
         setCurrentUser(u);
         setIsAuthenticated(true);
         setLoginError("");
@@ -162,7 +190,7 @@ export default function CRM() {
           entrega: L.entrega,
           fecha: L.fecha || L.created_at || "",
           estado: (L.estado || "nuevo") as LeadRow["estado"],
-          vendedor: L.vendedor ?? null,
+          vendedor: L.assigned_to ?? null,
           notas: L.notas || "",
           fuente: (L.fuente || "otro") as LeadRow["fuente"],
           historial: L.historial || [],
@@ -181,75 +209,87 @@ export default function CRM() {
   // ===== Acceso por rol =====
   const getAccessibleUserIds = (user: any) => {
     if (!user) return [] as number[];
-    if (["owner", "director"].includes(user.role)) return users.map((u: any) => u.id);
+    if (["owner", "director"].includes(user.role))
+      return users.map((u: any) => u.id);
     const ids = [user.id, ...getDescendantUserIds(user.id, childrenIndex)];
     return ids;
   };
-  const canManageUsers = () => currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
+  const canManageUsers = () =>
+    currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
   const isOwner = () => currentUser?.role === "owner";
 
   // ===== Funciones de filtro por equipo =====
   const getTeamManagerById = (teamId: string) => {
-    if (teamId === 'todos') return null;
-    return users.find((u: any) => u.role === "gerente" && u.id.toString() === teamId);
+    if (teamId === "todos") return null;
+    return users.find(
+      (u: any) => u.role === "gerente" && u.id.toString() === teamId
+    );
   };
 
   const getTeamUserIds = (teamId: string) => {
-    if (teamId === 'todos') return [];
+    if (teamId === "todos") return [];
     const manager = getTeamManagerById(teamId);
     if (!manager) return [];
-    
+
     const descendants = getDescendantUserIds(manager.id, childrenIndex);
     return [manager.id, ...descendants];
   };
 
   const getFilteredLeadsByTeam = (teamId?: string) => {
     if (!currentUser) return [] as LeadRow[];
-    
-    if (teamId && teamId !== 'todos' && ["owner", "director"].includes(currentUser.role)) {
+
+    if (
+      teamId &&
+      teamId !== "todos" &&
+      ["owner", "director"].includes(currentUser.role)
+    ) {
       // Filtrar por equipo específico usando ID
       const teamUserIds = getTeamUserIds(teamId);
-      return leads.filter((l) => (l.vendedor ? teamUserIds.includes(l.vendedor) : false));
+      return leads.filter((l) =>
+        l.vendedor ? teamUserIds.includes(l.vendedor) : false
+      );
     }
-    
+
     // Filtro normal por scope del usuario
     const visibleUserIds = getAccessibleUserIds(currentUser);
-    return leads.filter((l) => (l.vendedor ? visibleUserIds.includes(l.vendedor) : true));
+    return leads.filter((l) =>
+      l.vendedor ? visibleUserIds.includes(l.vendedor) : true
+    );
   };
 
   // ===== Nueva función para filtrar usuarios visibles según rol =====
   const getVisibleUsers = () => {
     if (!currentUser) return [];
-    
+
     return users.filter((u: any) => {
       // Owner ve a todos
       if (currentUser.role === "owner") return true;
-      
+
       // Director ve a todos menos al owner
       if (currentUser.role === "director") return u.role !== "owner";
-      
+
       // Gerente solo ve a su equipo
       if (currentUser.role === "gerente") {
         // Ve a sí mismo
         if (u.id === currentUser.id) return true;
-        
+
         // Ve a sus supervisores directos
         if (u.reportsTo === currentUser.id) return true;
-        
+
         // Ve a los vendedores que reportan a sus supervisores
         const userSupervisor = userById.get(u.reportsTo);
         return userSupervisor && userSupervisor.reportsTo === currentUser.id;
       }
-      
+
       // Supervisor solo ve a su equipo directo
       if (currentUser.role === "supervisor") {
         // Ve a sí mismo
         if (u.id === currentUser.id) return true;
-        
+
         // Ve a sus vendedores directos
         return u.reportsTo === currentUser.id;
       }
-      
+
       return false;
     });
   };
@@ -257,10 +297,10 @@ export default function CRM() {
   // ===== Función para obtener vendedores disponibles según el rol del usuario =====
   const getAvailableVendorsForReassign = () => {
     if (!currentUser) return [];
-    
+
     // Obtener usuarios visibles según el rol
     const visibleUsers = getVisibleUsers();
-    
+
     // Filtrar solo vendedores activos
     return visibleUsers.filter((u: any) => u.role === "vendedor" && u.active);
   };
@@ -275,31 +315,42 @@ export default function CRM() {
   // ===== Función para reasignar lead =====
   const handleReassignLead = async () => {
     if (!leadToReassign) return;
-    
+
     try {
-      await apiUpdateLead(leadToReassign.id, { 
-        vendedor: selectedVendorForReassign 
-      });
-      
+      // ⚠️ Si tu API espera otra clave (p.ej. assigned_to), cambiala aquí.
+      await apiUpdateLead(
+        leadToReassign.id,
+        { vendedor: selectedVendorForReassign } as any
+      );
+
       // Actualizar estado local
-      setLeads((prev) => prev.map((l) => 
-        l.id === leadToReassign.id 
-          ? { ...l, vendedor: selectedVendorForReassign } 
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadToReassign.id
+          ? { ...l, vendedor: selectedVendorForReassign }
           : l
-      ));
-      
+        )
+      );
+
       // Enviar notificación al nuevo vendedor
       if (selectedVendorForReassign) {
         pushAlert(
-          selectedVendorForReassign, 
-          "lead_assigned", 
+          selectedVendorForReassign,
+          "lead_assigned",
           `Lead reasignado: ${leadToReassign.nombre} - ${leadToReassign.modelo}`
         );
       }
-      
+
       // Agregar entrada al historial
-      addHistorialEntry(leadToReassign.id, `Reasignado a ${selectedVendorForReassign ? userById.get(selectedVendorForReassign)?.name : 'Sin asignar'}`);
-      
+      addHistorialEntry(
+        leadToReassign.id,
+        `Reasignado a ${
+          selectedVendorForReassign
+            ? userById.get(selectedVendorForReassign)?.name
+            : "Sin asignar"
+        }`
+      );
+
       setShowReassignModal(false);
       setLeadToReassign(null);
       setSelectedVendorForReassign(null);
@@ -310,29 +361,35 @@ export default function CRM() {
 
   // ===== Round-robin con soporte para bots específicos =====
   const [rrIndex, setRrIndex] = useState(0);
-  
+
   const getActiveVendorIdsInScope = (scopeUser?: any) => {
     if (!scopeUser) return [] as number[];
     const scope = getAccessibleUserIds(scopeUser);
-    return users.filter((u: any) => u.role === "vendedor" && u.active && scope.includes(u.id)).map((u: any) => u.id);
+    return users
+      .filter(
+        (u: any) => u.role === "vendedor" && u.active && scope.includes(u.id)
+      )
+      .map((u: any) => u.id);
   };
 
   const getVendorsByTeam = (teamName: string) => {
     // Buscar el gerente del equipo por nombre
-    const manager = users.find((u: any) => 
-      u.role === "gerente" && 
-      u.name.toLowerCase().includes(teamName.toLowerCase())
+    const manager = users.find(
+      (u: any) =>
+        u.role === "gerente" &&
+        u.name.toLowerCase().includes(teamName.toLowerCase())
     );
-    
+
     if (!manager) return [];
 
     // Obtener todos los descendientes del gerente
     const descendants = getDescendantUserIds(manager.id, childrenIndex);
-    return users.filter((u: any) => 
-      u.role === "vendedor" && 
-      u.active && 
-      descendants.includes(u.id)
-    ).map((u: any) => u.id);
+    return users
+      .filter(
+        (u: any) =>
+          u.role === "vendedor" && u.active && descendants.includes(u.id)
+      )
+      .map((u: any) => u.id);
   };
 
   const pickNextVendorId = (scopeUser?: any, botSource?: string) => {
@@ -362,9 +419,23 @@ export default function CRM() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const nextAlertId = useRef(1);
   const pushAlert = (userId: number, type: Alert["type"], message: string) => {
-    setAlerts((prev) => [...prev, { id: nextAlertId.current++, userId, type, message, ts: new Date().toISOString(), read: false }]);
+    setAlerts((prev) => [
+      ...prev,
+      {
+        id: nextAlertId.current++,
+        userId,
+        type,
+        message,
+        ts: new Date().toISOString(),
+        read: false,
+      },
+    ]);
   };
-  const pushAlertToChain = (vendorId: number, type: Alert["type"], message: string) => {
+  const pushAlertToChain = (
+    vendorId: number,
+    type: Alert["type"],
+    message: string
+  ) => {
     pushAlert(vendorId, type, message);
     const sup = users.find((u: any) => u.id === userById.get(vendorId)?.reportsTo);
     if (sup) pushAlert(sup.id, type, message);
@@ -373,31 +444,54 @@ export default function CRM() {
   };
 
   // ===== Filtrados y ranking =====
-  const visibleUserIds = useMemo(() => getAccessibleUserIds(currentUser), [currentUser, users]);
+  const visibleUserIds = useMemo(
+    () => getAccessibleUserIds(currentUser),
+    [currentUser, users]
+  );
 
   const getFilteredLeads = () => {
     if (!currentUser) return [] as LeadRow[];
-    return leads.filter((l) => (l.vendedor ? visibleUserIds.includes(l.vendedor) : true));
+    return leads.filter((l) =>
+      l.vendedor ? visibleUserIds.includes(l.vendedor) : true
+    );
   };
 
   const getRanking = () => {
     const vendedores = users.filter((u: any) => u.role === "vendedor");
     return vendedores
       .map((v: any) => {
-        const ventas = leads.filter((l) => l.vendedor === v.id && l.estado === "vendido").length;
+        const ventas = leads.filter(
+          (l) => l.vendedor === v.id && l.estado === "vendido"
+        ).length;
         const leadsAsignados = leads.filter((l) => l.vendedor === v.id).length;
-        return { id: v.id, nombre: v.name, ventas, leadsAsignados, team: `Equipo de ${userById.get(v.reportsTo)?.name || "—"}` };
+        return {
+          id: v.id,
+          nombre: v.name,
+          ventas,
+          leadsAsignados,
+          team: `Equipo de ${userById.get(v.reportsTo)?.name || "—"}`,
+        };
       })
       .sort((a, b) => b.ventas - a.ventas);
   };
 
   const getRankingInScope = () => {
-    const vendedores = users.filter((u: any) => u.role === "vendedor" && visibleUserIds.includes(u.id));
+    const vendedores = users.filter(
+      (u: any) => u.role === "vendedor" && visibleUserIds.includes(u.id)
+    );
     return vendedores
       .map((v: any) => {
-        const ventas = leads.filter((l) => l.vendedor === v.id && l.estado === "vendido").length;
+        const ventas = leads.filter(
+          (l) => l.vendedor === v.id && l.estado === "vendido"
+        ).length;
         const leadsAsignados = leads.filter((l) => l.vendedor === v.id).length;
-        return { id: v.id, nombre: v.name, ventas, leadsAsignados, team: `Equipo de ${userById.get(v.reportsTo)?.name || "—"}` };
+        return {
+          id: v.id,
+          nombre: v.name,
+          ventas,
+          leadsAsignados,
+          team: `Equipo de ${userById.get(v.reportsTo)?.name || "—"}`,
+        };
       })
       .sort((a, b) => b.ventas - a.ventas);
   };
@@ -412,7 +506,10 @@ export default function CRM() {
       const before = prev.get(vid);
       if (before && before !== pos) {
         const delta = before - pos;
-        const msg = delta > 0 ? `¡Subiste ${Math.abs(delta)} puesto(s) en el ranking!` : `Bajaste ${Math.abs(delta)} puesto(s) en el ranking.`;
+        const msg =
+          delta > 0
+            ? `¡Subiste ${Math.abs(delta)} puesto(s) en el ranking!`
+            : `Bajaste ${Math.abs(delta)} puesto(s) en el ranking.`;
         pushAlertToChain(vid, "ranking_change", msg);
       }
     });
@@ -420,19 +517,36 @@ export default function CRM() {
   }, [leads, users, userById]);
 
   const getDashboardStats = (teamFilter?: string) => {
-    const filteredLeads = teamFilter && teamFilter !== 'todos' ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
-    const vendidos = filteredLeads.filter((lead) => lead.estado === "vendido").length;
-    const conversion = filteredLeads.length > 0 ? ((vendidos / filteredLeads.length) * 100).toFixed(1) : 0;
+    const filteredLeads =
+      teamFilter && teamFilter !== "todos"
+        ? getFilteredLeadsByTeam(teamFilter)
+        : getFilteredLeads();
+    const vendidos = filteredLeads.filter((lead) => lead.estado === "vendido")
+      .length;
+    const conversion =
+      filteredLeads.length > 0
+        ? ((vendidos / filteredLeads.length) * 100).toFixed(1)
+        : "0";
     return { totalLeads: filteredLeads.length, vendidos, conversion };
   };
 
   const getSourceMetrics = (teamFilter?: string) => {
-    const filteredLeads = teamFilter && teamFilter !== 'todos' ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
+    const filteredLeads =
+      teamFilter && teamFilter !== "todos"
+        ? getFilteredLeadsByTeam(teamFilter)
+        : getFilteredLeads();
     const sourceData = Object.keys(fuentes)
       .map((source) => {
-        const sourceLeads = filteredLeads.filter((lead) => lead.fuente === source);
-        const vendidos = sourceLeads.filter((lead) => lead.estado === "vendido").length;
-        const conversion = sourceLeads.length > 0 ? ((vendidos / sourceLeads.length) * 100).toFixed(1) : "0";
+        const sourceLeads = filteredLeads.filter(
+          (lead) => lead.fuente === source
+        );
+        const vendidos = sourceLeads.filter(
+          (lead) => lead.estado === "vendido"
+        ).length;
+        const conversion =
+          sourceLeads.length > 0
+            ? ((vendidos / sourceLeads.length) * 100).toFixed(1)
+            : "0";
         return {
           source,
           total: sourceLeads.length,
@@ -458,7 +572,7 @@ export default function CRM() {
     entrega: L.entrega,
     fecha: L.fecha || L.created_at || "",
     estado: (L.estado || "nuevo") as LeadRow["estado"],
-    vendedor: L.vendedor ?? null,
+    vendedor: L.assigned_to ?? null,
     notas: L.notas || "",
     fuente: (L.fuente || "otro") as LeadRow["fuente"],
     historial: L.historial || [],
@@ -466,28 +580,32 @@ export default function CRM() {
 
   const addHistorialEntry = (leadId: number, estado: string) => {
     if (!currentUser) return;
-    setLeads(prev => prev.map(lead => 
-      lead.id === leadId 
-        ? {
-            ...lead,
-            historial: [
-              ...(lead.historial || []),
-              {
-                estado,
-                timestamp: new Date().toISOString(),
-                usuario: currentUser.name
-              }
-            ]
-          }
-        : lead
-    ));
+    setLeads((prev) =>
+      prev.map((lead) =>
+        lead.id === leadId
+          ? {
+              ...lead,
+              historial: [
+                ...(lead.historial || []),
+                {
+                  estado,
+                  timestamp: new Date().toISOString(),
+                  usuario: currentUser.name,
+                },
+              ],
+            }
+          : lead
+      )
+    );
   };
 
   const handleUpdateLeadStatus = async (leadId: number, newStatus: string) => {
     try {
-      const updated = await apiUpdateLead(leadId, { estado: newStatus });
-      setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...mapLeadFromApi(updated) } : l)));
-      
+      const updated = await apiUpdateLead(leadId, { estado: newStatus } as any);
+      setLeads((prev) =>
+        prev.map((l) => (l.id === leadId ? { ...l, ...mapLeadFromApi(updated) } : l))
+      );
+
       // Agregar entrada al historial
       addHistorialEntry(leadId, newStatus);
     } catch (e) {
@@ -499,13 +617,20 @@ export default function CRM() {
   const [showNewLeadModal, setShowNewLeadModal] = useState(false);
   const [showObservacionesModal, setShowObservacionesModal] = useState(false);
   const [showHistorialModal, setShowHistorialModal] = useState(false);
-  const [editingLeadObservaciones, setEditingLeadObservaciones] = useState<LeadRow | null>(null);
-  const [viewingLeadHistorial, setViewingLeadHistorial] = useState<LeadRow | null>(null);
+  const [editingLeadObservaciones, setEditingLeadObservaciones] =
+    useState<LeadRow | null>(null);
+  const [viewingLeadHistorial, setViewingLeadHistorial] =
+    useState<LeadRow | null>(null);
 
-  const handleUpdateObservaciones = async (leadId: number, observaciones: string) => {
+  const handleUpdateObservaciones = async (
+    leadId: number,
+    observaciones: string
+  ) => {
     try {
-      const updated = await apiUpdateLead(leadId, { notas: observaciones });
-      setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...mapLeadFromApi(updated) } : l)));
+      const updated = await apiUpdateLead(leadId, { notas: observaciones } as any);
+      setLeads((prev) =>
+        prev.map((l) => (l.id === leadId ? { ...l, ...mapLeadFromApi(updated) } : l))
+      );
       setShowObservacionesModal(false);
       setEditingLeadObservaciones(null);
     } catch (e) {
@@ -514,20 +639,36 @@ export default function CRM() {
   };
 
   const handleCreateLead = async () => {
-    const nombre = (document.getElementById("new-nombre") as HTMLInputElement).value.trim();
-    const telefono = (document.getElementById("new-telefono") as HTMLInputElement).value.trim();
-    const modelo = (document.getElementById("new-modelo") as HTMLInputElement).value.trim();
+    const nombre = (document.getElementById("new-nombre") as HTMLInputElement)
+      .value
+      .trim();
+    const telefono = (
+      document.getElementById("new-telefono") as HTMLInputElement
+    ).value.trim();
+    const modelo = (document.getElementById("new-modelo") as HTMLInputElement)
+      .value
+      .trim();
     const formaPago = (document.getElementById("new-formaPago") as HTMLSelectElement).value;
-    const infoUsado = (document.getElementById("new-infoUsado") as HTMLInputElement).value.trim();
-    const entrega = (document.getElementById("new-entrega") as HTMLInputElement).checked;
-    const fecha = (document.getElementById("new-fecha") as HTMLInputElement).value;
-    const fuente = (document.getElementById("new-fuente") as HTMLSelectElement).value;
-    const autoAssign = (document.getElementById("new-autoassign") as HTMLInputElement)?.checked;
-    const vendedorSelVal = (document.getElementById("new-vendedor") as HTMLSelectElement).value;
+    const infoUsado = (
+      document.getElementById("new-infoUsado") as HTMLInputElement
+    ).value.trim();
+    const entrega = (document.getElementById("new-entrega") as HTMLInputElement)
+      .checked;
+    const fecha = (document.getElementById("new-fecha") as HTMLInputElement)
+      .value;
+    const fuente = (document.getElementById("new-fuente") as HTMLSelectElement)
+      .value;
+    const autoAssign = (
+      document.getElementById("new-autoassign") as HTMLInputElement
+    )?.checked;
+    const vendedorSelVal = (document.getElementById("new-vendedor") as HTMLSelectElement)
+      .value;
 
     const vendedorIdSelRaw = parseInt(vendedorSelVal, 10);
-    const vendedorIdSel = Number.isNaN(vendedorIdSelRaw) ? null : vendedorIdSelRaw;
-    
+    const vendedorIdSel = Number.isNaN(vendedorIdSelRaw)
+      ? null
+      : vendedorIdSelRaw;
+
     // Detectar si es un bot y asignar según configuración
     let vendedorId: number | null = null;
     if (autoAssign) {
@@ -552,10 +693,15 @@ export default function CRM() {
           vendedor: vendedorId,
         } as any);
         const mapped = mapLeadFromApi(created);
-        if (mapped.vendedor) pushAlert(mapped.vendedor, "lead_assigned", `Nuevo lead asignado: ${mapped.nombre}`);
+        if (mapped.vendedor)
+          pushAlert(
+            mapped.vendedor,
+            "lead_assigned",
+            `Nuevo lead asignado: ${mapped.nombre}`
+          );
         setLeads((prev) => [mapped, ...prev]);
         setShowNewLeadModal(false);
-        
+
         addHistorialEntry(mapped.id, "nuevo");
       } catch (e) {
         console.error("No pude crear el lead", e);
@@ -567,17 +713,18 @@ export default function CRM() {
   const [events, setEvents] = useState<any[]>([]);
   const [selectedCalendarUserId, setSelectedCalendarUserId] = useState<number | null>(null);
   const [showNewEventModal, setShowNewEventModal] = useState(false);
-  const visibleUsers = useMemo(
-    () => (currentUser ? getVisibleUsers() : []),
-    [currentUser, users]
-  );
+  const visibleUsers = useMemo(() => (currentUser ? getVisibleUsers() : []), [currentUser, users]);
   const eventsForSelectedUser = useMemo(() => {
     const uid = selectedCalendarUserId || currentUser?.id;
     return events
       .filter((e) => e.userId === uid)
       .sort((a, b) => ((a.date + (a.time || "")) > (b.date + (b.time || "")) ? 1 : -1));
   }, [events, selectedCalendarUserId, currentUser]);
-  const formatterEs = new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "2-digit", month: "long" });
+  const formatterEs = new Intl.DateTimeFormat("es-AR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+  });
 
   const createEvent = () => {
     const title = (document.getElementById("ev-title") as HTMLInputElement).value;
@@ -585,16 +732,28 @@ export default function CRM() {
     const time = (document.getElementById("ev-time") as HTMLInputElement).value;
     const userId = parseInt((document.getElementById("ev-user") as HTMLSelectElement).value, 10);
     if (title && date && userId) {
-      setEvents((prev) => [...prev, { id: Math.max(0, ...prev.map((e: any) => e.id)) + 1, title, date, time: time || "09:00", userId }]);
+      setEvents((prev) => [
+        ...prev,
+        {
+          id: Math.max(0, ...prev.map((e: any) => e.id)) + 1,
+          title,
+          date,
+          time: time || "09:00",
+          userId,
+        },
+      ]);
       setShowNewEventModal(false);
     }
   };
-  const deleteEvent = (id: number) => setEvents((prev) => prev.filter((e: any) => e.id !== id));
+  const deleteEvent = (id: number) =>
+    setEvents((prev) => prev.filter((e: any) => e.id !== id));
 
   // ===== Gestión de Usuarios (API) =====
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
-  const [modalRole, setModalRole] = useState<"owner" | "director" | "gerente" | "supervisor" | "vendedor">("vendedor");
+  const [modalRole, setModalRole] = useState<
+    "owner" | "director" | "gerente" | "supervisor" | "vendedor"
+  >("vendedor");
   const [modalReportsTo, setModalReportsTo] = useState<number | null>(null);
 
   const validRolesByUser = (user: any) => {
@@ -644,10 +803,14 @@ export default function CRM() {
       currentUser.role === "owner" && u.id === currentUser.id
         ? ["owner", ...validRolesByUser(currentUser)]
         : validRolesByUser(currentUser);
-    const roleToSet = availableRoles.includes(roleCurrent) ? roleCurrent : (availableRoles[0] as any);
+    const roleToSet = availableRoles.includes(roleCurrent)
+      ? roleCurrent
+      : (availableRoles[0] as any);
     const validManagers = validManagersByRole(roleToSet);
     setModalRole(roleToSet as any);
-    setModalReportsTo(roleToSet === "owner" ? null : u.reportsTo ?? validManagers[0]?.id ?? null);
+    setModalReportsTo(
+      roleToSet === "owner" ? null : u.reportsTo ?? validManagers[0]?.id ?? null
+    );
     setShowUserModal(true);
   };
 
@@ -656,7 +819,7 @@ export default function CRM() {
     const email = (document.getElementById("u-email") as HTMLInputElement).value.trim();
     const password = (document.getElementById("u-pass") as HTMLInputElement).value;
     const active = (document.getElementById("u-active") as HTMLInputElement).checked;
-    
+
     if (!name || !email) return;
     const finalReportsTo = modalRole === "owner" ? null : modalReportsTo ?? null;
 
@@ -738,11 +901,21 @@ export default function CRM() {
           <div className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-              <input type="email" id="email" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="tu@alluma.com" />
+              <input
+                type="email"
+                id="email"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="tu@alluma.com"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Contraseña</label>
-              <input type="password" id="password" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="••••••••" />
+              <input
+                type="password"
+                id="password"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="••••••••"
+              />
             </div>
             {loginError && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3">
@@ -798,7 +971,9 @@ export default function CRM() {
 
           <div className="text-sm text-gray-300">
             <p>{currentUser?.name || currentUser?.email}</p>
-            <p className="text-blue-300">{roles[currentUser?.role] || currentUser?.role}</p>
+            <p className="text-blue-300">
+              {roles[currentUser?.role] || currentUser?.role}
+            </p>
           </div>
         </div>
         <nav className="space-y-2">
@@ -807,14 +982,20 @@ export default function CRM() {
             { key: "leads", label: "Leads", Icon: Users },
             { key: "calendar", label: "Calendario", Icon: Calendar },
             { key: "ranking", label: "Ranking", Icon: Trophy },
-            ...(["supervisor", "gerente", "director", "owner"].includes(currentUser?.role) ? [{ key: "team", label: "Mi Equipo", Icon: UserCheck }] : []),
-            ...(canManageUsers() ? [{ key: "users", label: "Usuarios", Icon: Settings }] : []),
+            ...(["supervisor", "gerente", "director", "owner"].includes(currentUser?.role)
+              ? [{ key: "team", label: "Mi Equipo", Icon: UserCheck }]
+              : []),
+            ...(canManageUsers()
+              ? [{ key: "users", label: "Usuarios", Icon: Settings }]
+              : []),
           ].map(({ key, label, Icon }) => (
             <button
               key={key}
               onClick={() => setActiveSection(key as any)}
               className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
-                activeSection === (key as any) ? "bg-blue-600 text-white" : "text-gray-300 hover:bg-slate-800"
+                activeSection === (key as any)
+                  ? "bg-blue-600 text-white"
+                  : "text-gray-300 hover:bg-slate-800"
               }`}
             >
               <Icon size={20} />
@@ -841,11 +1022,10 @@ export default function CRM() {
                   {users
                     .filter((u: any) => u.role === "gerente")
                     .map((gerente: any) => (
-                      <option key={gerente.id} value={gerente.id}>
+                      <option key={gerente.id} value={gerente.id.toString()}>
                         Equipo {gerente.name}
                       </option>
-                    ))
-                  }
+                    ))}
                 </select>
               )}
             </div>
@@ -853,7 +1033,9 @@ export default function CRM() {
             {/* Estadísticas principales */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {(() => {
-                const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
+                const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                  ? selectedTeam
+                  : undefined;
                 const stats = getDashboardStats(teamFilter);
                 return (
                   <>
@@ -861,7 +1043,9 @@ export default function CRM() {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm font-medium text-gray-600">Total Leads</p>
-                          <p className="text-3xl font-bold text-gray-900">{stats.totalLeads}</p>
+                          <p className="text-3xl font-bold text-gray-900">
+                            {stats.totalLeads}
+                          </p>
                         </div>
                         <div className="bg-blue-500 p-3 rounded-full">
                           <Users className="h-6 w-6 text-white" />
@@ -872,7 +1056,9 @@ export default function CRM() {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm font-medium text-gray-600">Ventas</p>
-                          <p className="text-3xl font-bold text-green-600">{stats.vendidos}</p>
+                          <p className="text-3xl font-bold text-green-600">
+                            {stats.vendidos}
+                          </p>
                         </div>
                         <div className="bg-green-500 p-3 rounded-full">
                           <Trophy className="h-6 w-6 text-white" />
@@ -882,8 +1068,12 @@ export default function CRM() {
                     <div className="bg-white rounded-xl shadow-lg p-6">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-medium text-gray-600">Conversión</p>
-                          <p className="text-3xl font-bold text-purple-600">{stats.conversion}%</p>
+                          <p className="text-sm font-medium text-gray-600">
+                            Conversión
+                          </p>
+                          <p className="text-3xl font-bold text-purple-600">
+                            {stats.conversion}%
+                          </p>
                         </div>
                         <div className="bg-purple-500 p-3 rounded-full">
                           <BarChart3 className="h-6 w-6 text-white" />
@@ -897,10 +1087,14 @@ export default function CRM() {
 
             {/* Métricas por fuente */}
             <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4">Performance por Fuente</h3>
+              <h3 className="text-xl font-semibold text-gray-800 mb-4">
+                Performance por Fuente
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {(() => {
-                  const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
+                  const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                    ? selectedTeam
+                    : undefined;
                   return getSourceMetrics(teamFilter).map((item) => (
                     <div key={item.source} className="border border-gray-200 rounded-lg p-4">
                       <div className="flex items-center space-x-2 mb-2">
@@ -918,7 +1112,9 @@ export default function CRM() {
                         </div>
                         <div className="flex justify-between">
                           <span>Conversión:</span>
-                          <span className="font-semibold text-purple-600">{item.conversion}%</span>
+                          <span className="font-semibold text-purple-600">
+                            {item.conversion}%
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -949,25 +1145,41 @@ export default function CRM() {
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contacto</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vehículo</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fuente</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vendedor</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Cliente
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Contacto
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Vehículo
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Estado
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Fuente
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Vendedor
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Fecha
+                      </th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                        Acciones
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {getFilteredLeads().map((lead) => {
                       const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
-                      const canReassign = (
-                        canManageUsers() || 
-                        (currentUser?.role === "supervisor" && lead.vendedor && 
-                         getVisibleUsers().some((u: any) => u.id === lead.vendedor))
-                      );
-                      
+                      const canReassign =
+                        canManageUsers() ||
+                        (currentUser?.role === "supervisor" &&
+                          lead.vendedor &&
+                          getVisibleUsers().some((u: any) => u.id === lead.vendedor));
+
                       return (
                         <tr key={lead.id} className="hover:bg-gray-50">
                           <td className="px-4 py-4">
@@ -983,13 +1195,19 @@ export default function CRM() {
                             <div>
                               <div className="font-medium text-gray-900">{lead.modelo}</div>
                               <div className="text-xs text-gray-500">{lead.formaPago}</div>
-                              {lead.infoUsado && <div className="text-xs text-orange-600">Usado: {lead.infoUsado}</div>}
+                              {lead.infoUsado && (
+                                <div className="text-xs text-orange-600">
+                                  Usado: {lead.infoUsado}
+                                </div>
+                              )}
                             </div>
                           </td>
                           <td className="px-4 py-4">
                             <select
                               value={lead.estado}
-                              onChange={(e) => handleUpdateLeadStatus(lead.id, e.target.value)}
+                              onChange={(e) =>
+                                handleUpdateLeadStatus(lead.id, e.target.value)
+                              }
                               className={`text-xs font-medium rounded-full px-2 py-1 border-0 text-white ${estados[lead.estado].color}`}
                             >
                               {Object.entries(estados).map(([key, estado]) => (
@@ -1001,7 +1219,9 @@ export default function CRM() {
                           </td>
                           <td className="px-4 py-4">
                             <div className="flex items-center space-x-1">
-                              <span className="text-sm">{fuentes[lead.fuente as string]?.icon || "❓"}</span>
+                              <span className="text-sm">
+                                {fuentes[lead.fuente as string]?.icon || "❓"}
+                              </span>
                               <span className="text-xs text-gray-600">
                                 {fuentes[lead.fuente as string]?.label || String(lead.fuente)}
                               </span>
@@ -1069,7 +1289,11 @@ export default function CRM() {
               <div className="flex items-center space-x-3">
                 <select
                   value={selectedCalendarUserId ?? ""}
-                  onChange={(e) => setSelectedCalendarUserId(e.target.value ? parseInt(e.target.value, 10) : null)}
+                  onChange={(e) =>
+                    setSelectedCalendarUserId(
+                      e.target.value ? parseInt(e.target.value, 10) : null
+                    )
+                  }
                   className="px-3 py-2 border border-gray-300 rounded-lg"
                 >
                   <option value="">Mi calendario</option>
@@ -1093,15 +1317,23 @@ export default function CRM() {
 
             <div className="bg-white rounded-xl shadow-lg p-6">
               <h3 className="text-xl font-semibold text-gray-800 mb-4">
-                Próximos eventos - {selectedCalendarUserId ? userById.get(selectedCalendarUserId)?.name : "Mi calendario"}
+                Próximos eventos -{" "}
+                {selectedCalendarUserId
+                  ? userById.get(selectedCalendarUserId)?.name
+                  : "Mi calendario"}
               </h3>
-              
+
               {eventsForSelectedUser.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No hay eventos programados</p>
+                <p className="text-gray-500 text-center py-8">
+                  No hay eventos programados
+                </p>
               ) : (
                 <div className="space-y-3">
                   {eventsForSelectedUser.map((event: any) => (
-                    <div key={event.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                    <div
+                      key={event.id}
+                      className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
+                    >
                       <div>
                         <h4 className="font-medium text-gray-900">{event.title}</h4>
                         <p className="text-sm text-gray-600">
@@ -1132,35 +1364,56 @@ export default function CRM() {
         {activeSection === "ranking" && (
           <div className="space-y-6">
             <h2 className="text-3xl font-bold text-gray-800">Ranking de Vendedores</h2>
-            
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Ranking General */}
               {isOwner() && (
                 <div className="bg-white rounded-xl shadow-lg p-6">
-                  <h3 className="text-xl font-semibold text-gray-800 mb-4">Ranking General</h3>
+                  <h3 className="text-xl font-semibold text-gray-800 mb-4">
+                    Ranking General
+                  </h3>
                   <div className="space-y-3">
                     {getRanking().map((vendedor, index) => (
-                      <div key={vendedor.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                      <div
+                        key={vendedor.id}
+                        className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
+                      >
                         <div className="flex items-center space-x-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
-                            index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-600' : 'bg-gray-300'
-                          }`}>
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
+                              index === 0
+                                ? "bg-yellow-500"
+                                : index === 1
+                                ? "bg-gray-400"
+                                : index === 2
+                                ? "bg-orange-600"
+                                : "bg-gray-300"
+                            }`}
+                          >
                             {index + 1}
                           </div>
                           <div>
-                            <p className="font-medium text-gray-900">{vendedor.nombre}</p>
+                            <p className="font-medium text-gray-900">
+                              {vendedor.nombre}
+                            </p>
                             <p className="text-xs text-gray-500">{vendedor.team}</p>
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="font-bold text-green-600">{vendedor.ventas} ventas</p>
-                          <p className="text-xs text-gray-500">{vendedor.leadsAsignados} leads asignados</p>
+                          <p className="font-bold text-green-600">
+                            {vendedor.ventas} ventas
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {vendedor.leadsAsignados} leads asignados
+                          </p>
                         </div>
                       </div>
                     ))}
                   </div>
                   {getRanking().length === 0 && (
-                    <p className="text-gray-500 text-center py-8">No hay vendedores registrados</p>
+                    <p className="text-gray-500 text-center py-8">
+                      No hay vendedores registrados
+                    </p>
                   )}
                 </div>
               )}
@@ -1172,27 +1425,50 @@ export default function CRM() {
                 </h3>
                 <div className="space-y-3">
                   {getRankingInScope().map((vendedor, index) => (
-                    <div key={vendedor.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                    <div
+                      key={vendedor.id}
+                      className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
+                    >
                       <div className="flex items-center space-x-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
-                          index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-600' : 'bg-gray-300'
-                        }`}>
+                        <div
+                          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
+                            index === 0
+                              ? "bg-yellow-500"
+                              : index === 1
+                              ? "bg-gray-400"
+                              : index === 2
+                              ? "bg-orange-600"
+                              : "bg-gray-300"
+                          }`}
+                        >
                           {index + 1}
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900">{vendedor.nombre}</p>
+                          <p className="font-medium text-gray-900">
+                            {vendedor.nombre}
+                          </p>
                           <p className="text-xs text-gray-500">{vendedor.team}</p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-green-600">{vendedor.ventas} ventas</p>
-                        <p className="text-xs text-gray-500">{vendedor.leadsAsignados} leads asignados</p>
+                        <p className="font-bold text-green-600">
+                          {vendedor.ventas} ventas
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {vendedor.leadsAsignados} leads •{" "}
+                          {vendedor.leadsAsignados > 0
+                            ? ((vendedor.ventas / vendedor.leadsAsignados) * 100).toFixed(0)
+                            : 0}
+                          %
+                        </p>
                       </div>
                     </div>
                   ))}
                 </div>
                 {getRankingInScope().length === 0 && (
-                  <p className="text-gray-500 text-center py-8">No hay vendedores en tu scope</p>
+                  <p className="text-gray-500 text-center py-8">
+                    No hay vendedores en tu scope
+                  </p>
                 )}
               </div>
             </div>
@@ -1200,220 +1476,295 @@ export default function CRM() {
         )}
 
         {/* Sección Mi Equipo */}
-        {activeSection === "team" && ["supervisor", "gerente", "director", "owner"].includes(currentUser?.role) && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-bold text-gray-800">Mi Equipo</h2>
-              {["owner", "director"].includes(currentUser?.role) && (
-                <select
-                  value={selectedTeam}
-                  onChange={(e) => setSelectedTeam(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
-                >
-                  <option value="todos">Todos los equipos</option>
-                  {users
-                    .filter((u: any) => u.role === "gerente")
-                    .map((gerente: any) => (
-                      <option key={gerente.id} value={gerente.id}>
-                        Equipo {gerente.name}
-                      </option>
-                    ))
-                  }
-                </select>
-              )}
-            </div>
-            
-            {/* Estadísticas por estado tipo dashboard */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold text-gray-800">Estados de Leads - Mi Equipo</h3>
-                {selectedEstado && (
-                  <button 
-                    onClick={() => setSelectedEstado(null)}
-                    className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
+        {activeSection === "team" &&
+          ["supervisor", "gerente", "director", "owner"].includes(currentUser?.role) && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-3xl font-bold text-gray-800">Mi Equipo</h2>
+                {["owner", "director"].includes(currentUser?.role) && (
+                  <select
+                    value={selectedTeam}
+                    onChange={(e) => setSelectedTeam(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
                   >
-                    <X size={16} />
-                    <span>Cerrar filtro</span>
-                  </button>
+                    <option value="todos">Todos los equipos</option>
+                    {users
+                      .filter((u: any) => u.role === "gerente")
+                      .map((gerente: any) => (
+                        <option key={gerente.id} value={gerente.id.toString()}>
+                          Equipo {gerente.name}
+                        </option>
+                      ))}
+                  </select>
                 )}
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                {Object.entries(estados).map(([key, estado]) => {
-                  const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
-                  const filteredLeads = teamFilter && teamFilter !== 'todos' ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
-                  const count = filteredLeads.filter((l) => l.estado === key).length;
-                  return (
+
+              {/* Estadísticas por estado tipo dashboard */}
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-semibold text-gray-800">
+                    Estados de Leads - Mi Equipo
+                  </h3>
+                  {selectedEstado && (
                     <button
-                      key={key}
-                      onClick={() => setSelectedEstado(selectedEstado === key ? null : key)}
-                      className={`text-center transition-all duration-200 transform hover:scale-105 ${
-                        selectedEstado === key ? "ring-4 ring-blue-300 ring-opacity-50" : ""
-                      }`}
-                      title={`Ver todos los leads en estado: ${estado.label}`}
+                      onClick={() => setSelectedEstado(null)}
+                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
                     >
-                      <div className={`${estado.color} text-white rounded-lg p-4 mb-2 hover:opacity-90`}>
-                        <div className="text-2xl font-bold">{count}</div>
-                      </div>
-                      <div className="text-sm text-gray-600">{estado.label}</div>
+                      <X size={16} />
+                      <span>Cerrar filtro</span>
                     </button>
-                  );
-                })}
-              </div>
-
-              {/* Lista filtrada de leads por estado en Mi Equipo */}
-              {selectedEstado && (
-                <div className="mt-6 border-t pt-6">
-                  <h4 className="text-lg font-semibold text-gray-800 mb-4">
-                    Leads de mi equipo en estado: <span className={`px-3 py-1 rounded-full text-white text-sm ${estados[selectedEstado].color}`}>
-                      {estados[selectedEstado].label}
-                    </span>
-                  </h4>
-                  
-                  {(() => {
-                    const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
-                    const filteredLeads = teamFilter && teamFilter !== 'todos' ? getFilteredLeadsByTeam(teamFilter) : getFilteredLeads();
-                    const leadsFiltrados = filteredLeads.filter(l => l.estado === selectedEstado);
-                    
-                    if (leadsFiltrados.length === 0) {
-                      return (
-                        <p className="text-gray-500 text-center py-8">
-                          No hay leads de tu equipo en estado "{estados[selectedEstado].label}"
-                        </p>
-                      );
-                    }
-
+                  )}
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  {Object.entries(estados).map(([key, estado]) => {
+                    const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                      ? selectedTeam
+                      : undefined;
+                    const filteredLeads =
+                      teamFilter && teamFilter !== "todos"
+                        ? getFilteredLeadsByTeam(teamFilter)
+                        : getFilteredLeads();
+                    const count = filteredLeads.filter((l) => l.estado === key).length;
                     return (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Contacto</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vehículo</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fuente</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vendedor</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                              <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-200">
-                            {leadsFiltrados.map((lead) => {
-                              const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
-                              return (
-                                <tr key={lead.id} className="hover:bg-gray-50">
-                                  <td className="px-4 py-2">
-                                    <div className="font-medium text-gray-900">{lead.nombre}</div>
-                                  </td>
-                                  <td className="px-4 py-2">
-                                    <div className="flex items-center space-x-1">
-                                      <Phone size={12} className="text-gray-400" />
-                                      <span className="text-gray-700">{lead.telefono}</span>
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-2">
-                                    <div>
-                                      <div className="font-medium text-gray-900">{lead.modelo}</div>
-                                      <div className="text-xs text-gray-500">{lead.formaPago}</div>
-                                      {lead.infoUsado && <div className="text-xs text-orange-600">Usado: {lead.infoUsado}</div>}
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-2">
-                                    <div className="flex items-center space-x-1">
-                                      <span className="text-sm">{fuentes[lead.fuente as string]?.icon || "❓"}</span>
-                                      <span className="text-xs text-gray-600">
-                                        {fuentes[lead.fuente as string]?.label || String(lead.fuente)}
-                                      </span>
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-2 text-gray-700">
-                                    {vendedor?.name || "Sin asignar"}
-                                  </td>
-                                  <td className="px-4 py-2 text-gray-500 text-xs">
-                                    {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
-                                  </td>
-                                  <td className="px-4 py-2 text-center">
-                                    <div className="flex items-center justify-center space-x-1">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setEditingLeadObservaciones(lead);
-                                          setShowObservacionesModal(true);
-                                        }}
-                                        className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                        title="Ver/Editar observaciones"
-                                      >
-                                        {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
-                                      </button>
-                                      {/* Botón de reasignación en Mi Equipo */}
-                                      {(canManageUsers() || (currentUser?.role === "supervisor" && lead.vendedor && 
-                                        getVisibleUsers().some((u: any) => u.id === lead.vendedor))) && (
+                      <button
+                        key={key}
+                        onClick={() => setSelectedEstado(selectedEstado === key ? null : key)}
+                        className={`text-center transition-all duration-200 transform hover:scale-105 ${
+                          selectedEstado === key ? "ring-4 ring-blue-300 ring-opacity-50" : ""
+                        }`}
+                        title={`Ver todos los leads en estado: ${estado.label}`}
+                      >
+                        <div className={`${estado.color} text-white rounded-lg p-4 mb-2 hover:opacity-90`}>
+                          <div className="text-2xl font-bold">{count}</div>
+                        </div>
+                        <div className="text-sm text-gray-600">{estado.label}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Lista filtrada de leads por estado en Mi Equipo */}
+                {selectedEstado && (
+                  <div className="mt-6 border-t pt-6">
+                    <h4 className="text-lg font-semibold text-gray-800 mb-4">
+                      Leads de mi equipo en estado:{" "}
+                      <span
+                        className={`px-3 py-1 rounded-full text-white text-sm ${
+                          estados[selectedEstado].color
+                        }`}
+                      >
+                        {estados[selectedEstado].label}
+                      </span>
+                    </h4>
+
+                    {(() => {
+                      const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                        ? selectedTeam
+                        : undefined;
+                      const filteredLeads =
+                        teamFilter && teamFilter !== "todos"
+                          ? getFilteredLeadsByTeam(teamFilter)
+                          : getFilteredLeads();
+                      const leadsFiltrados = filteredLeads.filter(
+                        (l) => l.estado === selectedEstado
+                      );
+
+                      if (leadsFiltrados.length === 0) {
+                        return (
+                          <p className="text-gray-500 text-center py-8">
+                            No hay leads de tu equipo en estado "
+                            {estados[selectedEstado].label}"
+                          </p>
+                        );
+                      }
+
+                      return (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                  Cliente
+                                </th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                  Contacto
+                                </th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                  Vehículo
+                                </th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                  Fuente
+                                </th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                  Vendedor
+                                </th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                  Fecha
+                                </th>
+                                <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">
+                                  Acciones
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {leadsFiltrados.map((lead) => {
+                                const vendedor = lead.vendedor
+                                  ? userById.get(lead.vendedor)
+                                  : null;
+                                return (
+                                  <tr key={lead.id} className="hover:bg-gray-50">
+                                    <td className="px-4 py-2">
+                                      <div className="font-medium text-gray-900">
+                                        {lead.nombre}
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-2">
+                                      <div className="flex items-center space-x-1">
+                                        <Phone size={12} className="text-gray-400" />
+                                        <span className="text-gray-700">{lead.telefono}</span>
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-2">
+                                      <div>
+                                        <div className="font-medium text-gray-900">
+                                          {lead.modelo}
+                                        </div>
+                                        <div className="text-xs text-gray-500">
+                                          {lead.formaPago}
+                                        </div>
+                                        {lead.infoUsado && (
+                                          <div className="text-xs text-orange-600">
+                                            Usado: {lead.infoUsado}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-2">
+                                      <div className="flex items-center space-x-1">
+                                        <span className="text-sm">
+                                          {fuentes[lead.fuente as string]?.icon || "❓"}
+                                        </span>
+                                        <span className="text-xs text-gray-600">
+                                          {fuentes[lead.fuente as string]?.label ||
+                                            String(lead.fuente)}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-2 text-gray-700">
+                                      {vendedor?.name || "Sin asignar"}
+                                    </td>
+                                    <td className="px-4 py-2 text-gray-500 text-xs">
+                                      {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
+                                    </td>
+                                    <td className="px-4 py-2 text-center">
+                                      <div className="flex items-center justify-center space-x-1">
                                         <button
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            openReassignModal(lead);
+                                            setEditingLeadObservaciones(lead);
+                                            setShowObservacionesModal(true);
                                           }}
-                                          className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
-                                          title="Reasignar lead"
+                                          className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                          title="Ver/Editar observaciones"
                                         >
-                                          Reasignar
+                                          {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
                                         </button>
-                                      )}
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setActiveSection("leads");
-                                        }}
-                                        className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                        title="Ver en tabla completa"
-                                      >
-                                        Ver
-                                      </button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-            </div>
-
-            {/* Top vendedores en mi organización */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4">Top Vendedores en Mi Organización</h3>
-              <div className="space-y-3">
-                {getRankingInScope().map((vendedor, index) => (
-                  <div key={vendedor.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
-                    <div className="flex items-center space-x-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
-                        index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-orange-600' : 'bg-gray-300'
-                      }`}>
-                        {index + 1}
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900">{vendedor.nombre}</p>
-                        <p className="text-xs text-gray-500">{vendedor.team}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-green-600">{vendedor.ventas} ventas</p>
-                      <p className="text-xs text-gray-500">
-                        {vendedor.leadsAsignados} leads • {vendedor.leadsAsignados > 0 ? ((vendedor.ventas / vendedor.leadsAsignados) * 100).toFixed(0) : 0}%
-                      </p>
-                    </div>
+                                        {(canManageUsers() ||
+                                          (currentUser?.role === "supervisor" &&
+                                            lead.vendedor &&
+                                            getVisibleUsers().some(
+                                              (u: any) => u.id === lead.vendedor
+                                            ))) && (
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              openReassignModal(lead);
+                                            }}
+                                            className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
+                                            title="Reasignar lead"
+                                          >
+                                            Reasignar
+                                          </button>
+                                        )}
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveSection("leads");
+                                          }}
+                                          className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                          title="Ver en tabla completa"
+                                        >
+                                          Ver
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })()}
                   </div>
-                ))}
+                )}
               </div>
-              {getRankingInScope().length === 0 && (
-                <p className="text-gray-500 text-center py-8">No hay vendedores en tu equipo</p>
-              )}
+
+              {/* Top vendedores en mi organización */}
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <h3 className="text-xl font-semibold text-gray-800 mb-4">
+                  Top Vendedores en Mi Organización
+                </h3>
+                <div className="space-y-3">
+                  {getRankingInScope().map((vendedor, index) => (
+                    <div
+                      key={vendedor.id}
+                      className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
+                            index === 0
+                              ? "bg-yellow-500"
+                              : index === 1
+                              ? "bg-gray-400"
+                              : index === 2
+                              ? "bg-orange-600"
+                              : "bg-gray-300"
+                          }`}
+                        >
+                          {index + 1}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            {vendedor.nombre}
+                          </p>
+                          <p className="text-xs text-gray-500">{vendedor.team}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-green-600">
+                          {vendedor.ventas} ventas
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {vendedor.leadsAsignados} leads •{" "}
+                          {vendedor.leadsAsignados > 0
+                            ? ((vendedor.ventas / vendedor.leadsAsignados) * 100).toFixed(0)
+                            : 0}
+                          %
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {getRankingInScope().length === 0 && (
+                  <p className="text-gray-500 text-center py-8">
+                    No hay vendedores en tu equipo
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* Sección Usuarios */}
         {activeSection === "users" && canManageUsers() && (
@@ -1434,12 +1785,24 @@ export default function CRM() {
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuario</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rol</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reporta a</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Performance</th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Usuario
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Rol
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Reporta a
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Estado
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Performance
+                      </th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                        Acciones
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -1447,7 +1810,7 @@ export default function CRM() {
                       const userLeads = leads.filter((l) => l.vendedor === user.id);
                       const userSales = userLeads.filter((l) => l.estado === "vendido").length;
                       const manager = user.reportsTo ? userById.get(user.reportsTo) : null;
-                      
+
                       return (
                         <tr key={user.id} className="hover:bg-gray-50">
                           <td className="px-4 py-4">
@@ -1466,10 +1829,14 @@ export default function CRM() {
                           </td>
                           <td className="px-4 py-4">
                             <div className="flex items-center space-x-2">
-                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                user.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                              }`}>
-                                {user.active ? 'Activo' : 'Inactivo'}
+                              <span
+                                className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                  user.active
+                                    ? "bg-green-100 text-green-800"
+                                    : "bg-red-100 text-red-800"
+                                }`}
+                              >
+                                {user.active ? "Activo" : "Inactivo"}
                               </span>
                               {user.role === "vendedor" && (
                                 <button
@@ -1479,19 +1846,21 @@ export default function CRM() {
                                         ...user,
                                         active: user.active ? 0 : 1,
                                       });
-                                      setUsers((prev) => prev.map((u: any) => (u.id === user.id ? updated : u)));
+                                      setUsers((prev) =>
+                                        prev.map((u: any) => (u.id === user.id ? updated : u))
+                                      );
                                     } catch (e) {
                                       console.error("No pude cambiar estado del usuario", e);
                                     }
                                   }}
                                   className={`px-2 py-1 text-xs rounded ${
-                                    user.active 
-                                      ? 'bg-red-100 text-red-700 hover:bg-red-200' 
-                                      : 'bg-green-100 text-green-700 hover:bg-green-200'
+                                    user.active
+                                      ? "bg-red-100 text-red-700 hover:bg-red-200"
+                                      : "bg-green-100 text-green-700 hover:bg-green-200"
                                   }`}
                                   title={user.active ? "Desactivar vendedor" : "Activar vendedor"}
                                 >
-                                  {user.active ? 'Desactivar' : 'Activar'}
+                                  {user.active ? "Desactivar" : "Activar"}
                                 </button>
                               )}
                             </div>
@@ -1500,7 +1869,9 @@ export default function CRM() {
                             {user.role === "vendedor" ? (
                               <div className="text-sm">
                                 <div>{userLeads.length} leads</div>
-                                <div className="text-green-600 font-medium">{userSales} ventas</div>
+                                <div className="text-green-600 font-medium">
+                                  {userSales} ventas
+                                </div>
                               </div>
                             ) : (
                               <span className="text-gray-400">—</span>
@@ -1543,7 +1914,11 @@ export default function CRM() {
               <h2 className="text-3xl font-bold text-gray-800">Alertas y Notificaciones</h2>
               <button
                 onClick={() => {
-                  setAlerts((prev) => prev.map((a) => a.userId === currentUser?.id ? { ...a, read: true } : a));
+                  setAlerts((prev) =>
+                    prev.map((a) =>
+                      a.userId === currentUser?.id ? { ...a, read: true } : a
+                    )
+                  );
                 }}
                 className="px-4 py-2 text-sm text-blue-600 hover:text-blue-800"
               >
@@ -1561,33 +1936,57 @@ export default function CRM() {
                 <div className="space-y-3">
                   {alerts
                     .filter((a) => a.userId === currentUser?.id)
-                    .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
+                    .sort(
+                      (a, b) =>
+                        new Date(b.ts).getTime() - new Date(a.ts).getTime()
+                    )
                     .map((alert) => (
                       <div
                         key={alert.id}
                         className={`p-4 border rounded-lg ${
-                          alert.read ? 'border-gray-200 bg-gray-50' : 'border-blue-200 bg-blue-50'
+                          alert.read
+                            ? "border-gray-200 bg-gray-50"
+                            : "border-blue-200 bg-blue-50"
                         }`}
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex items-start space-x-3">
-                            <div className={`mt-1 w-2 h-2 rounded-full ${alert.read ? 'bg-gray-400' : 'bg-blue-500'}`} />
+                            <div
+                              className={`mt-1 w-2 h-2 rounded-full ${
+                                alert.read ? "bg-gray-400" : "bg-blue-500"
+                              }`}
+                            />
                             <div>
-                              <p className={`font-medium ${alert.read ? 'text-gray-700' : 'text-gray-900'}`}>
-                                {alert.type === "lead_assigned" ? "Nuevo Lead Asignado" : "Cambio en Ranking"}
+                              <p
+                                className={`font-medium ${
+                                  alert.read ? "text-gray-700" : "text-gray-900"
+                                }`}
+                              >
+                                {alert.type === "lead_assigned"
+                                  ? "Nuevo Lead Asignado"
+                                  : "Cambio en Ranking"}
                               </p>
-                              <p className={`text-sm ${alert.read ? 'text-gray-500' : 'text-gray-700'}`}>
+                              <p
+                                className={`text-sm ${
+                                  alert.read ? "text-gray-500" : "text-gray-700"
+                                }`}
+                              >
                                 {alert.message}
                               </p>
                               <p className="text-xs text-gray-400 mt-1">
-                                {new Date(alert.ts).toLocaleDateString('es-AR')} {new Date(alert.ts).toLocaleTimeString('es-AR')}
+                                {new Date(alert.ts).toLocaleDateString("es-AR")}{" "}
+                                {new Date(alert.ts).toLocaleTimeString("es-AR")}
                               </p>
                             </div>
                           </div>
                           {!alert.read && (
                             <button
                               onClick={() => {
-                                setAlerts((prev) => prev.map((a) => a.id === alert.id ? { ...a, read: true } : a));
+                                setAlerts((prev) =>
+                                  prev.map((a) =>
+                                    a.id === alert.id ? { ...a, read: true } : a
+                                  )
+                                );
                               }}
                               className="text-blue-600 hover:text-blue-800 text-sm"
                             >
@@ -1611,58 +2010,70 @@ export default function CRM() {
                 <h3 className="text-xl font-semibold text-gray-800">
                   Reasignar Lead - {leadToReassign.nombre}
                 </h3>
-                <button onClick={() => {
-                  setShowReassignModal(false);
-                  setLeadToReassign(null);
-                  setSelectedVendorForReassign(null);
-                }}>
+                <button
+                  onClick={() => {
+                    setShowReassignModal(false);
+                    setLeadToReassign(null);
+                    setSelectedVendorForReassign(null);
+                  }}
+                >
                   <X size={24} className="text-gray-600" />
                 </button>
               </div>
-              
+
               <div className="mb-6">
                 <div className="bg-gray-50 rounded-lg p-4 mb-4">
                   <h4 className="font-medium text-gray-800 mb-2">Información del Lead</h4>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <span className="font-medium text-gray-600">Cliente:</span> {leadToReassign.nombre}
+                      <span className="font-medium text-gray-600">Cliente:</span>{" "}
+                      {leadToReassign.nombre}
                     </div>
                     <div>
-                      <span className="font-medium text-gray-600">Teléfono:</span> {leadToReassign.telefono}
+                      <span className="font-medium text-gray-600">Teléfono:</span>{" "}
+                      {leadToReassign.telefono}
                     </div>
                     <div>
-                      <span className="font-medium text-gray-600">Vehículo:</span> {leadToReassign.modelo}
+                      <span className="font-medium text-gray-600">Vehículo:</span>{" "}
+                      {leadToReassign.modelo}
                     </div>
                     <div>
                       <span className="font-medium text-gray-600">Estado:</span>
-                      <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium text-white ${estados[leadToReassign.estado].color}`}>
+                      <span
+                        className={`ml-2 px-2 py-1 rounded-full text-xs font-medium text-white ${estados[leadToReassign.estado].color}`}
+                      >
                         {estados[leadToReassign.estado].label}
                       </span>
                     </div>
                     <div>
                       <span className="font-medium text-gray-600">Fuente:</span>
                       <span className="ml-2">
-                        {fuentes[leadToReassign.fuente as string]?.icon || "❓"} {fuentes[leadToReassign.fuente as string]?.label || String(leadToReassign.fuente)}
+                        {fuentes[leadToReassign.fuente as string]?.icon || "❓"}{" "}
+                        {fuentes[leadToReassign.fuente as string]?.label ||
+                          String(leadToReassign.fuente)}
                       </span>
                     </div>
                     <div>
-                      <span className="font-medium text-gray-600">Vendedor actual:</span> {leadToReassign.vendedor ? userById.get(leadToReassign.vendedor)?.name : "Sin asignar"}
+                      <span className="font-medium text-gray-600">Vendedor actual:</span>{" "}
+                      {leadToReassign.vendedor
+                        ? userById.get(leadToReassign.vendedor)?.name
+                        : "Sin asignar"}
                     </div>
                   </div>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">
                     Seleccionar nuevo vendedor
                   </label>
                   <div className="space-y-2 max-h-64 overflow-y-auto">
                     {/* Opción para no asignar */}
-                    <div 
+                    <div
                       onClick={() => setSelectedVendorForReassign(null)}
                       className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                        selectedVendorForReassign === null 
-                          ? 'border-blue-500 bg-blue-50' 
-                          : 'border-gray-200 hover:bg-gray-50'
+                        selectedVendorForReassign === null
+                          ? "border-blue-500 bg-blue-50"
+                          : "border-gray-200 hover:bg-gray-50"
                       }`}
                     >
                       <div className="flex items-center justify-between">
@@ -1672,7 +2083,9 @@ export default function CRM() {
                           </div>
                           <div>
                             <p className="font-medium text-gray-900">Sin asignar</p>
-                            <p className="text-sm text-gray-500">Dejar el lead sin vendedor asignado</p>
+                            <p className="text-sm text-gray-500">
+                              Dejar el lead sin vendedor asignado
+                            </p>
                           </div>
                         </div>
                         {selectedVendorForReassign === null && (
@@ -1682,34 +2095,45 @@ export default function CRM() {
                         )}
                       </div>
                     </div>
-                    
+
                     {/* Lista de vendedores disponibles */}
                     {getAvailableVendorsForReassign().map((vendedor: any) => {
                       const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
-                      const vendedorVentas = vendedorLeads.filter((l) => l.estado === "vendido").length;
-                      const conversion = vendedorLeads.length > 0 ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0) : "0";
-                      
+                      const vendedorVentas = vendedorLeads.filter(
+                        (l) => l.estado === "vendido"
+                      ).length;
+                      const conversion =
+                        vendedorLeads.length > 0
+                          ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0)
+                          : "0";
+
                       return (
-                        <div 
+                        <div
                           key={vendedor.id}
                           onClick={() => setSelectedVendorForReassign(vendedor.id)}
                           className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                            selectedVendorForReassign === vendedor.id 
-                              ? 'border-blue-500 bg-blue-50' 
-                              : 'border-gray-200 hover:bg-gray-50'
+                            selectedVendorForReassign === vendedor.id
+                              ? "border-blue-500 bg-blue-50"
+                              : "border-gray-200 hover:bg-gray-50"
                           }`}
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-3">
                               <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
                                 <span className="text-white font-medium text-sm">
-                                  {vendedor.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2)}
+                                  {vendedor.name
+                                    .split(" ")
+                                    .map((n: string) => n[0])
+                                    .join("")
+                                    .toUpperCase()
+                                    .substring(0, 2)}
                                 </span>
                               </div>
                               <div>
                                 <p className="font-medium text-gray-900">{vendedor.name}</p>
                                 <p className="text-sm text-gray-500">
-                                  {vendedorLeads.length} leads • {vendedorVentas} ventas • {conversion}% conversión
+                                  {vendedorLeads.length} leads • {vendedorVentas} ventas •{" "}
+                                  {conversion}% conversión
                                 </p>
                                 <p className="text-xs text-gray-400">
                                   Equipo de {userById.get(vendedor.reportsTo)?.name || "—"}
@@ -1726,31 +2150,32 @@ export default function CRM() {
                       );
                     })}
                   </div>
-                  
+
                   {getAvailableVendorsForReassign().length === 0 && (
                     <div className="text-center py-8 bg-gray-50 rounded-lg border">
-                      <p className="text-gray-500">No hay vendedores disponibles en tu scope para reasignar</p>
+                      <p className="text-gray-500">
+                        No hay vendedores disponibles en tu scope para reasignar
+                      </p>
                     </div>
                   )}
                 </div>
               </div>
-              
+
               <div className="flex space-x-3">
-                <button 
+                <button
                   onClick={handleReassignLead}
                   disabled={selectedVendorForReassign === leadToReassign.vendedor}
                   className={`flex-1 px-4 py-2 rounded-lg font-medium ${
                     selectedVendorForReassign === leadToReassign.vendedor
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      : "bg-blue-600 text-white hover:bg-blue-700"
                   }`}
                 >
-                  {selectedVendorForReassign === leadToReassign.vendedor 
-                    ? 'Ya está asignado a este vendedor' 
-                    : 'Reasignar Lead'
-                  }
+                  {selectedVendorForReassign === leadToReassign.vendedor
+                    ? "Ya está asignado a este vendedor"
+                    : "Reasignar Lead"}
                 </button>
-                <button 
+                <button
                   onClick={() => {
                     setShowReassignModal(false);
                     setLeadToReassign(null);
@@ -1773,30 +2198,39 @@ export default function CRM() {
                 <h3 className="text-xl font-semibold text-gray-800">
                   Observaciones - {editingLeadObservaciones.nombre}
                 </h3>
-                <button onClick={() => {
-                  setShowObservacionesModal(false);
-                  setEditingLeadObservaciones(null);
-                }}>
+                <button
+                  onClick={() => {
+                    setShowObservacionesModal(false);
+                    setEditingLeadObservaciones(null);
+                  }}
+                >
                   <X size={24} className="text-gray-600" />
                 </button>
               </div>
-              
+
               <div className="mb-4">
                 <p className="text-sm text-gray-600 mb-2">
-                  <span className="font-medium">Cliente:</span> {editingLeadObservaciones.nombre} | 
-                  <span className="font-medium ml-2">Teléfono:</span> {editingLeadObservaciones.telefono} | 
-                  <span className="font-medium ml-2">Vehículo:</span> {editingLeadObservaciones.modelo}
+                  <span className="font-medium">Cliente:</span>{" "}
+                  {editingLeadObservaciones.nombre} |{" "}
+                  <span className="font-medium ml-2">Teléfono:</span>{" "}
+                  {editingLeadObservaciones.telefono} |{" "}
+                  <span className="font-medium ml-2">Vehículo:</span>{" "}
+                  {editingLeadObservaciones.modelo}
                 </p>
                 <p className="text-sm text-gray-600">
-                  <span className="font-medium">Estado actual:</span> 
-                  <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium text-white ${estados[editingLeadObservaciones.estado].color}`}>
+                  <span className="font-medium">Estado actual:</span>
+                  <span
+                    className={`ml-2 px-2 py-1 rounded-full text-xs font-medium text-white ${estados[editingLeadObservaciones.estado].color}`}
+                  >
                     {estados[editingLeadObservaciones.estado].label}
                   </span>
                 </p>
               </div>
-              
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Observaciones</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Observaciones
+                </label>
                 <textarea
                   id="observaciones-textarea"
                   defaultValue={editingLeadObservaciones.notas || ""}
@@ -1804,20 +2238,25 @@ export default function CRM() {
                   className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
-              
+
               <div className="flex space-x-3 pt-6">
-                <button 
+                <button
                   onClick={() => {
-                    const textarea = document.getElementById("observaciones-textarea") as HTMLTextAreaElement;
+                    const textarea = document.getElementById(
+                      "observaciones-textarea"
+                    ) as HTMLTextAreaElement;
                     if (textarea && editingLeadObservaciones) {
-                      handleUpdateObservaciones(editingLeadObservaciones.id, textarea.value);
+                      handleUpdateObservaciones(
+                        editingLeadObservaciones.id,
+                        textarea.value
+                      );
                     }
                   }}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   Guardar Observaciones
                 </button>
-                <button 
+                <button
                   onClick={() => {
                     setShowObservacionesModal(false);
                     setEditingLeadObservaciones(null);
@@ -1839,46 +2278,60 @@ export default function CRM() {
                 <h3 className="text-xl font-semibold text-gray-800">
                   Historial - {viewingLeadHistorial.nombre}
                 </h3>
-                <button onClick={() => {
-                  setShowHistorialModal(false);
-                  setViewingLeadHistorial(null);
-                }}>
+                <button
+                  onClick={() => {
+                    setShowHistorialModal(false);
+                    setViewingLeadHistorial(null);
+                  }}
+                >
                   <X size={24} className="text-gray-600" />
                 </button>
               </div>
-              
+
               <div className="mb-4">
                 <p className="text-sm text-gray-600 mb-2">
-                  <span className="font-medium">Cliente:</span> {viewingLeadHistorial.nombre} | 
-                  <span className="font-medium ml-2">Teléfono:</span> {viewingLeadHistorial.telefono} | 
-                  <span className="font-medium ml-2">Vehículo:</span> {viewingLeadHistorial.modelo}
+                  <span className="font-medium">Cliente:</span>{" "}
+                  {viewingLeadHistorial.nombre} |{" "}
+                  <span className="font-medium ml-2">Teléfono:</span>{" "}
+                  {viewingLeadHistorial.telefono} |{" "}
+                  <span className="font-medium ml-2">Vehículo:</span>{" "}
+                  {viewingLeadHistorial.modelo}
                 </p>
               </div>
-              
+
               <div className="max-h-96 overflow-y-auto">
                 {(viewingLeadHistorial.historial || []).length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">No hay historial disponible para este lead</p>
+                  <p className="text-gray-500 text-center py-8">
+                    No hay historial disponible para este lead
+                  </p>
                 ) : (
                   <div className="space-y-3">
                     {viewingLeadHistorial.historial?.map((entry, index) => (
                       <div key={index} className="border-l-4 border-blue-500 pl-4 py-2">
                         <div className="flex items-center justify-between">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium text-white ${estados[entry.estado]?.color || 'bg-gray-500'}`}>
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-medium text-white ${
+                              estados[entry.estado]?.color || "bg-gray-500"
+                            }`}
+                          >
                             {estados[entry.estado]?.label || entry.estado}
                           </span>
                           <span className="text-xs text-gray-500">
-                            {new Date(entry.timestamp).toLocaleDateString('es-AR')} {new Date(entry.timestamp).toLocaleTimeString('es-AR')}
+                            {new Date(entry.timestamp).toLocaleDateString("es-AR")}{" "}
+                            {new Date(entry.timestamp).toLocaleTimeString("es-AR")}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-700 mt-1">Actualizado por: {entry.usuario}</p>
+                        <p className="text-sm text-gray-700 mt-1">
+                          Actualizado por: {entry.usuario}
+                        </p>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
-              
+
               <div className="flex justify-end pt-6">
-                <button 
+                <button
                   onClick={() => {
                     setShowHistorialModal(false);
                     setViewingLeadHistorial(null);
@@ -1904,27 +2357,56 @@ export default function CRM() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
-                  <input type="text" id="new-nombre" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nombre
+                  </label>
+                  <input
+                    type="text"
+                    id="new-nombre"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
-                  <input type="text" id="new-telefono" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Teléfono
+                  </label>
+                  <input
+                    type="text"
+                    id="new-telefono"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Modelo</label>
-                  <input type="text" id="new-modelo" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Modelo
+                  </label>
+                  <input
+                    type="text"
+                    id="new-modelo"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Forma de Pago</label>
-                  <select id="new-formaPago" className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Forma de Pago
+                  </label>
+                  <select
+                    id="new-formaPago"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  >
                     <option value="Contado">Contado</option>
                     <option value="Financiado">Financiado</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Fuente del Lead</label>
-                  <select id="new-fuente" className="w-full px-3 py-2 border border-gray-300 rounded-lg" defaultValue="sitio_web">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Fuente del Lead
+                  </label>
+                  <select
+                    id="new-fuente"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    defaultValue="sitio_web"
+                  >
                     {Object.entries(fuentes).map(([key, fuente]) => (
                       <option key={key} value={key}>
                         {fuente.icon} {fuente.label}
@@ -1937,43 +2419,90 @@ export default function CRM() {
                   </select>
                   <div className="mt-2 text-xs space-y-1">
                     {(() => {
-                      const robertoManager = users.find((u: any) => u.role === "gerente" && u.name.toLowerCase().includes("roberto"));
-                      const danielManager = users.find((u: any) => u.role === "gerente" && u.name.toLowerCase().includes("daniel"));
-                      
+                      const robertoManager = users.find(
+                        (u: any) =>
+                          u.role === "gerente" &&
+                          u.name.toLowerCase().includes("roberto")
+                      );
+                      const danielManager = users.find(
+                        (u: any) =>
+                          u.role === "gerente" &&
+                          u.name.toLowerCase().includes("daniel")
+                      );
+
                       return (
                         <>
                           {robertoManager && (
-                            <div className="text-green-600">💬 Bot CM 1 → Equipo {robertoManager.name} automáticamente</div>
+                            <div className="text-green-600">
+                              💬 Bot CM 1 → Equipo {robertoManager.name} automáticamente
+                            </div>
                           )}
                           {danielManager && (
-                            <div className="text-green-600">💬 Bot CM 2 → Equipo {danielManager.name} automáticamente</div>
+                            <div className="text-green-600">
+                              💬 Bot CM 2 → Equipo {danielManager.name} automáticamente
+                            </div>
                           )}
-                          <div className="text-green-600">💬 Bot 100 → Distribución general</div>
-                          <div className="text-gray-500">Otras fuentes → Asignación manual o scope actual</div>
+                          <div className="text-green-600">
+                            💬 Bot 100 → Distribución general
+                          </div>
+                          <div className="text-gray-500">
+                            Otras fuentes → Asignación manual o scope actual
+                          </div>
                         </>
                       );
                     })()}
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Info Usado</label>
-                  <input type="text" id="new-infoUsado" placeholder="Marca Modelo Año" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Info Usado
+                  </label>
+                  <input
+                    type="text"
+                    id="new-infoUsado"
+                    placeholder="Marca Modelo Año"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
-                  <input type="date" id="new-fecha" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Fecha
+                  </label>
+                  <input
+                    type="date"
+                    id="new-fecha"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
                 </div>
                 <div className="col-span-2 flex items-center space-x-3">
-                  <input type="checkbox" id="new-entrega" className="rounded border-gray-300 text-blue-600" />
-                  <span className="text-sm text-gray-700">Entrega de vehículo usado</span>
+                  <input
+                    type="checkbox"
+                    id="new-entrega"
+                    className="rounded border-gray-300 text-blue-600"
+                  />
+                  <span className="text-sm text-gray-700">
+                    Entrega de vehículo usado
+                  </span>
                 </div>
                 <div className="col-span-2 flex items-center space-x-3">
-                  <input type="checkbox" id="new-autoassign" defaultChecked className="rounded border-gray-300 text-blue-600" />
-                  <span className="text-sm text-gray-700">Asignación automática y equitativa a vendedores activos</span>
+                  <input
+                    type="checkbox"
+                    id="new-autoassign"
+                    defaultChecked
+                    className="rounded border-gray-300 text-blue-600"
+                  />
+                  <span className="text-sm text-gray-700">
+                    Asignación automática y equitativa a vendedores activos
+                  </span>
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Asignar a vendedor (opcional)</label>
-                  <select id="new-vendedor" className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Asignar a vendedor (opcional)
+                  </label>
+                  <select
+                    id="new-vendedor"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  >
                     <option value="">Sin asignar</option>
                     {getVisibleUsers()
                       .filter((u: any) => u.role === "vendedor")
@@ -1983,18 +2512,20 @@ export default function CRM() {
                         </option>
                       ))}
                   </select>
-                  <p className="text-xs text-gray-500 mt-1">Si está tildado "Asignación automática", se ignorará esta selección.</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Si está tildado "Asignación automática", se ignorará esta selección.
+                  </p>
                 </div>
               </div>
-              
+
               <div className="flex space-x-3 pt-6">
-                <button 
+                <button
                   onClick={handleCreateLead}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   Crear Lead
                 </button>
-                <button 
+                <button
                   onClick={() => setShowNewLeadModal(false)}
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
                 >
@@ -2015,23 +2546,47 @@ export default function CRM() {
                   <X size={24} className="text-gray-600" />
                 </button>
               </div>
-              
+
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
-                  <input type="text" id="ev-title" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Título
+                  </label>
+                  <input
+                    type="text"
+                    id="ev-title"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
-                  <input type="date" id="ev-date" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Fecha
+                  </label>
+                  <input
+                    type="date"
+                    id="ev-date"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Hora</label>
-                  <input type="time" id="ev-time" defaultValue="09:00" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Hora
+                  </label>
+                  <input
+                    type="time"
+                    id="ev-time"
+                    defaultValue="09:00"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Usuario</label>
-                  <select id="ev-user" className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Usuario
+                  </label>
+                  <select
+                    id="ev-user"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  >
                     <option value={currentUser?.id}>{currentUser?.name} (Yo)</option>
                     {visibleUsers
                       .filter((u: any) => u.id !== currentUser?.id)
@@ -2043,15 +2598,15 @@ export default function CRM() {
                   </select>
                 </div>
               </div>
-              
+
               <div className="flex space-x-3 pt-6">
-                <button 
+                <button
                   onClick={createEvent}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   Crear Evento
                 </button>
-                <button 
+                <button
                   onClick={() => setShowNewEventModal(false)}
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
                 >
@@ -2074,41 +2629,49 @@ export default function CRM() {
                   <X size={24} className="text-gray-600" />
                 </button>
               </div>
-              
+
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
-                  <input 
-                    type="text" 
-                    id="u-name" 
-                    defaultValue={editingUser?.name || ""} 
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg" 
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nombre
+                  </label>
+                  <input
+                    type="text"
+                    id="u-name"
+                    defaultValue={editingUser?.name || ""}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input 
-                    type="email" 
-                    id="u-email" 
-                    defaultValue={editingUser?.email || ""} 
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg" 
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    id="u-email"
+                    defaultValue={editingUser?.email || ""}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Contraseña {editingUser && "(dejar vacío para mantener)"}
                   </label>
-                  <input 
-                    type="password" 
-                    id="u-pass" 
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg" 
-                    placeholder={editingUser ? "Nueva contraseña (opcional)" : "Contraseña"}
+                  <input
+                    type="password"
+                    id="u-pass"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    placeholder={
+                      editingUser ? "Nueva contraseña (opcional)" : "Contraseña"
+                    }
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
-                  <select 
-                    value={modalRole} 
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Rol
+                  </label>
+                  <select
+                    value={modalRole}
                     onChange={(e) => {
                       const newRole = e.target.value as typeof modalRole;
                       setModalRole(newRole);
@@ -2126,10 +2689,16 @@ export default function CRM() {
                 </div>
                 {modalRole !== "owner" && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Reporta a</label>
-                    <select 
-                      value={modalReportsTo || ""} 
-                      onChange={(e) => setModalReportsTo(e.target.value ? parseInt(e.target.value, 10) : null)}
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Reporta a
+                    </label>
+                    <select
+                      value={modalReportsTo || ""}
+                      onChange={(e) =>
+                        setModalReportsTo(
+                          e.target.value ? parseInt(e.target.value, 10) : null
+                        )
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                     >
                       {validManagersByRole(modalRole).map((manager: any) => (
@@ -2141,24 +2710,26 @@ export default function CRM() {
                   </div>
                 )}
                 <div className="flex items-center space-x-2">
-                  <input 
-                    type="checkbox" 
-                    id="u-active" 
-                    defaultChecked={editingUser?.active !== false} 
-                    className="rounded border-gray-300 text-blue-600" 
+                  <input
+                    type="checkbox"
+                    id="u-active"
+                    defaultChecked={editingUser?.active !== false}
+                    className="rounded border-gray-300 text-blue-600"
                   />
-                  <label htmlFor="u-active" className="text-sm text-gray-700">Usuario activo</label>
+                  <label htmlFor="u-active" className="text-sm text-gray-700">
+                    Usuario activo
+                  </label>
                 </div>
               </div>
-              
+
               <div className="flex space-x-3 pt-6">
-                <button 
+                <button
                   onClick={saveUser}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   {editingUser ? "Actualizar" : "Crear"} Usuario
                 </button>
-                <button 
+                <button
                   onClick={() => setShowUserModal(false)}
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
                 >
