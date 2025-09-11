@@ -532,19 +532,20 @@ export default function CRM() {
 
     if (nombre && telefono && modelo && fuente) {
       try {
-        const created = await apiCreateLead({
-          nombre,
-          telefono,
-          modelo,
-          formaPago,
-          notas: "",
-          estado: "nuevo",
-          fuente,
-          infoUsado,
-          entrega,
-          fecha,
-          assigned_to: vendedorId, // IMPORTANT: asignación
-        } as any);
+      const created = await apiCreateLead({
+  nombre,
+  telefono,
+  modelo,
+  formaPago,
+  notas: "",
+  estado: "nuevo",
+  fuente,
+  infoUsado,
+  entrega,
+  fecha,
+  ...(vendedorId != null ? { assigned_to: vendedorId } : {}),
+} as any);
+
 
         const mapped = mapLeadFromApi(created);
         if (mapped.vendedor) pushAlert(mapped.vendedor, "lead_assigned", `Nuevo lead asignado: ${mapped.nombre}`);
@@ -592,7 +593,7 @@ export default function CRM() {
   const deleteEvent = (id: number) => setEvents((prev) => prev.filter((e: any) => e.id !== id));
 
   // ========================= Gestión de Usuarios =========================
-  const [showUserModal, setShowUserModal] = useState(false);
+  const [, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [modalRole, setModalRole] = useState<Role>("vendedor");
   const [modalReportsTo, setModalReportsTo] = useState<number | null>(null);
