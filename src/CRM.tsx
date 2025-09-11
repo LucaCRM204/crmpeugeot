@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Calendar,
   Users,
@@ -532,7 +532,7 @@ export default function CRM() {
 
     if (nombre && telefono && modelo && fuente) {
       try {
-      const created = await apiCreateLead({
+const created = await apiCreateLead({
   nombre,
   telefono,
   modelo,
@@ -543,8 +543,8 @@ export default function CRM() {
   infoUsado,
   entrega,
   fecha,
-  ...(vendedorId != null ? { assigned_to: vendedorId } : {}),
-} as any);
+  vendedor: vendedorId, // <- usar "vendedor" para tipar correcto
+});
 
 
         const mapped = mapLeadFromApi(created);
@@ -689,7 +689,7 @@ export default function CRM() {
       console.error("No pude guardar usuario", e);
     }
   };
-
+void saveUser; // evita TS6133 por ahora
   const deleteUser = async (id: number) => {
     const target = users.find((u: any) => u.id === id);
     if (!target) return;
