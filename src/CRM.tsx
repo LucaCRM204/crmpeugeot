@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
-import { Calendar, Users, Trophy, Plus, Phone, BarChart3, Settings, Home, X, Trash2, Edit3, Bell, UserCheck, ArrowRight } from "lucide-react";
+import { Calendar, Users, Trophy, Plus, Phone, BarChart3, Settings, Home, X, Trash2, Edit3, Bell, UserCheck } from "lucide-react";
 import { api } from "./api";
 import {
   listUsers,
@@ -101,7 +101,7 @@ type LeadRow = {
 type Alert = {
   id: number;
   userId: number;
-  type: "lead_assigned" | "ranking_change" | "lead_transferred";
+  type: "lead_assigned" | "ranking_change";
   message: string;
   ts: string;
   read: boolean;
@@ -118,10 +118,6 @@ export default function CRM() {
   const [loginError, setLoginError] = useState("");
   const [selectedEstado, setSelectedEstado] = useState<string | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<string>('todos');
-
-  // Estados para derivación de leads
-  const [showDerivarModal, setShowDerivarModal] = useState(false);
-  const [leadToDerive, setLeadToDerive] = useState<LeadRow | null>(null);
 
   // ===== Login contra backend =====
   const handleLogin = async (email: string, password: string) => {
@@ -187,7 +183,6 @@ export default function CRM() {
   };
   const canManageUsers = () => currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
   const isOwner = () => currentUser?.role === "owner";
-  const canDeriveLeads = () => currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
 
   // ===== Funciones de filtro por equipo =====
   const getTeamManagerById = (teamId: string) => {
@@ -266,53 +261,6 @@ export default function CRM() {
     const id = pool[rrIndex % pool.length];
     setRrIndex((i) => i + 1);
     return id;
-  };
-
-  // ===== Funciones para derivación de leads =====
-  const getDerivableVendors = () => {
-    if (!currentUser) return [];
-    
-    if (["owner", "director"].includes(currentUser.role)) {
-      // Owner y Director pueden derivar a cualquier vendedor activo
-      return users.filter((u: any) => u.role === "vendedor" && u.active);
-    } else if (currentUser.role === "gerente") {
-      // Gerente solo puede derivar dentro de su equipo
-      const teamUserIds = getDescendantUserIds(currentUser.id, childrenIndex);
-      return users.filter((u: any) => 
-        u.role === "vendedor" && 
-        u.active && 
-        teamUserIds.includes(u.id)
-      );
-    }
-    
-    return [];
-  };
-
-  const handleDerivarLead = async (leadId: number, newVendorId: number) => {
-    if (!leadToDerive) return;
-    
-    try {
-      const updated = await apiUpdateLead(leadId, { assigned_to: newVendorId });
-      setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...mapLeadFromApi(updated) } : l)));
-      
-      const newVendor = userById.get(newVendorId);
-      const oldVendor = leadToDerive.vendedor ? userById.get(leadToDerive.vendedor) : null;
-      
-      // Notificar al nuevo vendedor
-      if (newVendor) {
-        pushAlert(newVendorId, "lead_transferred", 
-          `Lead derivado: ${leadToDerive.nombre} (de ${oldVendor?.name || 'sin asignar'}) por ${currentUser.name}`
-        );
-      }
-      
-      // Agregar entrada al historial
-      addHistorialEntry(leadId, `derivado_a_${newVendor?.name || 'vendedor'}`);
-      
-      setShowDerivarModal(false);
-      setLeadToDerive(null);
-    } catch (e) {
-      console.error("No pude derivar el lead", e);
-    }
   };
 
   // ===== Alertas (locales de UI) =====
@@ -821,95 +769,6 @@ export default function CRM() {
 
       {/* Main */}
       <div className="flex-1 p-6">
-        {/* Modal: Derivar Lead */}
-        {showDerivarModal && leadToDerive && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-xl">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">Derivar Lead</h3>
-                <button onClick={() => {
-                  setShowDerivarModal(false);
-                  setLeadToDerive(null);
-                }}>
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-
-              <div className="mb-6 bg-gray-50 rounded-lg p-4">
-                <h4 className="font-medium text-gray-800 mb-2">Lead a derivar:</h4>
-                <div className="space-y-1 text-sm text-gray-600">
-                  <p><strong>Cliente:</strong> {leadToDerive.nombre}</p>
-                  <p><strong>Teléfono:</strong> {leadToDerive.telefono}</p>
-                  <p><strong>Vehículo:</strong> {leadToDerive.modelo}</p>
-                  <p><strong>Estado:</strong> 
-                    <span className={`ml-2 px-2 py-1 rounded-full text-xs text-white ${estados[leadToDerive.estado].color}`}>
-                      {estados[leadToDerive.estado].label}
-                    </span>
-                  </p>
-                  <p><strong>Vendedor actual:</strong> {leadToDerive.vendedor ? userById.get(leadToDerive.vendedor)?.name : 'Sin asignar'}</p>
-                </div>
-              </div>
-
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Derivar a vendedor:
-                </label>
-                <select 
-                  id="derive-vendedor" 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  defaultValue=""
-                >
-                  <option value="">Selecciona un vendedor</option>
-                  {getDerivableVendors()
-                    .filter(v => v.id !== leadToDerive.vendedor) // No mostrar el vendedor actual
-                    .map((vendedor) => (
-                      <option key={vendedor.id} value={vendedor.id}>
-                        {vendedor.name} - {userById.get(vendedor.reportsTo)?.name || 'Sin supervisor'}
-                      </option>
-                    ))
-                  }
-                </select>
-                {getDerivableVendors().length === 0 && (
-                  <p className="text-sm text-red-600 mt-2">
-                    No hay vendedores disponibles para derivar en tu scope.
-                  </p>
-                )}
-                {currentUser?.role === "gerente" && (
-                  <p className="text-xs text-gray-500 mt-2">
-                    Como gerente, solo puedes derivar leads dentro de tu equipo.
-                  </p>
-                )}
-              </div>
-
-              <div className="flex space-x-3">
-                <button 
-                  onClick={() => {
-                    const select = document.getElementById("derive-vendedor") as HTMLSelectElement;
-                    const newVendorId = parseInt(select.value);
-                    if (newVendorId) {
-                      handleDerivarLead(leadToDerive.id, newVendorId);
-                    }
-                  }}
-                  disabled={getDerivableVendors().length === 0}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-                >
-                  <ArrowRight size={16} />
-                  <span>Derivar Lead</span>
-                </button>
-                <button 
-                  onClick={() => {
-                    setShowDerivarModal(false);
-                    setLeadToDerive(null);
-                  }}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Modal: Observaciones del Lead */}
         {showObservacionesModal && editingLeadObservaciones && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -1008,15 +867,8 @@ export default function CRM() {
                     {viewingLeadHistorial.historial?.map((entry, index) => (
                       <div key={index} className="border-l-4 border-blue-500 pl-4 py-2">
                         <div className="flex items-center justify-between">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium text-white ${
-                            entry.estado.startsWith('derivado_a_') 
-                              ? 'bg-purple-500' 
-                              : estados[entry.estado]?.color || 'bg-gray-500'
-                          }`}>
-                            {entry.estado.startsWith('derivado_a_') 
-                              ? `Derivado a ${entry.estado.replace('derivado_a_', '')}`
-                              : estados[entry.estado]?.label || entry.estado
-                            }
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium text-white ${estados[entry.estado]?.color || 'bg-gray-500'}`}>
+                            {estados[entry.estado]?.label || entry.estado}
                           </span>
                           <span className="text-xs text-gray-500">
                             {new Date(entry.timestamp).toLocaleDateString('es-AR')} {new Date(entry.timestamp).toLocaleTimeString('es-AR')}
@@ -1123,6 +975,90 @@ export default function CRM() {
                   <input type="checkbox" id="new-autoassign" defaultChecked className="rounded border-gray-300 text-blue-600" />
                   <span className="text-sm text-gray-700">Asignación automática y equitativa a vendedores activos</span>
                 </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Asignar a vendedor (opcional)</label>
+                  <select id="new-vendedor" className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    <option value="">Sin asignar</option>
+                    {getVisibleUsers()
+                      .filter((u: any) => u.role === "vendedor")
+                      .map((u: any) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} {u.active ? "" : "(inactivo)"}
+                        </option>
+                      ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">Si está tildado "Asignación automática", se ignorará esta selección.</p>
+                </div>
+              </div>
+              <div className="flex space-x-3 pt-6">
+                <button onClick={() => setShowNewLeadModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                  Cancelar
+                </button>
+                <button onClick={handleCreateLead} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  Crear Lead
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Nuevo Evento */}
+        {showNewEventModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">Nuevo evento</h3>
+                <button onClick={() => setShowNewEventModal(false)}>
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
+                  <input type="text" id="ev-title" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
+                  <input type="date" id="ev-date" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Hora</label>
+                  <input type="time" id="ev-time" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Usuario</label>
+                  <select id="ev-user" defaultValue={selectedCalendarUserId ?? currentUser?.id} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    {visibleUsers.map((u: any) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} — {roles[u.role] || u.role}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex space-x-3 pt-6">
+                <button onClick={createEvent} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  Crear evento
+                </button>
+                <button onClick={() => setShowNewEventModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Crear/Editar Usuario */}
+        {showUserModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">{editingUser ? "Editar usuario" : "Nuevo usuario"}</h3>
+                <button onClick={() => setShowUserModal(false)}>
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
                   <input type="text" id="u-name" defaultValue={editingUser?.name || ""} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
@@ -1556,18 +1492,6 @@ export default function CRM() {
                               >
                                 <Calendar size={16} />
                               </button>
-                              {canDeriveLeads() && lead.vendedor && (
-                                <button
-                                  onClick={() => {
-                                    setLeadToDerive(lead);
-                                    setShowDerivarModal(true);
-                                  }}
-                                  className="p-1 text-purple-600 hover:text-purple-800"
-                                  title="Derivar lead a otro vendedor"
-                                >
-                                  <ArrowRight size={16} />
-                                </button>
-                              )}
                               {canManageUsers() && (
                                 <button
                                   onClick={async () => {
@@ -1886,19 +1810,6 @@ export default function CRM() {
                                       >
                                         {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
                                       </button>
-                                      {canDeriveLeads() && lead.vendedor && (
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setLeadToDerive(lead);
-                                            setShowDerivarModal(true);
-                                          }}
-                                          className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
-                                          title="Derivar lead"
-                                        >
-                                          Derivar
-                                        </button>
-                                      )}
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -1969,18 +1880,6 @@ export default function CRM() {
                     const gerentesAMostrar = selectedTeam === 'todos' 
                       ? gerentes
                       : gerentes.filter((g: any) => g.id.toString() === selectedTeam);
-                    
-                    if (gerentesAMostrar.length === 0) {
-                      return (
-                        <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-                          <div className="text-4xl mb-2">🏢</div>
-                          <h5 className="text-lg font-medium text-gray-700 mb-2">Sin equipos para mostrar</h5>
-                          <p className="text-sm text-gray-500">
-                            No hay gerentes asignados para el filtro seleccionado.
-                          </p>
-                        </div>
-                      );
-                    }
                     
                     return gerentesAMostrar.map((gerente: any, gerenteIndex: number) => {
                       const supervisores = visibleUsers.filter((u: any) => u.reportsTo === gerente.id);
@@ -2261,15 +2160,7 @@ export default function CRM() {
                     );
                   }
                   
-                  return (
-                    <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-                      <div className="text-4xl mb-2">🏢</div>
-                      <h5 className="text-lg font-medium text-gray-700 mb-2">Estructura organizacional</h5>
-                      <p className="text-sm text-gray-500">
-                        La visualización se mostrará basada en tu rol y permisos.
-                      </p>
-                    </div>
-                  );
+                  return null;
                 })()}
               </div>
             </div>
@@ -2435,8 +2326,7 @@ export default function CRM() {
                             <div className={`mt-1 w-2 h-2 rounded-full ${alert.read ? 'bg-gray-400' : 'bg-blue-500'}`} />
                             <div>
                               <p className={`font-medium ${alert.read ? 'text-gray-700' : 'text-gray-900'}`}>
-                                {alert.type === "lead_assigned" ? "Nuevo Lead Asignado" : 
-                                 alert.type === "lead_transferred" ? "Lead Derivado" : "Cambio en Ranking"}
+                                {alert.type === "lead_assigned" ? "Nuevo Lead Asignado" : "Cambio en Ranking"}
                               </p>
                               <p className={`text-sm ${alert.read ? 'text-gray-500' : 'text-gray-700'}`}>
                                 {alert.message}
@@ -2468,86 +2358,3 @@ export default function CRM() {
     </div>
   );
 }
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Asignar a vendedor (opcional)</label>
-                  <select id="new-vendedor" className="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                    <option value="">Sin asignar</option>
-                    {getVisibleUsers()
-                      .filter((u: any) => u.role === "vendedor")
-                      .map((u: any) => (
-                        <option key={u.id} value={u.id}>
-                          {u.name} {u.active ? "" : "(inactivo)"}
-                        </option>
-                      ))}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">Si está tildado "Asignación automática", se ignorará esta selección.</p>
-                </div>
-              </div>
-              <div className="flex space-x-3 pt-6">
-                <button onClick={() => setShowNewLeadModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
-                  Cancelar
-                </button>
-                <button onClick={handleCreateLead} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                  Crear Lead
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Nuevo Evento */}
-        {showNewEventModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-xl">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">Nuevo evento</h3>
-                <button onClick={() => setShowNewEventModal(false)}>
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
-                  <input type="text" id="ev-title" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
-                  <input type="date" id="ev-date" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Hora</label>
-                  <input type="time" id="ev-time" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Usuario</label>
-                  <select id="ev-user" defaultValue={selectedCalendarUserId ?? currentUser?.id} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                    {visibleUsers.map((u: any) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name} — {roles[u.role] || u.role}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="flex space-x-3 pt-6">
-                <button onClick={createEvent} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                  Crear evento
-                </button>
-                <button onClick={() => setShowNewEventModal(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Crear/Editar Usuario */}
-        {showUserModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-xl">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">{editingUser ? "Editar usuario" : "Nuevo usuario"}</h3>
-                <button onClick={() => setShowUserModal(false)}>
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
