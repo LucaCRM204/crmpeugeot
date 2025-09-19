@@ -1203,25 +1203,36 @@ export default function CRM() {
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-semibold text-gray-800">Estados de Leads</h3>
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm text-gray-600">Descargar Excel:</span>
+                {["owner", "director"].includes(currentUser?.role) && (
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-gray-600">Descargar Excel:</span>
+                    <button
+                      onClick={() => {
+                        const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                          ? selectedTeam
+                          : undefined;
+                        const filteredLeads = teamFilter && teamFilter !== "todos"
+                          ? getFilteredLeadsByTeam(teamFilter)
+                          : getFilteredLeads();
+                        downloadAllLeadsExcel(filteredLeads, userById, fuentes);
+                      }}
+                      className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 flex items-center space-x-1"
+                      title="Descargar Excel completo"
+                    >
+                      <Download size={12} />
+                      <span>Todos</span>
+                    </button>
+                  </div>
+                )}
+                {selectedEstado && (
                   <button
-                    onClick={() => {
-                      const teamFilter = ["owner", "director"].includes(currentUser?.role)
-                        ? selectedTeam
-                        : undefined;
-                      const filteredLeads = teamFilter && teamFilter !== "todos"
-                        ? getFilteredLeadsByTeam(teamFilter)
-                        : getFilteredLeads();
-                      downloadAllLeadsExcel(filteredLeads, userById, fuentes);
-                    }}
-                    className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 flex items-center space-x-1"
-                    title="Descargar Excel completo"
+                    onClick={() => setSelectedEstado(null)}
+                    className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
                   >
-                    <Download size={12} />
-                    <span>Todos</span>
+                    <X size={16} />
+                    <span>Cerrar filtro</span>
                   </button>
-                </div>
+                )}
               </div>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {Object.entries(estados).map(([key, estado]) => {
@@ -1238,30 +1249,38 @@ export default function CRM() {
                   
                   return (
                     <div key={key} className="relative group">
-                      <div className={`${estado.color} text-white rounded-lg p-4 mb-2 text-center relative cursor-pointer hover:opacity-90 transition-opacity`}>
-                        <div className="text-2xl font-bold">{count}</div>
-                        <div className="text-xs opacity-75">{percentage}%</div>
-                        
-                        {/* Botón de descarga */}
-                        {count > 0 && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const teamFilter = ["owner", "director"].includes(currentUser?.role)
-                                ? selectedTeam
-                                : undefined;
-                              const filteredLeads = teamFilter && teamFilter !== "todos"
-                                ? getFilteredLeadsByTeam(teamFilter)
-                                : getFilteredLeads();
-                              downloadLeadsByStateExcel(filteredLeads, key, userById, fuentes);
-                            }}
-                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white bg-opacity-20 hover:bg-opacity-40 rounded p-1"
-                            title={`Descargar Excel: ${estado.label}`}
-                          >
-                            <Download size={12} />
-                          </button>
-                        )}
-                      </div>
+                      <button
+                        onClick={() => setSelectedEstado(selectedEstado === key ? null : key)}
+                        className={`w-full text-center transition-all duration-200 transform hover:scale-105 ${
+                          selectedEstado === key ? "ring-4 ring-blue-300 ring-opacity-50" : ""
+                        }`}
+                        title={`Ver todos los leads en estado: ${estado.label}`}
+                      >
+                        <div className={`${estado.color} text-white rounded-lg p-4 mb-2 relative cursor-pointer hover:opacity-90 transition-opacity`}>
+                          <div className="text-2xl font-bold">{count}</div>
+                          <div className="text-xs opacity-75">{percentage}%</div>
+                          
+                          {/* Botón de descarga solo para owner y director */}
+                          {["owner", "director"].includes(currentUser?.role) && count > 0 && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                                  ? selectedTeam
+                                  : undefined;
+                                const filteredLeads = teamFilter && teamFilter !== "todos"
+                                  ? getFilteredLeadsByTeam(teamFilter)
+                                  : getFilteredLeads();
+                                downloadLeadsByStateExcel(filteredLeads, key, userById, fuentes);
+                              }}
+                              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white bg-opacity-20 hover:bg-opacity-40 rounded p-1"
+                              title={`Descargar Excel: ${estado.label}`}
+                            >
+                              <Download size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </button>
                       <div className="text-sm text-gray-600 text-center font-medium">
                         {estado.label}
                       </div>
@@ -1269,6 +1288,171 @@ export default function CRM() {
                   );
                 })}
               </div>
+
+              {/* Lista filtrada de leads por estado en Dashboard */}
+              {selectedEstado && (
+                <div className="mt-6 border-t pt-6">
+                  <h4 className="text-lg font-semibold text-gray-800 mb-4">
+                    Leads en estado:{" "}
+                    <span
+                      className={`px-3 py-1 rounded-full text-white text-sm ${
+                        estados[selectedEstado].color
+                      }`}
+                    >
+                      {estados[selectedEstado].label}
+                    </span>
+                  </h4>
+
+                  {(() => {
+                    const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                      ? selectedTeam
+                      : undefined;
+                    const filteredLeads = teamFilter && teamFilter !== "todos"
+                      ? getFilteredLeadsByTeam(teamFilter)
+                      : getFilteredLeads();
+                    const leadsFiltrados = filteredLeads.filter(
+                      (l) => l.estado === selectedEstado
+                    );
+
+                    if (leadsFiltrados.length === 0) {
+                      return (
+                        <p className="text-gray-500 text-center py-8">
+                          No hay leads en estado "{estados[selectedEstado].label}"
+                        </p>
+                      );
+                    }
+
+                    return (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Cliente
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Contacto
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Vehículo
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Fuente
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Vendedor
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Fecha
+                              </th>
+                              <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">
+                                Acciones
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {leadsFiltrados.map((lead) => {
+                              const vendedor = lead.vendedor
+                                ? userById.get(lead.vendedor)
+                                : null;
+                              const canReassign =
+                                canManageUsers() ||
+                                (currentUser?.role === "supervisor" &&
+                                  lead.vendedor &&
+                                  getVisibleUsers().some((u: any) => u.id === lead.vendedor));
+                              
+                              return (
+                                <tr key={lead.id} className="hover:bg-gray-50">
+                                  <td className="px-4 py-2">
+                                    <div className="font-medium text-gray-900">
+                                      {lead.nombre}
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2">
+                                    <div className="flex items-center space-x-1">
+                                      <Phone size={12} className="text-gray-400" />
+                                      <span className="text-gray-700">{lead.telefono}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2">
+                                    <div>
+                                      <div className="font-medium text-gray-900">
+                                        {lead.modelo}
+                                      </div>
+                                      <div className="text-xs text-gray-500">
+                                        {lead.formaPago}
+                                      </div>
+                                      {lead.infoUsado && (
+                                        <div className="text-xs text-orange-600">
+                                          Usado: {lead.infoUsado}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2">
+                                    <div className="flex items-center space-x-1">
+                                      <span className="text-sm">
+                                        {fuentes[lead.fuente as string]?.icon || "❓"}
+                                      </span>
+                                      <span className="text-xs text-gray-600">
+                                        {fuentes[lead.fuente as string]?.label ||
+                                          String(lead.fuente)}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2 text-gray-700">
+                                    {vendedor?.name || "Sin asignar"}
+                                  </td>
+                                  <td className="px-4 py-2 text-gray-500 text-xs">
+                                    {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
+                                  </td>
+                                  <td className="px-4 py-2 text-center">
+                                    <div className="flex items-center justify-center space-x-1">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEditingLeadObservaciones(lead);
+                                          setShowObservacionesModal(true);
+                                        }}
+                                        className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                        title="Ver/Editar observaciones"
+                                      >
+                                        {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
+                                      </button>
+                                      {canReassign && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            openReassignModal(lead);
+                                          }}
+                                          className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
+                                          title="Reasignar lead"
+                                        >
+                                          Reasignar
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setActiveSection("leads");
+                                        }}
+                                        className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                        title="Ver en tabla completa"
+                                      >
+                                        Ver
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
 
             {/* Métricas por fuente */}
