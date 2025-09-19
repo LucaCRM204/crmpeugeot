@@ -1,7 +1,92 @@
-﻿import React, { useState, useMemo, useRef, useEffect } from "react";
+﻿import React, { useState, useMemo } from "react";
+
+// Types
+interface IconProps {
+  size?: number;
+  className?: string;
+}
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: "owner" | "director" | "gerente" | "supervisor" | "vendedor";
+  reportsTo: number | null;
+  active?: boolean;
+}
+
+interface HistorialEntry {
+  estado: string;
+  timestamp: string;
+  usuario: string;
+}
+
+interface Lead {
+  id: number;
+  nombre: string;
+  telefono: string;
+  modelo: string;
+  formaPago?: string;
+  infoUsado?: string;
+  entrega?: boolean;
+  estado: string;
+  vendedor: number | null;
+  fuente: string;
+  fecha: string;
+  notas?: string;
+  historial?: HistorialEntry[];
+}
+
+interface Event {
+  id: number;
+  title: string;
+  date: string;
+  time?: string;
+  userId: number;
+}
+
+interface UserIndex {
+  byId: Map<number, User>;
+  children: Map<number, number[]>;
+}
+
+interface EstadoInfo {
+  label: string;
+  color: string;
+}
+
+interface FuenteInfo {
+  label: string;
+  color: string;
+  icon: string;
+}
+
+interface DashboardStats {
+  totalLeads: number;
+  vendidos: number;
+  conversion: string;
+}
+
+interface SourceMetric {
+  source: string;
+  total: number;
+  vendidos: number;
+  conversion: number;
+  label: string;
+  color: string;
+  icon: string;
+}
+
+interface Vendedor {
+  id: number;
+  nombre: string;
+  ventas: number;
+  leadsAsignados: number;
+  team: string;
+}
 
 // Icon components as simple SVGs
-const Calendar = ({ size = 20, className = "" }) => (
+const Calendar: React.FC<IconProps> = ({ size = 20, className = "" }) => (
   <svg width={size} height={size} className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <rect x="3" y="4" width="18" height="18" rx="2" ry="2" strokeWidth="2"/>
     <line x1="16" y1="2" x2="16" y2="6" strokeWidth="2"/>
@@ -10,7 +95,7 @@ const Calendar = ({ size = 20, className = "" }) => (
   </svg>
 );
 
-const Users = ({ size = 20, className = "" }) => (
+const Users: React.FC<IconProps> = ({ size = 20, className = "" }) => (
   <svg width={size} height={size} className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" strokeWidth="2"/>
     <circle cx="9" cy="7" r="4" strokeWidth="2"/>
@@ -19,7 +104,7 @@ const Users = ({ size = 20, className = "" }) => (
   </svg>
 );
 
-const Trophy = ({ size = 20, className = "" }) => (
+const Trophy: React.FC<IconProps> = ({ size = 20, className = "" }) => (
   <svg width={size} height={size} className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" strokeWidth="2"/>
     <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" strokeWidth="2"/>
@@ -29,20 +114,20 @@ const Trophy = ({ size = 20, className = "" }) => (
   </svg>
 );
 
-const Plus = ({ size = 20, className = "" }) => (
+const Plus: React.FC<IconProps> = ({ size = 20, className = "" }) => (
   <svg width={size} height={size} className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <line x1="12" y1="5" x2="12" y2="19" strokeWidth="2"/>
     <line x1="5" y1="12" x2="19" y2="12" strokeWidth="2"/>
   </svg>
 );
 
-const Phone = ({ size = 20, className = "" }) => (
+const Phone: React.FC<IconProps> = ({ size = 20, className = "" }) => (
   <svg width={size} height={size} className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" strokeWidth="2"/>
   </svg>
 );
 
-const BarChart3 = ({ size = 20, className = "" }) => (
+const BarChart3: React.FC<IconProps> = ({ size = 20, className = "" }) => (
   <svg width={size} height={size} className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <line x1="12" y1="20" x2="12" y2="10" strokeWidth="2"/>
     <line x1="18" y1="20" x2="18" y2="4" strokeWidth="2"/>
@@ -50,28 +135,28 @@ const BarChart3 = ({ size = 20, className = "" }) => (
   </svg>
 );
 
-const Settings = ({ size = 20, className = "" }) => (
+const Settings: React.FC<IconProps> = ({ size = 20, className = "" }) => (
   <svg width={size} height={size} className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <circle cx="12" cy="12" r="3" strokeWidth="2"/>
     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V6a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" strokeWidth="2"/>
   </svg>
 );
 
-const Home = ({ size = 20, className = "" }) => (
+const Home: React.FC<IconProps> = ({ size = 20, className = "" }) => (
   <svg width={size} height={size} className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" strokeWidth="2"/>
     <polyline points="9,22 9,12 15,12 15,22" strokeWidth="2"/>
   </svg>
 );
 
-const X = ({ size = 20, className = "" }) => (
+const X: React.FC<IconProps> = ({ size = 20, className = "" }) => (
   <svg width={size} height={size} className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <line x1="18" y1="6" x2="6" y2="18" strokeWidth="2"/>
     <line x1="6" y1="6" x2="18" y2="18" strokeWidth="2"/>
   </svg>
 );
 
-const Trash2 = ({ size = 20, className = "" }) => (
+const Trash2: React.FC<IconProps> = ({ size = 20, className = "" }) => (
   <svg width={size} height={size} className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <polyline points="3,6 5,6 21,6" strokeWidth="2"/>
     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" strokeWidth="2"/>
@@ -80,21 +165,14 @@ const Trash2 = ({ size = 20, className = "" }) => (
   </svg>
 );
 
-const Edit3 = ({ size = 20, className = "" }) => (
+const Edit3: React.FC<IconProps> = ({ size = 20, className = "" }) => (
   <svg width={size} height={size} className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path d="M12 20h9" strokeWidth="2"/>
     <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" strokeWidth="2"/>
   </svg>
 );
 
-const Bell = ({ size = 20, className = "" }) => (
-  <svg width={size} height={size} className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" strokeWidth="2"/>
-    <path d="M13.73 21a2 2 0 0 1-3.46 0" strokeWidth="2"/>
-  </svg>
-);
-
-const UserCheck = ({ size = 20, className = "" }) => (
+const UserCheck: React.FC<IconProps> = ({ size = 20, className = "" }) => (
   <svg width={size} height={size} className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" strokeWidth="2"/>
     <circle cx="8.5" cy="7" r="4" strokeWidth="2"/>
@@ -103,7 +181,7 @@ const UserCheck = ({ size = 20, className = "" }) => (
 );
 
 // Mock data and utilities
-const roles = {
+const roles: Record<string, string> = {
   owner: "Dueño",
   director: "Director",
   gerente: "Gerente",
@@ -111,7 +189,7 @@ const roles = {
   vendedor: "Vendedor",
 };
 
-const estados = {
+const estados: Record<string, EstadoInfo> = {
   nuevo: { label: "Nuevo", color: "bg-blue-500" },
   contactado: { label: "Contactado", color: "bg-yellow-500" },
   interesado: { label: "Interesado", color: "bg-orange-500" },
@@ -124,7 +202,7 @@ const estados = {
   no_contesta_3: { label: "No contesta 3", color: "bg-red-600" },
 };
 
-const fuentes = {
+const fuentes: Record<string, FuenteInfo> = {
   meta: { label: "Meta/Facebook", color: "bg-blue-600", icon: "📱" },
   whatsapp: { label: "WhatsApp Bot", color: "bg-green-500", icon: "💬" },
   whatsapp_100: { label: "WhatsApp Bot 100", color: "bg-green-700", icon: "💬" },
@@ -138,13 +216,13 @@ const fuentes = {
 };
 
 // Mock initial data - Empty for production
-const initialUsers = [];
-const initialLeads = [];
+const initialUsers: User[] = [];
+const initialLeads: Lead[] = [];
 
 // Utility functions
-function buildIndex(users) {
+function buildIndex(users: User[]): UserIndex {
   const byId = new Map(users.map((u) => [u.id, u]));
-  const children = new Map();
+  const children = new Map<number, number[]>();
   users.forEach((u) => children.set(u.id, []));
   users.forEach((u) => {
     if (u.reportsTo) children.get(u.reportsTo)?.push(u.id);
@@ -152,11 +230,11 @@ function buildIndex(users) {
   return { byId, children };
 }
 
-function getDescendantUserIds(rootId, childrenIndex) {
-  const out = [];
+function getDescendantUserIds(rootId: number, childrenIndex: Map<number, number[]>): number[] {
+  const out: number[] = [];
   const stack = [...(childrenIndex.get(rootId) || [])];
   while (stack.length) {
-    const id = stack.pop();
+    const id = stack.pop()!;
     out.push(id);
     const kids = childrenIndex.get(id) || [];
     for (const k of kids) stack.push(k);
@@ -164,36 +242,30 @@ function getDescendantUserIds(rootId, childrenIndex) {
   return out;
 }
 
-export default function CRM() {
-  const [users, setUsers] = useState(initialUsers);
-  const [leads, setLeads] = useState(initialLeads);
-  const [currentUser, setCurrentUser] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [activeSection, setActiveSection] = useState("dashboard");
-  const [loginError, setLoginError] = useState("");
-  const [selectedEstado, setSelectedEstado] = useState(null);
-  const [selectedTeam, setSelectedTeam] = useState("todos");
+const CRM: React.FC = () => {
+  const [users, setUsers] = useState<User[]>(initialUsers);
+  const [leads, setLeads] = useState<Lead[]>(initialLeads);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [activeSection, setActiveSection] = useState<string>("dashboard");
+  const [loginError, setLoginError] = useState<string>("");
+  const [selectedTeam, setSelectedTeam] = useState<string>("todos");
   
   // Modal states
-  const [showReassignModal, setShowReassignModal] = useState(false);
-  const [leadToReassign, setLeadToReassign] = useState(null);
-  const [selectedVendorForReassign, setSelectedVendorForReassign] = useState(null);
-  const [showNewLeadModal, setShowNewLeadModal] = useState(false);
-  const [showObservacionesModal, setShowObservacionesModal] = useState(false);
-  const [showHistorialModal, setShowHistorialModal] = useState(false);
-  const [showUserModal, setShowUserModal] = useState(false);
-  const [showNewEventModal, setShowNewEventModal] = useState(false);
-  const [editingLeadObservaciones, setEditingLeadObservaciones] = useState(null);
-  const [viewingLeadHistorial, setViewingLeadHistorial] = useState(null);
-  const [editingUser, setEditingUser] = useState(null);
-  const [modalRole, setModalRole] = useState("vendedor");
-  const [modalReportsTo, setModalReportsTo] = useState(null);
+  const [showNewLeadModal, setShowNewLeadModal] = useState<boolean>(false);
+  const [showObservacionesModal, setShowObservacionesModal] = useState<boolean>(false);
+  const [showHistorialModal, setShowHistorialModal] = useState<boolean>(false);
+  const [showUserModal, setShowUserModal] = useState<boolean>(false);
+  const [showNewEventModal, setShowNewEventModal] = useState<boolean>(false);
+  const [editingLeadObservaciones, setEditingLeadObservaciones] = useState<Lead | null>(null);
+  const [viewingLeadHistorial, setViewingLeadHistorial] = useState<Lead | null>(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [modalRole, setModalRole] = useState<string>("vendedor");
+  const [modalReportsTo, setModalReportsTo] = useState<number | null>(null);
   
   // Calendar and events
-  const [events, setEvents] = useState([]);
-  const [selectedCalendarUserId, setSelectedCalendarUserId] = useState(null);
-  const [alerts, setAlerts] = useState([]);
-  const nextAlertId = useRef(1);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [selectedCalendarUserId, setSelectedCalendarUserId] = useState<number | null>(null);
 
   const { byId: userById, children: childrenIndex } = useMemo(
     () => buildIndex(users),
@@ -201,7 +273,7 @@ export default function CRM() {
   );
 
   // Authentication
-  const handleLogin = (email, password) => {
+  const handleLogin = (email: string, password: string): void => {
     // Mock login for development - replace with real API
     const user = users.find(u => u.email === email);
     if (user && password) { // Simple check - replace with real authentication
@@ -214,7 +286,7 @@ export default function CRM() {
   };
 
   // Access control
-  const getAccessibleUserIds = (user) => {
+  const getAccessibleUserIds = (user: User | null): number[] => {
     if (!user) return [];
     if (["owner", "director"].includes(user.role))
       return users.map((u) => u.id);
@@ -222,13 +294,13 @@ export default function CRM() {
     return ids;
   };
 
-  const canManageUsers = () =>
-    currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
+  const canManageUsers = (): boolean =>
+    currentUser ? ["owner", "director", "gerente"].includes(currentUser.role) : false;
 
-  const isOwner = () => currentUser?.role === "owner";
+  const isOwner = (): boolean => currentUser?.role === "owner";
 
   // Visible users based on role
-  const getVisibleUsers = () => {
+  const getVisibleUsers = (): User[] => {
     if (!currentUser) return [];
     return users.filter((u) => {
       if (currentUser.role === "owner") return true;
@@ -236,7 +308,7 @@ export default function CRM() {
       if (currentUser.role === "gerente") {
         if (u.id === currentUser.id) return true;
         if (u.reportsTo === currentUser.id) return true;
-        const userSupervisor = userById.get(u.reportsTo);
+        const userSupervisor = u.reportsTo ? userById.get(u.reportsTo) : null;
         return userSupervisor && userSupervisor.reportsTo === currentUser.id;
       }
       if (currentUser.role === "supervisor") {
@@ -248,11 +320,11 @@ export default function CRM() {
   };
 
   // Team management
-  const getAvailableManagers = () => {
+  const getAvailableManagers = (): User[] => {
     return users.filter((u) => u.role === "gerente" && u.active !== false);
   };
 
-  const getTeamUserIds = (teamId) => {
+  const getTeamUserIds = (teamId: string): number[] => {
     if (teamId === "todos") return [];
     const manager = users.find(
       (u) => u.role === "gerente" && u.id.toString() === teamId
@@ -268,14 +340,14 @@ export default function CRM() {
     [currentUser, users]
   );
 
-  const getFilteredLeads = () => {
+  const getFilteredLeads = (): Lead[] => {
     if (!currentUser) return [];
     return leads.filter((l) =>
       l.vendedor ? visibleUserIds.includes(l.vendedor) : true
     );
   };
 
-  const getFilteredLeadsByTeam = (teamId) => {
+  const getFilteredLeadsByTeam = (teamId: string): Lead[] => {
     if (!currentUser) return [];
     if (
       teamId &&
@@ -291,7 +363,7 @@ export default function CRM() {
   };
 
   // Dashboard statistics
-  const getDashboardStats = (teamFilter) => {
+  const getDashboardStats = (teamFilter?: string): DashboardStats => {
     const filteredLeads =
       teamFilter && teamFilter !== "todos"
         ? getFilteredLeadsByTeam(teamFilter)
@@ -304,7 +376,7 @@ export default function CRM() {
     return { totalLeads: filteredLeads.length, vendidos, conversion };
   };
 
-  const getSourceMetrics = (teamFilter) => {
+  const getSourceMetrics = (teamFilter?: string): SourceMetric[] => {
     const filteredLeads =
       teamFilter && teamFilter !== "todos"
         ? getFilteredLeadsByTeam(teamFilter)
@@ -336,13 +408,13 @@ export default function CRM() {
   };
 
   // ===== Funciones de descarga Excel =====
-  const formatDate = (dateString) => {
+  const formatDate = (dateString: string): string => {
     if (!dateString) return "Sin fecha";
     const date = new Date(dateString);
     return date.toLocaleDateString("es-AR");
   };
 
-  const downloadAllLeadsExcel = () => {
+  const downloadAllLeadsExcel = (): void => {
     if (!currentUser) return;
     
     const teamFilter = ["owner", "director"].includes(currentUser?.role)
@@ -369,7 +441,7 @@ export default function CRM() {
         'Estado': estados[lead.estado]?.label || lead.estado,
         'Fuente': fuente.label,
         'Vendedor': vendedor?.name || 'Sin asignar',
-        'Equipo': vendedor ? `Equipo de ${userById.get(vendedor.reportsTo)?.name || '—'}` : '',
+        'Equipo': vendedor ? `Equipo de ${userById.get(vendedor.reportsTo ?? 0)?.name || '—'}` : '',
         'Fecha': formatDate(lead.fecha),
         'Observaciones': lead.notas || ''
       };
@@ -380,7 +452,7 @@ export default function CRM() {
     alert(`Descarga simulada: ${excelData.length} leads exportados a Excel`);
   };
 
-  const downloadLeadsByStateExcel = (estado) => {
+  const downloadLeadsByStateExcel = (estado: string): void => {
     if (!currentUser) return;
     
     const teamFilter = ["owner", "director"].includes(currentUser?.role)
@@ -413,7 +485,7 @@ export default function CRM() {
         'Entrega': lead.entrega ? 'Sí' : 'No',
         'Fuente': fuente.label,
         'Vendedor': vendedor?.name || 'Sin asignar',
-        'Equipo': vendedor ? `Equipo de ${userById.get(vendedor.reportsTo)?.name || '—'}` : '',
+        'Equipo': vendedor ? `Equipo de ${userById.get(vendedor.reportsTo ?? 0)?.name || '—'}` : '',
         'Fecha': formatDate(lead.fecha),
         'Observaciones': lead.notas || '',
         'Historial': lead.historial?.map(h => 
@@ -429,7 +501,7 @@ export default function CRM() {
   };
 
   // Ranking
-  const getRanking = () => {
+  const getRanking = (): Vendedor[] => {
     const vendedores = users.filter((u) => u.role === "vendedor");
     return vendedores
       .map((v) => {
@@ -442,13 +514,13 @@ export default function CRM() {
           nombre: v.name,
           ventas,
           leadsAsignados,
-          team: `Equipo de ${userById.get(v.reportsTo)?.name || "—"}`,
+          team: `Equipo de ${userById.get(v.reportsTo ?? 0)?.name || "—"}`,
         };
       })
       .sort((a, b) => b.ventas - a.ventas);
   };
 
-  const getRankingInScope = () => {
+  const getRankingInScope = (): Vendedor[] => {
     const vendedores = users.filter(
       (u) => u.role === "vendedor" && visibleUserIds.includes(u.id)
     );
@@ -463,14 +535,14 @@ export default function CRM() {
           nombre: v.name,
           ventas,
           leadsAsignados,
-          team: `Equipo de ${userById.get(v.reportsTo)?.name || "—"}`,
+          team: `Equipo de ${userById.get(v.reportsTo ?? 0)?.name || "—"}`,
         };
       })
       .sort((a, b) => b.ventas - a.ventas);
   };
 
   // Lead operations
-  const handleUpdateLeadStatus = (leadId, newStatus) => {
+  const handleUpdateLeadStatus = (leadId: number, newStatus: string): void => {
     setLeads((prev) =>
       prev.map((l) =>
         l.id === leadId
@@ -491,16 +563,16 @@ export default function CRM() {
     );
   };
 
-  const handleCreateLead = () => {
-    const nombre = document.getElementById("new-nombre")?.value?.trim();
-    const telefono = document.getElementById("new-telefono")?.value?.trim();
-    const modelo = document.getElementById("new-modelo")?.value?.trim();
-    const formaPago = document.getElementById("new-formaPago")?.value;
-    const fuente = document.getElementById("new-fuente")?.value;
-    const vendedorSelVal = document.getElementById("new-vendedor")?.value;
+  const handleCreateLead = (): void => {
+    const nombre = (document.getElementById("new-nombre") as HTMLInputElement)?.value?.trim();
+    const telefono = (document.getElementById("new-telefono") as HTMLInputElement)?.value?.trim();
+    const modelo = (document.getElementById("new-modelo") as HTMLInputElement)?.value?.trim();
+    const formaPago = (document.getElementById("new-formaPago") as HTMLSelectElement)?.value;
+    const fuente = (document.getElementById("new-fuente") as HTMLSelectElement)?.value;
+    const vendedorSelVal = (document.getElementById("new-vendedor") as HTMLSelectElement)?.value;
     
     if (nombre && telefono && modelo && fuente) {
-      const newLead = {
+      const newLead: Lead = {
         id: Math.max(0, ...leads.map(l => l.id)) + 1,
         nombre,
         telefono,
@@ -522,7 +594,7 @@ export default function CRM() {
     }
   };
 
-  const handleUpdateObservaciones = (leadId, observaciones) => {
+  const handleUpdateObservaciones = (leadId: number, observaciones: string): void => {
     setLeads(prev =>
       prev.map(l =>
         l.id === leadId ? { ...l, notas: observaciones } : l
@@ -533,7 +605,7 @@ export default function CRM() {
   };
 
   // User management
-  const validRolesByUser = (user) => {
+  const validRolesByUser = (user: User | null): string[] => {
     if (!user) return [];
     switch (user.role) {
       case "owner":
@@ -547,7 +619,7 @@ export default function CRM() {
     }
   };
 
-  const validManagersByRole = (role) => {
+  const validManagersByRole = (role: string): User[] => {
     switch (role) {
       case "owner":
         return [];
@@ -564,7 +636,7 @@ export default function CRM() {
     }
   };
 
-  const openCreateUser = () => {
+  const openCreateUser = (): void => {
     setEditingUser(null);
     const availableRoles = validRolesByUser(currentUser);
     const roleDefault = availableRoles?.[0] || "vendedor";
@@ -574,11 +646,10 @@ export default function CRM() {
     setShowUserModal(true);
   };
 
-  const saveUser = () => {
-    const name = document.getElementById("u-name")?.value?.trim();
-    const email = document.getElementById("u-email")?.value?.trim();
-    const password = document.getElementById("u-pass")?.value;
-    const active = document.getElementById("u-active")?.checked !== false;
+  const saveUser = (): void => {
+    const name = (document.getElementById("u-name") as HTMLInputElement)?.value?.trim();
+    const email = (document.getElementById("u-email") as HTMLInputElement)?.value?.trim();
+    const active = (document.getElementById("u-active") as HTMLInputElement)?.checked !== false;
 
     if (!name || !email) return;
 
@@ -590,7 +661,7 @@ export default function CRM() {
                 ...u,
                 name,
                 email,
-                role: modalRole,
+                role: modalRole as User['role'],
                 reportsTo: modalRole === "owner" ? null : modalReportsTo,
                 active
               }
@@ -598,11 +669,11 @@ export default function CRM() {
         )
       );
     } else {
-      const newUser = {
+      const newUser: User = {
         id: Math.max(0, ...users.map(u => u.id)) + 1,
         name,
         email,
-        role: modalRole,
+        role: modalRole as User['role'],
         reportsTo: modalRole === "owner" ? null : modalReportsTo,
         active
       };
@@ -611,7 +682,7 @@ export default function CRM() {
     setShowUserModal(false);
   };
 
-  const deleteUser = (id) => {
+  const deleteUser = (id: number): void => {
     if (users.find(u => u.id === id)?.role === "owner") {
       alert("No podés eliminar al Dueño.");
       return;
@@ -625,11 +696,11 @@ export default function CRM() {
   };
 
   // Calendar operations
-  const createEvent = () => {
-    const title = document.getElementById("ev-title")?.value;
-    const date = document.getElementById("ev-date")?.value;
-    const time = document.getElementById("ev-time")?.value;
-    const userId = parseInt(document.getElementById("ev-user")?.value);
+  const createEvent = (): void => {
+    const title = (document.getElementById("ev-title") as HTMLInputElement)?.value;
+    const date = (document.getElementById("ev-date") as HTMLInputElement)?.value;
+    const time = (document.getElementById("ev-time") as HTMLInputElement)?.value;
+    const userId = parseInt((document.getElementById("ev-user") as HTMLSelectElement)?.value);
     
     if (title && date && userId) {
       setEvents(prev => [
@@ -646,7 +717,7 @@ export default function CRM() {
     }
   };
 
-  const deleteEvent = (id) =>
+  const deleteEvent = (id: number): void =>
     setEvents(prev => prev.filter(e => e.id !== id));
 
   // Calendar filtered events
@@ -719,17 +790,14 @@ export default function CRM() {
             <button
               onClick={() =>
                 handleLogin(
-                  document.getElementById("email").value,
-                  document.getElementById("password").value
+                  (document.getElementById("email") as HTMLInputElement).value,
+                  (document.getElementById("password") as HTMLInputElement).value
                 )
               }
               className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700"
             >
               Iniciar Sesión
             </button>
-            <div className="text-center text-sm text-gray-500">
-              <p>Usuario demo: admin@alluma.com / 123456</p>
-            </div>
           </div>
         </div>
       </div>
@@ -769,7 +837,7 @@ export default function CRM() {
           <div className="text-sm text-gray-300">
             <p>{currentUser?.name || currentUser?.email}</p>
             <p className="text-blue-300">
-              {roles[currentUser?.role] || currentUser?.role}
+              {roles[currentUser?.role || ""] || currentUser?.role}
             </p>
           </div>
         </div>
@@ -779,7 +847,7 @@ export default function CRM() {
             { key: "leads", label: "Leads", Icon: Users },
             { key: "calendar", label: "Calendario", Icon: Calendar },
             { key: "ranking", label: "Ranking", Icon: Trophy },
-            ...(["supervisor", "gerente", "director", "owner"].includes(currentUser?.role)
+            ...(["supervisor", "gerente", "director", "owner"].includes(currentUser?.role || "")
               ? [{ key: "team", label: "Mi Equipo", Icon: UserCheck }]
               : []),
             ...(canManageUsers()
@@ -809,7 +877,7 @@ export default function CRM() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-3xl font-bold text-gray-800">Dashboard</h2>
-              {["owner", "director"].includes(currentUser?.role) && (
+              {["owner", "director"].includes(currentUser?.role || "") && (
                 <select
                   value={selectedTeam}
                   onChange={(e) => setSelectedTeam(e.target.value)}
@@ -828,7 +896,7 @@ export default function CRM() {
             {/* Main Statistics */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {(() => {
-                const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                const teamFilter = ["owner", "director"].includes(currentUser?.role || "")
                   ? selectedTeam
                   : undefined;
                 const stats = getDashboardStats(teamFilter);
@@ -884,7 +952,7 @@ export default function CRM() {
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-semibold text-gray-800">Estados de Leads</h3>
-                {["owner", "director"].includes(currentUser?.role) && (
+                {["owner", "director"].includes(currentUser?.role || "") && (
                   <div className="flex items-center space-x-2">
                     <span className="text-sm text-gray-600">Descargar Excel:</span>
                     <button
@@ -899,7 +967,7 @@ export default function CRM() {
               </div>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {Object.entries(estados).map(([key, estado]) => {
-                  const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                  const teamFilter = ["owner", "director"].includes(currentUser?.role || "")
                     ? selectedTeam
                     : undefined;
                   const filteredLeads = teamFilter && teamFilter !== "todos"
@@ -917,7 +985,7 @@ export default function CRM() {
                         <div className="text-xs opacity-75">{percentage}%</div>
                         
                         {/* Botón de descarga para owner/director */}
-                        {["owner", "director"].includes(currentUser?.role) && count > 0 && (
+                        {["owner", "director"].includes(currentUser?.role || "") && count > 0 && (
                           <button
                             onClick={() => downloadLeadsByStateExcel(key)}
                             className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white bg-opacity-20 hover:bg-opacity-40 rounded p-1"
@@ -945,7 +1013,7 @@ export default function CRM() {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {(() => {
-                  const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                  const teamFilter = ["owner", "director"].includes(currentUser?.role || "")
                     ? selectedTeam
                     : undefined;
                   return getSourceMetrics(teamFilter).map((item) => (
@@ -1303,7 +1371,7 @@ export default function CRM() {
 
         {/* Team Section */}
         {activeSection === "team" &&
-          ["supervisor", "gerente", "director", "owner"].includes(currentUser?.role) && (
+          ["supervisor", "gerente", "director", "owner"].includes(currentUser?.role || "") && (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-3xl font-bold text-gray-800">Mi Equipo</h2>
@@ -1667,7 +1735,7 @@ export default function CRM() {
             <div className="flex space-x-3 pt-6">
               <button
                 onClick={() => {
-                  const textarea = document.getElementById("observaciones-textarea");
+                  const textarea = document.getElementById("observaciones-textarea") as HTMLTextAreaElement;
                   if (textarea && editingLeadObservaciones) {
                     handleUpdateObservaciones(
                       editingLeadObservaciones.id,
@@ -1974,4 +2042,6 @@ export default function CRM() {
       )}
     </div>
   );
-}
+};
+
+export default CRM;
