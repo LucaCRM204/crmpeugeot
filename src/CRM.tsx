@@ -589,25 +589,45 @@ export default function CRM() {
       .sort((a, b) => b.ventas - a.ventas);
   };
 
-  const getRankingInScope = () => {
-    const vendedores = users.filter(
-      (u: any) => u.role === "vendedor" && visibleUserIds.includes(u.id)
-    );
-    return vendedores
-      .map((v: any) => {
-        const ventas = leads.filter(
-          (l) => l.vendedor === v.id && l.estado === "vendido"
-        ).length;
-        const leadsAsignados = leads.filter((l) => l.vendedor === v.id).length;
-        return {
-          id: v.id,
-          nombre: v.name,
-          ventas,
-          leadsAsignados,
-          team: `Equipo de ${userById.get(v.reportsTo)?.name || "—"}`,
-        };
-      })
-      .sort((a, b) => b.ventas - a.ventas);
+  // ===== Nueva función para obtener ranking del equipo gerencial =====
+  const getRankingByManagerialTeam = () => {
+    if (!currentUser) return [];
+    
+    // Si es vendedor, buscar su gerente
+    if (currentUser.role === "vendedor") {
+      // Encontrar su supervisor
+      const supervisor = userById.get(currentUser.reportsTo);
+      if (!supervisor) return getRankingInScope(); // fallback
+      
+      // Encontrar el gerente del supervisor
+      const gerente = userById.get(supervisor.reportsTo);
+      if (!gerente) return getRankingInScope(); // fallback
+      
+      // Obtener todos los vendedores bajo este gerente
+      const teamUserIds = getDescendantUserIds(gerente.id, childrenIndex);
+      const vendedores = users.filter(
+        (u: any) => u.role === "vendedor" && teamUserIds.includes(u.id)
+      );
+      
+      return vendedores
+        .map((v: any) => {
+          const ventas = leads.filter(
+            (l) => l.vendedor === v.id && l.estado === "vendido"
+          ).length;
+          const leadsAsignados = leads.filter((l) => l.vendedor === v.id).length;
+          return {
+            id: v.id,
+            nombre: v.name,
+            ventas,
+            leadsAsignados,
+            team: `Equipo de ${gerente.name}`,
+          };
+        })
+        .sort((a, b) => b.ventas - a.ventas);
+    }
+    
+    // Para otros roles, usar el ranking normal en scope
+    return getRankingInScope();
   };
 
   const prevRankingRef = useRef(new Map<number, number>());
@@ -1736,7 +1756,7 @@ export default function CRM() {
             <h2 className="text-3xl font-bold text-gray-800">Ranking de Vendedores</h2>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Ranking General */}
+              {/* Ranking General - Solo para Owner */}
               {isOwner() && (
                 <div className="bg-white rounded-xl shadow-lg p-6">
                   <h3 className="text-xl font-semibold text-gray-800 mb-4">
@@ -1788,16 +1808,25 @@ export default function CRM() {
                 </div>
               )}
 
-              {/* Ranking en Mi Scope */}
+              {/* Ranking en Mi Scope / Vendedores de la misma gerencia */}
               <div className="bg-white rounded-xl shadow-lg p-6">
                 <h3 className="text-xl font-semibold text-gray-800 mb-4">
-                  {isOwner() ? "Mi Scope" : "Ranking"}
+                  {currentUser?.role === "vendedor" 
+                    ? "Ranking Vendedores" 
+                    : isOwner() 
+                    ? "Mi Scope" 
+                    : "Ranking"}
                 </h3>
                 <div className="space-y-3">
-                  {getRankingInScope().map((vendedor, index) => (
+                  {(currentUser?.role === "vendedor" 
+                    ? getRankingByManagerialTeam() 
+                    : getRankingInScope()
+                  ).map((vendedor, index) => (
                     <div
                       key={vendedor.id}
-                      className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
+                      className={`flex items-center justify-between p-4 border border-gray-200 rounded-lg ${
+                        vendedor.id === currentUser?.id ? "bg-blue-50 border-blue-300" : ""
+                      }`}
                     >
                       <div className="flex items-center space-x-3">
                         <div
@@ -1814,8 +1843,13 @@ export default function CRM() {
                           {index + 1}
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900">
+                          <p className={`font-medium ${
+                            vendedor.id === currentUser?.id ? "text-blue-900" : "text-gray-900"
+                          }`}>
                             {vendedor.nombre}
+                            {vendedor.id === currentUser?.id && (
+                              <span className="ml-2 text-xs text-blue-600 font-normal">(Tú)</span>
+                            )}
                           </p>
                           <p className="text-xs text-gray-500">{vendedor.team}</p>
                         </div>
@@ -1835,9 +1869,14 @@ export default function CRM() {
                     </div>
                   ))}
                 </div>
-                {getRankingInScope().length === 0 && (
+                {(currentUser?.role === "vendedor" 
+                  ? getRankingByManagerialTeam() 
+                  : getRankingInScope()
+                ).length === 0 && (
                   <p className="text-gray-500 text-center py-8">
-                    No hay vendedores en tu scope
+                    {currentUser?.role === "vendedor" 
+                      ? "No hay otros vendedores en tu gerencia"
+                      : "No hay vendedores en tu scope"}
                   </p>
                 )}
               </div>
