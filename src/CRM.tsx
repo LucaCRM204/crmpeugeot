@@ -589,6 +589,27 @@ export default function CRM() {
       .sort((a, b) => b.ventas - a.ventas);
   };
 
+  const getRankingInScope = () => {
+    const vendedores = users.filter(
+      (u: any) => u.role === "vendedor" && visibleUserIds.includes(u.id)
+    );
+    return vendedores
+      .map((v: any) => {
+        const ventas = leads.filter(
+          (l) => l.vendedor === v.id && l.estado === "vendido"
+        ).length;
+        const leadsAsignados = leads.filter((l) => l.vendedor === v.id).length;
+        return {
+          id: v.id,
+          nombre: v.name,
+          ventas,
+          leadsAsignados,
+          team: `Equipo de ${userById.get(v.reportsTo)?.name || "—"}`,
+        };
+      })
+      .sort((a, b) => b.ventas - a.ventas);
+  };
+
   // ===== Nueva función para obtener ranking del equipo gerencial =====
   const getRankingByManagerialTeam = () => {
     if (!currentUser) return [];
