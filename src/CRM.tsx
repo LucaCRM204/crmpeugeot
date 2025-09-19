@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo, useRef, useEffect } from "react";
+﻿import React, { useState, useMemo, useRef } from "react";
 
 // Types
 interface IconProps {
@@ -178,13 +178,6 @@ const Edit3: React.FC<IconProps> = ({ size = 20, className = "" }) => (
   </svg>
 );
 
-const Bell: React.FC<IconProps> = ({ size = 20, className = "" }) => (
-  <svg width={size} height={size} className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" strokeWidth="2"/>
-    <path d="M13.73 21a2 2 0 0 1-3.46 0" strokeWidth="2"/>
-  </svg>
-);
-
 const UserCheck: React.FC<IconProps> = ({ size = 20, className = "" }) => (
   <svg width={size} height={size} className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" strokeWidth="2"/>
@@ -262,13 +255,9 @@ const CRM: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [activeSection, setActiveSection] = useState<string>("dashboard");
   const [loginError, setLoginError] = useState<string>("");
-  const [selectedEstado, setSelectedEstado] = useState<string | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<string>("todos");
   
   // Modal states
-  const [showReassignModal, setShowReassignModal] = useState<boolean>(false);
-  const [leadToReassign, setLeadToReassign] = useState<Lead | null>(null);
-  const [selectedVendorForReassign, setSelectedVendorForReassign] = useState<number | null>(null);
   const [showNewLeadModal, setShowNewLeadModal] = useState<boolean>(false);
   const [showObservacionesModal, setShowObservacionesModal] = useState<boolean>(false);
   const [showHistorialModal, setShowHistorialModal] = useState<boolean>(false);
@@ -283,8 +272,6 @@ const CRM: React.FC = () => {
   // Calendar and events
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedCalendarUserId, setSelectedCalendarUserId] = useState<number | null>(null);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const nextAlertId = useRef<number>(1);
 
   const { byId: userById, children: childrenIndex } = useMemo(
     () => buildIndex(users),
@@ -668,7 +655,6 @@ const CRM: React.FC = () => {
   const saveUser = (): void => {
     const name = (document.getElementById("u-name") as HTMLInputElement)?.value?.trim();
     const email = (document.getElementById("u-email") as HTMLInputElement)?.value?.trim();
-    const password = (document.getElementById("u-pass") as HTMLInputElement)?.value;
     const active = (document.getElementById("u-active") as HTMLInputElement)?.checked !== false;
 
     if (!name || !email) return;
