@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo, useRef } from "react";
+﻿import React, { useState, useMemo } from "react";
 
 // Types
 interface IconProps {
@@ -43,12 +43,6 @@ interface Event {
   date: string;
   time?: string;
   userId: number;
-}
-
-interface Alert {
-  id: number;
-  message: string;
-  type: "info" | "warning" | "error" | "success";
 }
 
 interface UserIndex {
@@ -314,8 +308,11 @@ const CRM: React.FC = () => {
       if (currentUser.role === "gerente") {
         if (u.id === currentUser.id) return true;
         if (u.reportsTo === currentUser.id) return true;
-        const userSupervisor = userById.get(u.reportsTo);
-        return userSupervisor && userSupervisor.reportsTo === currentUser.id;
+        if (u.reportsTo) {
+          const userSupervisor = userById.get(u.reportsTo);
+          return userSupervisor && userSupervisor.reportsTo === currentUser.id;
+        }
+        return false;
       }
       if (currentUser.role === "supervisor") {
         if (u.id === currentUser.id) return true;
@@ -343,7 +340,7 @@ const CRM: React.FC = () => {
   // Filtered leads
   const visibleUserIds = useMemo(
     () => getAccessibleUserIds(currentUser),
-    [currentUser, users]
+    [currentUser, users, childrenIndex]
   );
 
   const getFilteredLeads = (): Lead[] => {
@@ -447,7 +444,7 @@ const CRM: React.FC = () => {
         'Estado': estados[lead.estado]?.label || lead.estado,
         'Fuente': fuente.label,
         'Vendedor': vendedor?.name || 'Sin asignar',
-        'Equipo': vendedor ? `Equipo de ${userById.get(vendedor.reportsTo ?? 0)?.name || '—'}` : '',
+        'Equipo': vendedor && vendedor.reportsTo ? `Equipo de ${userById.get(vendedor.reportsTo)?.name || '—'}` : '',
         'Fecha': formatDate(lead.fecha),
         'Observaciones': lead.notas || ''
       };
@@ -491,7 +488,7 @@ const CRM: React.FC = () => {
         'Entrega': lead.entrega ? 'Sí' : 'No',
         'Fuente': fuente.label,
         'Vendedor': vendedor?.name || 'Sin asignar',
-        'Equipo': vendedor ? `Equipo de ${userById.get(vendedor.reportsTo ?? 0)?.name || '—'}` : '',
+        'Equipo': vendedor && vendedor.reportsTo ? `Equipo de ${userById.get(vendedor.reportsTo)?.name || '—'}` : '',
         'Fecha': formatDate(lead.fecha),
         'Observaciones': lead.notas || '',
         'Historial': lead.historial?.map(h => 
@@ -520,7 +517,7 @@ const CRM: React.FC = () => {
           nombre: v.name,
           ventas,
           leadsAsignados,
-          team: `Equipo de ${userById.get(v.reportsTo ?? 0)?.name || "—"}`,
+          team: v.reportsTo ? `Equipo de ${userById.get(v.reportsTo)?.name || "—"}` : "—",
         };
       })
       .sort((a, b) => b.ventas - a.ventas);
@@ -541,7 +538,7 @@ const CRM: React.FC = () => {
           nombre: v.name,
           ventas,
           leadsAsignados,
-          team: `Equipo de ${userById.get(v.reportsTo ?? 0)?.name || "—"}`,
+          team: v.reportsTo ? `Equipo de ${userById.get(v.reportsTo)?.name || "—"}` : "—",
         };
       })
       .sort((a, b) => b.ventas - a.ventas);
@@ -1282,7 +1279,7 @@ const CRM: React.FC = () => {
                         <div className="flex items-center space-x-3">
                           <div
                             className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
-                              index === 0
+0
                                 ? "bg-yellow-500"
                                 : index === 1
                                 ? "bg-gray-400"
