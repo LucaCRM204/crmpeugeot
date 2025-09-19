@@ -777,6 +777,502 @@ const CRM: React.FC = () => {
                 <h1 className="text-2xl font-bold text-gray-800">Alluma</h1>
                 <p className="text-sm text-gray-600">Publicidad</p>
               </div>
+            </div>
+            <p className="text-gray-600">Sistema de gestión CRM</p>
+          </div>
+
+          <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+              <input
+                type="email"
+                id="email"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="admin@alluma.com"
+                defaultValue="admin@alluma.com"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Contraseña</label>
+              <input
+                type="password"
+                id="password"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="••••••••"
+                defaultValue="123456"
+              />
+            </div>
+            {loginError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-red-700 text-sm">{loginError}</p>
+              </div>
+            )}
+            <button
+              onClick={() =>
+                handleLogin(
+                  (document.getElementById("email") as HTMLInputElement).value,
+                  (document.getElementById("password") as HTMLInputElement).value
+                )
+              }
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700"
+            >
+              Iniciar Sesión
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Main authenticated UI
+  return (
+    <div className="min-h-screen bg-gray-100 flex">
+      {/* Sidebar */}
+      <div className="bg-slate-900 text-white w-64 min-h-screen p-4">
+        <div className="mb-8">
+          <div className="flex items-center mb-4">
+            <div className="relative">
+              <svg width="40" height="36" viewBox="0 0 40 36" fill="none">
+                <path d="M10 2L30 2L35 12L30 22L10 22L5 12Z" fill="url(#gradient1)" />
+                <defs>
+                  <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#FFB800" />
+                    <stop offset="25%" stopColor="#FF6B9D" />
+                    <stop offset="50%" stopColor="#8B5CF6" />
+                    <stop offset="75%" stopColor="#06B6D4" />
+                    <stop offset="100%" stopColor="#10B981" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-2 h-2 bg-white rounded-full"></div>
+              </div>
+            </div>
+            <div className="ml-3">
+              <h1 className="text-xl font-bold text-white">Alluma</h1>
+              <p className="text-xs text-gray-400">Publicidad</p>
+            </div>
+          </div>
+
+          <div className="text-sm text-gray-300">
+            <p>{currentUser?.name || currentUser?.email}</p>
+            <p className="text-blue-300">
+              {roles[currentUser?.role || ""] || currentUser?.role}
+            </p>
+          </div>
+        </div>
+        <nav className="space-y-2">
+          {[
+            { key: "dashboard", label: "Dashboard", Icon: Home },
+            { key: "leads", label: "Leads", Icon: Users },
+            { key: "calendar", label: "Calendario", Icon: Calendar },
+            { key: "ranking", label: "Ranking", Icon: Trophy },
+            ...(["supervisor", "gerente", "director", "owner"].includes(currentUser?.role || "")
+              ? [{ key: "team", label: "Mi Equipo", Icon: UserCheck }]
+              : []),
+            ...(canManageUsers()
+              ? [{ key: "users", label: "Usuarios", Icon: Settings }]
+              : []),
+          ].map(({ key, label, Icon }) => (
+            <button
+              key={key}
+              onClick={() => setActiveSection(key)}
+              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                activeSection === key
+                  ? "bg-blue-600 text-white"
+                  : "text-gray-300 hover:bg-slate-800"
+              }`}
+            >
+              <Icon size={20} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 p-6">
+        {/* Dashboard */}
+        {activeSection === "dashboard" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-bold text-gray-800">Dashboard</h2>
+              {["owner", "director"].includes(currentUser?.role || "") && (
+                <select
+                  value={selectedTeam}
+                  onChange={(e) => setSelectedTeam(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                >
+                  <option value="todos">Todos los equipos</option>
+                  {getAvailableManagers().map((gerente) => (
+                    <option key={gerente.id} value={gerente.id.toString()}>
+                      Equipo {gerente.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {/* Main Statistics */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {(() => {
+                const teamFilter = ["owner", "director"].includes(currentUser?.role || "")
+                  ? selectedTeam
+                  : undefined;
+                const stats = getDashboardStats(teamFilter);
+                return (
+                  <>
+                    <div className="bg-white rounded-xl shadow-lg p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-600">Total Leads</p>
+                          <p className="text-3xl font-bold text-gray-900">
+                            {stats.totalLeads}
+                          </p>
+                        </div>
+                        <div className="bg-blue-500 p-3 rounded-full">
+                          <Users className="h-6 w-6 text-white" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-xl shadow-lg p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-600">Ventas</p>
+                          <p className="text-3xl font-bold text-green-600">
+                            {stats.vendidos}
+                          </p>
+                        </div>
+                        <div className="bg-green-500 p-3 rounded-full">
+                          <Trophy className="h-6 w-6 text-white" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-xl shadow-lg p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-600">
+                            Conversión
+                          </p>
+                          <p className="text-3xl font-bold text-purple-600">
+                            {stats.conversion}%
+                          </p>
+                        </div>
+                        <div className="bg-purple-500 p-3 rounded-full">
+                          <BarChart3 className="h-6 w-6 text-white" />
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+
+            {/* Estados de Leads */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold text-gray-800">Estados de Leads</h3>
+                {["owner", "director"].includes(currentUser?.role || "") && (
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-gray-600">Descargar Excel:</span>
+                    <button
+                      onClick={downloadAllLeadsExcel}
+                      className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
+                      title="Descargar Excel completo"
+                    >
+                      Todos
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                {Object.entries(estados).map(([key, estado]) => {
+                  const teamFilter = ["owner", "director"].includes(currentUser?.role || "")
+                    ? selectedTeam
+                    : undefined;
+                  const filteredLeads = teamFilter && teamFilter !== "todos"
+                    ? getFilteredLeadsByTeam(teamFilter)
+                    : getFilteredLeads();
+                  const count = filteredLeads.filter((l) => l.estado === key).length;
+                  const percentage = filteredLeads.length > 0 
+                    ? ((count / filteredLeads.length) * 100).toFixed(1)
+                    : "0";
+                  
+                  return (
+                    <div key={key} className="relative group">
+                      <div className={`${estado.color} text-white rounded-lg p-4 mb-2 text-center relative`}>
+                        <div className="text-2xl font-bold">{count}</div>
+                        <div className="text-xs opacity-75">{percentage}%</div>
+                        
+                        {/* Botón de descarga para owner/director */}
+                        {["owner", "director"].includes(currentUser?.role || "") && count > 0 && (
+                          <button
+                            onClick={() => downloadLeadsByStateExcel(key)}
+                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white bg-opacity-20 hover:bg-opacity-40 rounded p-1"
+                            title={`Descargar Excel: ${estado.label}`}
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M9 17h6a2 2 0 002-2V9a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                      <div className="text-sm text-gray-600 text-center font-medium">
+                        {estado.label}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Source Metrics */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h3 className="text-xl font-semibold text-gray-800 mb-4">
+                Performance por Fuente
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {(() => {
+                  const teamFilter = ["owner", "director"].includes(currentUser?.role || "")
+                    ? selectedTeam
+                    : undefined;
+                  return getSourceMetrics(teamFilter).map((item) => (
+                    <div key={item.source} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <span className="text-lg">{item.icon}</span>
+                        <span className="font-medium text-gray-900">{item.label}</span>
+                      </div>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span>Total:</span>
+                          <span className="font-semibold">{item.total}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Ventas:</span>
+                          <span className="font-semibold text-green-600">{item.vendidos}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Conversión:</span>
+                          <span className="font-semibold text-purple-600">
+                            {item.conversion}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Leads */}
+        {activeSection === "leads" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-bold text-gray-800">Gestión de Leads</h2>
+              <button
+                onClick={() => setShowNewLeadModal(true)}
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                <Plus size={20} />
+                <span>Nuevo Lead</span>
+              </button>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Cliente
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Contacto
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Vehículo
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Estado
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Fuente
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Vendedor
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Fecha
+                      </th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {getFilteredLeads().map((lead) => {
+                      const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
+
+                      return (
+                        <tr key={lead.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-4">
+                            <div className="font-medium text-gray-900">{lead.nombre}</div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center space-x-1">
+                              <Phone size={12} className="text-gray-400" />
+                              <span className="text-gray-700">{lead.telefono}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div>
+                              <div className="font-medium text-gray-900">{lead.modelo}</div>
+                              <div className="text-xs text-gray-500">{lead.formaPago}</div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <select
+                              value={lead.estado}
+                              onChange={(e) =>
+                                handleUpdateLeadStatus(lead.id, e.target.value)
+                              }
+                              className={`text-xs font-medium rounded-full px-2 py-1 border-0 text-white ${estados[lead.estado].color}`}
+                            >
+                              {Object.entries(estados).map(([key, estado]) => (
+                                <option key={key} value={key} className="text-black">
+                                  {estado.label}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center space-x-1">
+                              <span className="text-sm">
+                                {fuentes[lead.fuente]?.icon || "❓"}
+                              </span>
+                              <span className="text-xs text-gray-600">
+                                {fuentes[lead.fuente]?.label || String(lead.fuente)}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 text-gray-700">
+                            {vendedor?.name || "Sin asignar"}
+                          </td>
+                          <td className="px-4 py-4 text-gray-500 text-xs">
+                            {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
+                          </td>
+                          <td className="px-4 py-4 text-center">
+                            <div className="flex items-center justify-center space-x-1">
+                              <button
+                                onClick={() => {
+                                  setEditingLeadObservaciones(lead);
+                                  setShowObservacionesModal(true);
+                                }}
+                                className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                title="Ver/Editar observaciones"
+                              >
+                                {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setViewingLeadHistorial(lead);
+                                  setShowHistorialModal(true);
+                                }}
+                                className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                title="Ver historial"
+                              >
+                                Historial
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Calendar */}
+        {activeSection === "calendar" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-bold text-gray-800">Calendario</h2>
+              <div className="flex items-center space-x-3">
+                <select
+                  value={selectedCalendarUserId ?? ""}
+                  onChange={(e) =>
+                    setSelectedCalendarUserId(
+                      e.target.value ? parseInt(e.target.value, 10) : null
+                    )
+                  }
+                  className="px-3 py-2 border border-gray-300 rounded-lg"
+                >
+                  <option value="">Mi calendario</option>
+                  {getVisibleUsers()
+                    .filter((u) => u.id !== currentUser?.id)
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} — {roles[u.role] || u.role}
+                      </option>
+                    ))}
+                </select>
+                <button
+                  onClick={() => setShowNewEventModal(true)}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <Plus size={20} />
+                  <span>Nuevo Evento</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h3 className="text-xl font-semibold text-gray-800 mb-4">
+                Próximos eventos -{" "}
+                {selectedCalendarUserId
+                  ? userById.get(selectedCalendarUserId)?.name
+                  : "Mi calendario"}
+              </h3>
+
+              {eventsForSelectedUser.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">
+                  No hay eventos programados
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {eventsForSelectedUser.map((event) => (
+                    <div
+                      key={event.id}
+                      className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
+                    >
+                      <div>
+                        <h4 className="font-medium text-gray-900">{event.title}</h4>
+                        <p className="text-sm text-gray-600">
+                          {formatterEs.format(new Date(event.date))} a las {event.time}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {userById.get(event.userId)?.name || "Usuario desconocido"}
+                        </p>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => deleteEvent(event.id)}
+                          className="p-2 text-red-600 hover:text-red-800"
+                          title="Eliminar evento"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -1569,499 +2065,3 @@ const CRM: React.FC = () => {
 };
 
 export default CRM;
-            </div>
-            <p className="text-gray-600">Sistema de gestión CRM</p>
-          </div>
-
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-              <input
-                type="email"
-                id="email"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="admin@alluma.com"
-                defaultValue="admin@alluma.com"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Contraseña</label>
-              <input
-                type="password"
-                id="password"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="••••••••"
-                defaultValue="123456"
-              />
-            </div>
-            {loginError && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                <p className="text-red-700 text-sm">{loginError}</p>
-              </div>
-            )}
-            <button
-              onClick={() =>
-                handleLogin(
-                  (document.getElementById("email") as HTMLInputElement).value,
-                  (document.getElementById("password") as HTMLInputElement).value
-                )
-              }
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700"
-            >
-              Iniciar Sesión
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Main authenticated UI
-  return (
-    <div className="min-h-screen bg-gray-100 flex">
-      {/* Sidebar */}
-      <div className="bg-slate-900 text-white w-64 min-h-screen p-4">
-        <div className="mb-8">
-          <div className="flex items-center mb-4">
-            <div className="relative">
-              <svg width="40" height="36" viewBox="0 0 40 36" fill="none">
-                <path d="M10 2L30 2L35 12L30 22L10 22L5 12Z" fill="url(#gradient1)" />
-                <defs>
-                  <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#FFB800" />
-                    <stop offset="25%" stopColor="#FF6B9D" />
-                    <stop offset="50%" stopColor="#8B5CF6" />
-                    <stop offset="75%" stopColor="#06B6D4" />
-                    <stop offset="100%" stopColor="#10B981" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-2 h-2 bg-white rounded-full"></div>
-              </div>
-            </div>
-            <div className="ml-3">
-              <h1 className="text-xl font-bold text-white">Alluma</h1>
-              <p className="text-xs text-gray-400">Publicidad</p>
-            </div>
-          </div>
-
-          <div className="text-sm text-gray-300">
-            <p>{currentUser?.name || currentUser?.email}</p>
-            <p className="text-blue-300">
-              {roles[currentUser?.role || ""] || currentUser?.role}
-            </p>
-          </div>
-        </div>
-        <nav className="space-y-2">
-          {[
-            { key: "dashboard", label: "Dashboard", Icon: Home },
-            { key: "leads", label: "Leads", Icon: Users },
-            { key: "calendar", label: "Calendario", Icon: Calendar },
-            { key: "ranking", label: "Ranking", Icon: Trophy },
-            ...(["supervisor", "gerente", "director", "owner"].includes(currentUser?.role || "")
-              ? [{ key: "team", label: "Mi Equipo", Icon: UserCheck }]
-              : []),
-            ...(canManageUsers()
-              ? [{ key: "users", label: "Usuarios", Icon: Settings }]
-              : []),
-          ].map(({ key, label, Icon }) => (
-            <button
-              key={key}
-              onClick={() => setActiveSection(key)}
-              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
-                activeSection === key
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-300 hover:bg-slate-800"
-              }`}
-            >
-              <Icon size={20} />
-              <span>{label}</span>
-            </button>
-          ))}
-        </nav>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 p-6">
-        {/* Dashboard */}
-        {activeSection === "dashboard" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-bold text-gray-800">Dashboard</h2>
-              {["owner", "director"].includes(currentUser?.role || "") && (
-                <select
-                  value={selectedTeam}
-                  onChange={(e) => setSelectedTeam(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
-                >
-                  <option value="todos">Todos los equipos</option>
-                  {getAvailableManagers().map((gerente) => (
-                    <option key={gerente.id} value={gerente.id.toString()}>
-                      Equipo {gerente.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-
-            {/* Main Statistics */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {(() => {
-                const teamFilter = ["owner", "director"].includes(currentUser?.role || "")
-                  ? selectedTeam
-                  : undefined;
-                const stats = getDashboardStats(teamFilter);
-                return (
-                  <>
-                    <div className="bg-white rounded-xl shadow-lg p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-gray-600">Total Leads</p>
-                          <p className="text-3xl font-bold text-gray-900">
-                            {stats.totalLeads}
-                          </p>
-                        </div>
-                        <div className="bg-blue-500 p-3 rounded-full">
-                          <Users className="h-6 w-6 text-white" />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-white rounded-xl shadow-lg p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-gray-600">Ventas</p>
-                          <p className="text-3xl font-bold text-green-600">
-                            {stats.vendidos}
-                          </p>
-                        </div>
-                        <div className="bg-green-500 p-3 rounded-full">
-                          <Trophy className="h-6 w-6 text-white" />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-white rounded-xl shadow-lg p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-gray-600">
-                            Conversión
-                          </p>
-                          <p className="text-3xl font-bold text-purple-600">
-                            {stats.conversion}%
-                          </p>
-                        </div>
-                        <div className="bg-purple-500 p-3 rounded-full">
-                          <BarChart3 className="h-6 w-6 text-white" />
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-
-            {/* Estados de Leads */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold text-gray-800">Estados de Leads</h3>
-                {["owner", "director"].includes(currentUser?.role || "") && (
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm text-gray-600">Descargar Excel:</span>
-                    <button
-                      onClick={downloadAllLeadsExcel}
-                      className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
-                      title="Descargar Excel completo"
-                    >
-                      Todos
-                    </button>
-                  </div>
-                )}
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                {Object.entries(estados).map(([key, estado]) => {
-                  const teamFilter = ["owner", "director"].includes(currentUser?.role || "")
-                    ? selectedTeam
-                    : undefined;
-                  const filteredLeads = teamFilter && teamFilter !== "todos"
-                    ? getFilteredLeadsByTeam(teamFilter)
-                    : getFilteredLeads();
-                  const count = filteredLeads.filter((l) => l.estado === key).length;
-                  const percentage = filteredLeads.length > 0 
-                    ? ((count / filteredLeads.length) * 100).toFixed(1)
-                    : "0";
-                  
-                  return (
-                    <div key={key} className="relative group">
-                      <div className={`${estado.color} text-white rounded-lg p-4 mb-2 text-center relative`}>
-                        <div className="text-2xl font-bold">{count}</div>
-                        <div className="text-xs opacity-75">{percentage}%</div>
-                        
-                        {/* Botón de descarga para owner/director */}
-                        {["owner", "director"].includes(currentUser?.role || "") && count > 0 && (
-                          <button
-                            onClick={() => downloadLeadsByStateExcel(key)}
-                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white bg-opacity-20 hover:bg-opacity-40 rounded p-1"
-                            title={`Descargar Excel: ${estado.label}`}
-                          >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M9 17h6a2 2 0 002-2V9a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                            </svg>
-                          </button>
-                        )}
-                      </div>
-                      <div className="text-sm text-gray-600 text-center font-medium">
-                        {estado.label}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Source Metrics */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4">
-                Performance por Fuente
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {(() => {
-                  const teamFilter = ["owner", "director"].includes(currentUser?.role || "")
-                    ? selectedTeam
-                    : undefined;
-                  return getSourceMetrics(teamFilter).map((item) => (
-                    <div key={item.source} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <span className="text-lg">{item.icon}</span>
-                        <span className="font-medium text-gray-900">{item.label}</span>
-                      </div>
-                      <div className="space-y-1 text-sm">
-                        <div className="flex justify-between">
-                          <span>Total:</span>
-                          <span className="font-semibold">{item.total}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Ventas:</span>
-                          <span className="font-semibold text-green-600">{item.vendidos}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Conversión:</span>
-                          <span className="font-semibold text-purple-600">
-                            {item.conversion}%
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ));
-                })()}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Leads */}
-        {activeSection === "leads" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-bold text-gray-800">Gestión de Leads</h2>
-              <button
-                onClick={() => setShowNewLeadModal(true)}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <Plus size={20} />
-                <span>Nuevo Lead</span>
-              </button>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Cliente
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Contacto
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Vehículo
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Estado
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Fuente
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Vendedor
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Fecha
-                      </th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
-                        Acciones
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {getFilteredLeads().map((lead) => {
-                      const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
-
-                      return (
-                        <tr key={lead.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-4">
-                            <div className="font-medium text-gray-900">{lead.nombre}</div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="flex items-center space-x-1">
-                              <Phone size={12} className="text-gray-400" />
-                              <span className="text-gray-700">{lead.telefono}</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div>
-                              <div className="font-medium text-gray-900">{lead.modelo}</div>
-                              <div className="text-xs text-gray-500">{lead.formaPago}</div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <select
-                              value={lead.estado}
-                              onChange={(e) =>
-                                handleUpdateLeadStatus(lead.id, e.target.value)
-                              }
-                              className={`text-xs font-medium rounded-full px-2 py-1 border-0 text-white ${estados[lead.estado].color}`}
-                            >
-                              {Object.entries(estados).map(([key, estado]) => (
-                                <option key={key} value={key} className="text-black">
-                                  {estado.label}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="flex items-center space-x-1">
-                              <span className="text-sm">
-                                {fuentes[lead.fuente]?.icon || "❓"}
-                              </span>
-                              <span className="text-xs text-gray-600">
-                                {fuentes[lead.fuente]?.label || String(lead.fuente)}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-4 text-gray-700">
-                            {vendedor?.name || "Sin asignar"}
-                          </td>
-                          <td className="px-4 py-4 text-gray-500 text-xs">
-                            {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
-                          </td>
-                          <td className="px-4 py-4 text-center">
-                            <div className="flex items-center justify-center space-x-1">
-                              <button
-                                onClick={() => {
-                                  setEditingLeadObservaciones(lead);
-                                  setShowObservacionesModal(true);
-                                }}
-                                className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                title="Ver/Editar observaciones"
-                              >
-                                {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setViewingLeadHistorial(lead);
-                                  setShowHistorialModal(true);
-                                }}
-                                className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                title="Ver historial"
-                              >
-                                Historial
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Calendar */}
-        {activeSection === "calendar" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-bold text-gray-800">Calendario</h2>
-              <div className="flex items-center space-x-3">
-                <select
-                  value={selectedCalendarUserId ?? ""}
-                  onChange={(e) =>
-                    setSelectedCalendarUserId(
-                      e.target.value ? parseInt(e.target.value, 10) : null
-                    )
-                  }
-                  className="px-3 py-2 border border-gray-300 rounded-lg"
-                >
-                  <option value="">Mi calendario</option>
-                  {getVisibleUsers()
-                    .filter((u) => u.id !== currentUser?.id)
-                    .map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name} — {roles[u.role] || u.role}
-                      </option>
-                    ))}
-                </select>
-                <button
-                  onClick={() => setShowNewEventModal(true)}
-                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  <Plus size={20} />
-                  <span>Nuevo Evento</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4">
-                Próximos eventos -{" "}
-                {selectedCalendarUserId
-                  ? userById.get(selectedCalendarUserId)?.name
-                  : "Mi calendario"}
-              </h3>
-
-              {eventsForSelectedUser.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">
-                  No hay eventos programados
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {eventsForSelectedUser.map((event) => (
-                    <div
-                      key={event.id}
-                      className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
-                    >
-                      <div>
-                        <h4 className="font-medium text-gray-900">{event.title}</h4>
-                        <p className="text-sm text-gray-600">
-                          {formatterEs.format(new Date(event.date))} a las {event.time}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {userById.get(event.userId)?.name || "Usuario desconocido"}
-                        </p>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => deleteEvent(event.id)}
-                          className="p-2 text-red-600 hover:text-red-800"
-                          title="Eliminar evento"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div
