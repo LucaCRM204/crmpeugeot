@@ -264,6 +264,10 @@ export default function CRM() {
   const [selectedVendorForReassign, setSelectedVendorForReassign] =
     useState<number | null>(null);
 
+  // Estados para confirmación de eliminación
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<any>(null);
+
   // ===== Login contra backend =====
   const handleLogin = async (email: string, password: string) => {
     try {
@@ -473,9 +477,10 @@ export default function CRM() {
     }
   };
 
-  // ===== Round-robin con soporte para bots específicos =====
+  // ===== Round-robin con soporte para bots específicos - MODIFICADO =====
   const [rrIndex, setRrIndex] = useState(0);
 
+  // MODIFICADO: Solo obtener vendedores ACTIVOS
   const getActiveVendorIdsInScope = (scopeUser?: any) => {
     if (!scopeUser) return [] as number[];
     const scope = getAccessibleUserIds(scopeUser);
@@ -486,6 +491,7 @@ export default function CRM() {
       .map((u: any) => u.id);
   };
 
+  // MODIFICADO: Solo obtener vendedores ACTIVOS del equipo
   const getVendorsByTeam = (teamName: string) => {
     // Buscar el gerente del equipo por nombre
     const manager = users.find(
@@ -512,14 +518,14 @@ export default function CRM() {
     if (botSource && botConfig[botSource]) {
       const botConf = botConfig[botSource];
       if (botConf.targetTeam) {
-        // Bot específico para un equipo
+        // Bot específico para un equipo - SOLO ACTIVOS
         pool = getVendorsByTeam(botConf.targetTeam);
       } else {
-        // Bot 100 - distribución general
+        // Bot 100 - distribución general - SOLO ACTIVOS
         pool = getActiveVendorIdsInScope(scopeUser || currentUser);
       }
     } else {
-      // Asignación manual normal
+      // Asignación manual normal - SOLO ACTIVOS
       pool = getActiveVendorIdsInScope(scopeUser || currentUser);
     }
 
@@ -824,12 +830,23 @@ export default function CRM() {
       ? null
       : vendedorIdSelRaw;
 
-    // Detectar si es un bot y asignar según configuración
+    // Detectar si es un bot y asignar según configuración - SOLO A ACTIVOS
     let vendedorId: number | null = null;
     if (autoAssign) {
       vendedorId = pickNextVendorId(currentUser, fuente) ?? vendedorIdSel ?? null;
     } else {
-      vendedorId = vendedorIdSel ?? null;
+      // Verificar que el vendedor seleccionado esté activo si se asigna manualmente
+      if (vendedorIdSel) {
+        const selectedVendor = users.find(u => u.id === vendedorIdSel);
+        if (selectedVendor && selectedVendor.active) {
+          vendedorId = vendedorIdSel;
+        } else {
+          alert("El vendedor seleccionado está desactivado. Por favor selecciona otro vendedor o usa la asignación automática.");
+          return;
+        }
+      } else {
+        vendedorId = null;
+      }
     }
 
     if (nombre && telefono && modelo && fuente) {
@@ -1006,23 +1023,41 @@ export default function CRM() {
     }
   };
 
-  const deleteUser = async (id: number) => {
-    const target = users.find((u: any) => u.id === id);
-    if (!target) return;
-    if (target.role === "owner") {
+  // ===== NUEVA: Función para abrir modal de confirmación de eliminación =====
+  const openDeleteConfirm = (user: any) => {
+    if (user.role === "owner") {
       alert("No podés eliminar al Dueño.");
       return;
     }
-    const hasChildren = users.some((u: any) => u.reportsTo === id);
+    
+    const hasChildren = users.some((u: any) => u.reportsTo === user.id);
     if (hasChildren) {
-      alert("No se puede eliminar: el usuario tiene integrantes a cargo.");
+      alert("No se puede eliminar: el usuario tiene integrantes a cargo. Primero reasigne o elimine a sus subordinados.");
       return;
     }
+
+    const hasAssignedLeads = leads.some((l) => l.vendedor === user.id);
+    if (hasAssignedLeads) {
+      alert("No se puede eliminar: el usuario tiene leads asignados. Primero reasigne todos sus leads a otros vendedores.");
+      return;
+    }
+
+    setUserToDelete(user);
+    setShowDeleteConfirmModal(true);
+  };
+
+  // ===== NUEVA: Función para confirmar eliminación =====
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return;
+
     try {
-      await apiDeleteUser(id);
-      setUsers((prev) => prev.filter((u: any) => u.id !== id));
+      await apiDeleteUser(userToDelete.id);
+      setUsers((prev) => prev.filter((u: any) => u.id !== userToDelete.id));
+      setShowDeleteConfirmModal(false);
+      setUserToDelete(null);
     } catch (e) {
       console.error("No pude eliminar usuario", e);
+      alert("Error al eliminar el usuario. Por favor, intenta nuevamente.");
     }
   };
 
@@ -1129,6 +1164,12 @@ export default function CRM() {
             <p className="text-blue-300">
               {roles[currentUser?.role] || currentUser?.role}
             </p>
+            {/* NUEVO: Indicador si el usuario está desactivado */}
+            {!currentUser?.active && (
+              <p className="text-red-300 text-xs mt-1">
+                ⚠️ Usuario desactivado - No recibe leads nuevos
+              </p>
+            )}
           </div>
         </div>
         <nav className="space-y-2">
@@ -1184,6 +1225,23 @@ export default function CRM() {
                 </select>
               )}
             </div>
+
+            {/* NUEVO: Alerta si el usuario está desactivado */}
+            {!currentUser?.active && (
+              <div className="bg-orange-50 border-l-4 border-orange-400 p-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <Bell className="h-5 w-5 text-orange-400" />
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-orange-700">
+                      <strong>Usuario Desactivado:</strong> No recibirás nuevos leads automáticamente. 
+                      Solo podrás gestionar los leads que ya tienes asignados.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Estadísticas principales */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -1639,7 +1697,15 @@ export default function CRM() {
                             </div>
                           </td>
                           <td className="px-4 py-4 text-gray-700">
-                            {vendedor?.name || "Sin asignar"}
+                            <div>
+                              {vendedor?.name || "Sin asignar"}
+                              {/* NUEVO: Indicador de vendedor desactivado */}
+                              {vendedor && !vendedor.active && (
+                                <div className="text-xs text-red-600">
+                                  (Desactivado)
+                                </div>
+                              )}
+                            </div>
                           </td>
                           <td className="px-4 py-4 text-gray-500 text-xs">
                             {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
@@ -2294,6 +2360,12 @@ export default function CRM() {
                                 </button>
                               )}
                             </div>
+                            {/* NUEVO: Mensaje explicativo para vendedores desactivados */}
+                            {user.role === "vendedor" && !user.active && (
+                              <div className="text-xs text-orange-600 mt-1">
+                                No recibe leads nuevos
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-4">
                             {user.role === "vendedor" ? (
@@ -2316,9 +2388,10 @@ export default function CRM() {
                               >
                                 <Edit3 size={16} />
                               </button>
-                              {user.id !== currentUser?.id && (
+                              {/* MODIFICADO: Solo el owner puede eliminar usuarios */}
+                              {isOwner() && user.id !== currentUser?.id && (
                                 <button
-                                  onClick={() => deleteUser(user.id)}
+                                  onClick={() => openDeleteConfirm(user)}
                                   className="p-1 text-red-600 hover:text-red-800"
                                   title="Eliminar usuario"
                                 >
@@ -2432,6 +2505,75 @@ export default function CRM() {
           </div>
         )}
 
+        {/* NUEVO: Modal de Confirmación para Eliminar Usuario */}
+        {showDeleteConfirmModal && userToDelete && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-md">
+              <div className="flex items-center mb-6">
+                <div className="bg-red-100 p-3 rounded-full mr-4">
+                  <Trash2 className="h-6 w-6 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    Confirmar Eliminación
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Esta acción no se puede deshacer
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <h4 className="font-medium text-gray-800 mb-2">Usuario a eliminar:</h4>
+                <div className="text-sm space-y-1">
+                  <div><strong>Nombre:</strong> {userToDelete.name}</div>
+                  <div><strong>Email:</strong> {userToDelete.email}</div>
+                  <div><strong>Rol:</strong> {roles[userToDelete.role] || userToDelete.role}</div>
+                </div>
+              </div>
+
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <Bell className="h-5 w-5 text-red-400" />
+                  </div>
+                  <div className="ml-3">
+                    <h4 className="text-sm font-medium text-red-800">
+                      Atención - Eliminación Permanente
+                    </h4>
+                    <div className="mt-2 text-sm text-red-700">
+                      <ul className="list-disc pl-5 space-y-1">
+                        <li>Se eliminará permanentemente del sistema</li>
+                        <li>Se perderá acceso a todas las funcionalidades</li>
+                        <li>No podrá recuperar su cuenta</li>
+                        <li>Los datos históricos se mantendrán para auditoría</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={confirmDeleteUser}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
+                >
+                  Sí, Eliminar Usuario
+                </button>
+                <button
+                  onClick={() => {
+                    setShowDeleteConfirmModal(false);
+                    setUserToDelete(null);
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Modal: Reasignación de Lead */}
         {showReassignModal && leadToReassign && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -2494,7 +2636,7 @@ export default function CRM() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">
-                    Seleccionar nuevo vendedor
+                    Seleccionar nuevo vendedor (solo vendedores activos)
                   </label>
                   <div className="space-y-2 max-h-64 overflow-y-auto">
                     {/* Opción para no asignar */}
@@ -2526,7 +2668,7 @@ export default function CRM() {
                       </div>
                     </div>
 
-                    {/* Lista de vendedores disponibles */}
+                    {/* Lista de vendedores disponibles - SOLO ACTIVOS */}
                     {getAvailableVendorsForReassign().map((vendedor: any) => {
                       const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
                       const vendedorVentas = vendedorLeads.filter(
@@ -2568,6 +2710,9 @@ export default function CRM() {
                                 <p className="text-xs text-gray-400">
                                   Equipo de {userById.get(vendedor.reportsTo)?.name || "—"}
                                 </p>
+                                <p className="text-xs text-green-600 font-medium">
+                                  ✓ Activo - Recibe leads nuevos
+                                </p>
                               </div>
                             </div>
                             {selectedVendorForReassign === vendedor.id && (
@@ -2584,7 +2729,7 @@ export default function CRM() {
                   {getAvailableVendorsForReassign().length === 0 && (
                     <div className="text-center py-8 bg-gray-50 rounded-lg border">
                       <p className="text-gray-500">
-                        No hay vendedores disponibles en tu scope para reasignar
+                        No hay vendedores activos disponibles en tu scope para reasignar
                       </p>
                     </div>
                   )}
@@ -2864,19 +3009,19 @@ export default function CRM() {
                         <>
                           {robertoManager && (
                             <div className="text-green-600">
-                              💬 Bot CM 1 → Equipo {robertoManager.name} automáticamente
+                              💬 Bot CM 1 → Equipo {robertoManager.name} automáticamente (solo activos)
                             </div>
                           )}
                           {danielManager && (
                             <div className="text-green-600">
-                              💬 Bot CM 2 → Equipo {danielManager.name} automáticamente
+                              💬 Bot CM 2 → Equipo {danielManager.name} automáticamente (solo activos)
                             </div>
                           )}
                           <div className="text-green-600">
-                            💬 Bot 100 → Distribución general
+                            💬 Bot 100 → Distribución general (solo activos)
                           </div>
                           <div className="text-gray-500">
-                            Otras fuentes → Asignación manual o scope actual
+                            Otras fuentes → Asignación manual o scope actual (solo activos)
                           </div>
                         </>
                       );
@@ -2927,7 +3072,7 @@ export default function CRM() {
                 </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Asignar a vendedor (opcional)
+                    Asignar a vendedor (opcional - solo vendedores activos)
                   </label>
                   <select
                     id="new-vendedor"
@@ -2937,13 +3082,14 @@ export default function CRM() {
                     {getVisibleUsers()
                       .filter((u: any) => u.role === "vendedor")
                       .map((u: any) => (
-                        <option key={u.id} value={u.id}>
-                          {u.name} {u.active ? "" : "(inactivo)"}
+                        <option key={u.id} value={u.id} disabled={!u.active}>
+                          {u.name} {u.active ? "✓ Activo" : "✗ Inactivo"}
                         </option>
                       ))}
                   </select>
                   <p className="text-xs text-gray-500 mt-1">
                     Si está tildado "Asignación automática", se ignorará esta selección.
+                    Solo se puede asignar a vendedores activos.
                   </p>
                 </div>
               </div>
@@ -3150,6 +3296,14 @@ export default function CRM() {
                     Usuario activo
                   </label>
                 </div>
+                {modalRole === "vendedor" && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-sm text-blue-700">
+                      <strong>Nota:</strong> Los vendedores desactivados pueden seguir usando el CRM 
+                      para gestionar sus leads existentes, pero no recibirán leads nuevos automáticamente.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="flex space-x-3 pt-6">
