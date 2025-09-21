@@ -14,6 +14,9 @@ import {
   Bell,
   UserCheck,
   Download,
+  Search,
+  Filter,
+  User,
 } from "lucide-react";
 import { api } from "./api";
 import {
@@ -258,6 +261,13 @@ export default function CRM() {
   const [selectedEstado, setSelectedEstado] = useState<string | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<string>("todos");
 
+  // NUEVO: Estados para búsqueda y filtrado de leads
+  const [searchText, setSearchText] = useState("");
+  const [selectedVendedorFilter, setSelectedVendedorFilter] = useState<number | null>(null);
+  const [selectedEstadoFilter, setSelectedEstadoFilter] = useState<string>("");
+  const [selectedFuenteFilter, setSelectedFuenteFilter] = useState<string>("");
+  const [showFilters, setShowFilters] = useState(false);
+
   // Estados para reasignación
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [leadToReassign, setLeadToReassign] = useState<LeadRow | null>(null);
@@ -271,7 +281,12 @@ export default function CRM() {
   // ===== Login contra backend =====
   const handleLogin = async (email: string, password: string) => {
     try {
-      const r = await api.post("/auth/login", { email, password });
+      // MODIFICADO: Enviar parámetro para permitir login de usuarios desactivados
+      const r = await api.post("/auth/login", { 
+        email, 
+        password, 
+        allowInactiveUsers: true // Permitir acceso a usuarios desactivados
+      });
 
       // Verificar respuesta exitosa
       if (r.data?.ok && r.data?.token) {
@@ -289,7 +304,7 @@ export default function CRM() {
             email,
             role: r.data?.user?.role || "owner",
             reportsTo: null,
-            active: true,
+            active: r.data?.user?.active ?? true, // IMPORTANTE: Mantener el estado real del usuario
           };
 
         setCurrentUser(u);
@@ -410,6 +425,69 @@ export default function CRM() {
 
       return false;
     });
+  };
+
+  // ===== NUEVA: Función para obtener leads filtrados y buscados =====
+  const getFilteredAndSearchedLeads = () => {
+    if (!currentUser) return [] as LeadRow[];
+
+    // Comenzar con leads base según scope
+    const visibleUserIds = getAccessibleUserIds(currentUser);
+    let filteredLeads = leads.filter((l) =>
+      l.vendedor ? visibleUserIds.includes(l.vendedor) : true
+    );
+
+    // Aplicar filtro por vendedor específico
+    if (selectedVendedorFilter) {
+      filteredLeads = filteredLeads.filter((l) => l.vendedor === selectedVendedorFilter);
+    }
+
+    // Aplicar filtro por estado
+    if (selectedEstadoFilter) {
+      filteredLeads = filteredLeads.filter((l) => l.estado === selectedEstadoFilter);
+    }
+
+    // Aplicar filtro por fuente
+    if (selectedFuenteFilter) {
+      filteredLeads = filteredLeads.filter((l) => l.fuente === selectedFuenteFilter);
+    }
+
+    // Aplicar búsqueda de texto
+    if (searchText.trim()) {
+      const searchLower = searchText.toLowerCase().trim();
+      filteredLeads = filteredLeads.filter((l) => {
+        const vendedor = l.vendedor ? userById.get(l.vendedor) : null;
+        return (
+          l.nombre.toLowerCase().includes(searchLower) ||
+          l.telefono.includes(searchText.trim()) ||
+          l.modelo.toLowerCase().includes(searchLower) ||
+          (l.notas && l.notas.toLowerCase().includes(searchLower)) ||
+          (vendedor && vendedor.name.toLowerCase().includes(searchLower)) ||
+          (l.formaPago && l.formaPago.toLowerCase().includes(searchLower)) ||
+          (l.infoUsado && l.infoUsado.toLowerCase().includes(searchLower))
+        );
+      });
+    }
+
+    return filteredLeads;
+  };
+
+  // ===== NUEVA: Función para limpiar filtros =====
+  const clearFilters = () => {
+    setSearchText("");
+    setSelectedVendedorFilter(null);
+    setSelectedEstadoFilter("");
+    setSelectedFuenteFilter("");
+  };
+
+  // ===== NUEVA: Función para contar leads activos por filtros =====
+  const getActiveFiltersCount = () => {
+    let count = 0;
+    if (searchText.trim()) count++;
+    if (selectedVendedorFilter) count++;
+    if (selectedEstadoFilter) count++;
+    if (selectedFuenteFilter) count++;
+    return count;
   };
 
   // ===== Función para obtener vendedores disponibles según el rol del usuario =====
@@ -1112,651 +1190,6 @@ export default function CRM() {
                 <p className="text-red-700 text-sm">{loginError}</p>
               </div>
             )}
-            <button
-              onClick={() =>
-                handleLogin(
-                  (document.getElementById("email") as HTMLInputElement).value,
-                  (document.getElementById("password") as HTMLInputElement).value
-                )
-              }
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700"
-            >
-              Iniciar Sesión
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ===== UI autenticada =====
-  return (
-    <div className="min-h-screen bg-gray-100 flex">
-      {/* Sidebar */}
-      <div className="bg-slate-900 text-white w-64 min-h-screen p-4">
-        <div className="mb-8">
-          <div className="flex items-center mb-4">
-            <div className="relative">
-              <svg width="40" height="36" viewBox="0 0 40 36" fill="none">
-                <path d="M10 2L30 2L35 12L30 22L10 22L5 12Z" fill="url(#gradient1)" />
-                <defs>
-                  <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#FFB800" />
-                    <stop offset="25%" stopColor="#FF6B9D" />
-                    <stop offset="50%" stopColor="#8B5CF6" />
-                    <stop offset="75%" stopColor="#06B6D4" />
-                    <stop offset="100%" stopColor="#10B981" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-2 h-2 bg-white rounded-full"></div>
-              </div>
-            </div>
-            <div className="ml-3">
-              <h1 className="text-xl font-bold text-white">Alluma</h1>
-              <p className="text-xs text-gray-400">Publicidad</p>
-            </div>
-          </div>
-
-          <div className="text-sm text-gray-300">
-            <p>{currentUser?.name || currentUser?.email}</p>
-            <p className="text-blue-300">
-              {roles[currentUser?.role] || currentUser?.role}
-            </p>
-            {/* NUEVO: Indicador si el usuario está desactivado */}
-            {!currentUser?.active && (
-              <p className="text-red-300 text-xs mt-1">
-                ⚠️ Usuario desactivado - No recibe leads nuevos
-              </p>
-            )}
-          </div>
-        </div>
-        <nav className="space-y-2">
-          {[
-            { key: "dashboard", label: "Dashboard", Icon: Home },
-            { key: "leads", label: "Leads", Icon: Users },
-            { key: "calendar", label: "Calendario", Icon: Calendar },
-            { key: "ranking", label: "Ranking", Icon: Trophy },
-            ...(["supervisor", "gerente", "director", "owner"].includes(currentUser?.role)
-              ? [{ key: "team", label: "Mi Equipo", Icon: UserCheck }]
-              : []),
-            ...(canManageUsers()
-              ? [{ key: "users", label: "Usuarios", Icon: Settings }]
-              : []),
-          ].map(({ key, label, Icon }) => (
-            <button
-              key={key}
-              onClick={() => setActiveSection(key as any)}
-              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
-                activeSection === (key as any)
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-300 hover:bg-slate-800"
-              }`}
-            >
-              <Icon size={20} />
-              <span>{label}</span>
-            </button>
-          ))}
-        </nav>
-      </div>
-
-      {/* Main */}
-      <div className="flex-1 p-6">
-        {/* Dashboard */}
-        {activeSection === "dashboard" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-bold text-gray-800">Dashboard</h2>
-              {["owner", "director"].includes(currentUser?.role) && (
-                <select
-                  value={selectedTeam}
-                  onChange={(e) => setSelectedTeam(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
-                >
-                  <option value="todos">Todos los equipos</option>
-                  {users
-                    .filter((u: any) => u.role === "gerente")
-                    .map((gerente: any) => (
-                      <option key={gerente.id} value={gerente.id.toString()}>
-                        Equipo {gerente.name}
-                      </option>
-                    ))}
-                </select>
-              )}
-            </div>
-
-            {/* NUEVO: Alerta si el usuario está desactivado */}
-            {!currentUser?.active && (
-              <div className="bg-orange-50 border-l-4 border-orange-400 p-4">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <Bell className="h-5 w-5 text-orange-400" />
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm text-orange-700">
-                      <strong>Usuario Desactivado:</strong> No recibirás nuevos leads automáticamente. 
-                      Solo podrás gestionar los leads que ya tienes asignados.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Estadísticas principales */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {(() => {
-                const teamFilter = ["owner", "director"].includes(currentUser?.role)
-                  ? selectedTeam
-                  : undefined;
-                const stats = getDashboardStats(teamFilter);
-                return (
-                  <>
-                    <div className="bg-white rounded-xl shadow-lg p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-gray-600">Total Leads</p>
-                          <p className="text-3xl font-bold text-gray-900">
-                            {stats.totalLeads}
-                          </p>
-                        </div>
-                        <div className="bg-blue-500 p-3 rounded-full">
-                          <Users className="h-6 w-6 text-white" />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-white rounded-xl shadow-lg p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-gray-600">Ventas</p>
-                          <p className="text-3xl font-bold text-green-600">
-                            {stats.vendidos}
-                          </p>
-                        </div>
-                        <div className="bg-green-500 p-3 rounded-full">
-                          <Trophy className="h-6 w-6 text-white" />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-white rounded-xl shadow-lg p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-gray-600">
-                            Conversión
-                          </p>
-                          <p className="text-3xl font-bold text-purple-600">
-                            {stats.conversion}%
-                          </p>
-                        </div>
-                        <div className="bg-purple-500 p-3 rounded-full">
-                          <BarChart3 className="h-6 w-6 text-white" />
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-
-            {/* Estados de Leads - NUEVA SECCIÓN EN DASHBOARD */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold text-gray-800">Estados de Leads</h3>
-                {["owner", "director"].includes(currentUser?.role) && (
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm text-gray-600">Descargar Excel:</span>
-                    <button
-                      onClick={() => {
-                        const teamFilter = ["owner", "director"].includes(currentUser?.role)
-                          ? selectedTeam
-                          : undefined;
-                        const filteredLeads = teamFilter && teamFilter !== "todos"
-                          ? getFilteredLeadsByTeam(teamFilter)
-                          : getFilteredLeads();
-                        downloadAllLeadsExcel(filteredLeads, userById, fuentes);
-                      }}
-                      className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 flex items-center space-x-1"
-                      title="Descargar Excel completo"
-                    >
-                      <Download size={12} />
-                      <span>Todos</span>
-                    </button>
-                  </div>
-                )}
-                {selectedEstado && (
-                  <button
-                    onClick={() => setSelectedEstado(null)}
-                    className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
-                  >
-                    <X size={16} />
-                    <span>Cerrar filtro</span>
-                  </button>
-                )}
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                {Object.entries(estados).map(([key, estado]) => {
-                  const teamFilter = ["owner", "director"].includes(currentUser?.role)
-                    ? selectedTeam
-                    : undefined;
-                  const filteredLeads = teamFilter && teamFilter !== "todos"
-                    ? getFilteredLeadsByTeam(teamFilter)
-                    : getFilteredLeads();
-                  const count = filteredLeads.filter((l) => l.estado === key).length;
-                  const percentage = filteredLeads.length > 0 
-                    ? ((count / filteredLeads.length) * 100).toFixed(1)
-                    : "0";
-                  
-                  return (
-                    <div key={key} className="relative group">
-                      <button
-                        onClick={() => setSelectedEstado(selectedEstado === key ? null : key)}
-                        className={`w-full text-center transition-all duration-200 transform hover:scale-105 ${
-                          selectedEstado === key ? "ring-4 ring-blue-300 ring-opacity-50" : ""
-                        }`}
-                        title={`Ver todos los leads en estado: ${estado.label}`}
-                      >
-                        <div className={`${estado.color} text-white rounded-lg p-4 mb-2 relative cursor-pointer hover:opacity-90 transition-opacity`}>
-                          <div className="text-2xl font-bold">{count}</div>
-                          <div className="text-xs opacity-75">{percentage}%</div>
-                          
-                          {/* Botón de descarga solo para owner y director */}
-                          {["owner", "director"].includes(currentUser?.role) && count > 0 && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const teamFilter = ["owner", "director"].includes(currentUser?.role)
-                                  ? selectedTeam
-                                  : undefined;
-                                const filteredLeads = teamFilter && teamFilter !== "todos"
-                                  ? getFilteredLeadsByTeam(teamFilter)
-                                  : getFilteredLeads();
-                                downloadLeadsByStateExcel(filteredLeads, key, userById, fuentes);
-                              }}
-                              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white bg-opacity-20 hover:bg-opacity-40 rounded p-1"
-                              title={`Descargar Excel: ${estado.label}`}
-                            >
-                              <Download size={12} />
-                            </button>
-                          )}
-                        </div>
-                      </button>
-                      <div className="text-sm text-gray-600 text-center font-medium">
-                        {estado.label}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Lista filtrada de leads por estado en Dashboard */}
-              {selectedEstado && (
-                <div className="mt-6 border-t pt-6">
-                  <h4 className="text-lg font-semibold text-gray-800 mb-4">
-                    Leads en estado:{" "}
-                    <span
-                      className={`px-3 py-1 rounded-full text-white text-sm ${
-                        estados[selectedEstado].color
-                      }`}
-                    >
-                      {estados[selectedEstado].label}
-                    </span>
-                  </h4>
-
-                  {(() => {
-                    const teamFilter = ["owner", "director"].includes(currentUser?.role)
-                      ? selectedTeam
-                      : undefined;
-                    const filteredLeads = teamFilter && teamFilter !== "todos"
-                      ? getFilteredLeadsByTeam(teamFilter)
-                      : getFilteredLeads();
-                    const leadsFiltrados = filteredLeads.filter(
-                      (l) => l.estado === selectedEstado
-                    );
-
-                    if (leadsFiltrados.length === 0) {
-                      return (
-                        <p className="text-gray-500 text-center py-8">
-                          No hay leads en estado "{estados[selectedEstado].label}"
-                        </p>
-                      );
-                    }
-
-                    return (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                Cliente
-                              </th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                Contacto
-                              </th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                Vehículo
-                              </th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                Fuente
-                              </th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                Vendedor
-                              </th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                Fecha
-                              </th>
-                              <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">
-                                Acciones
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-200">
-                            {leadsFiltrados.map((lead) => {
-                              const vendedor = lead.vendedor
-                                ? userById.get(lead.vendedor)
-                                : null;
-                              const canReassign =
-                                canManageUsers() ||
-                                (currentUser?.role === "supervisor" &&
-                                  lead.vendedor &&
-                                  getVisibleUsers().some((u: any) => u.id === lead.vendedor));
-                              
-                              return (
-                                <tr key={lead.id} className="hover:bg-gray-50">
-                                  <td className="px-4 py-2">
-                                    <div className="font-medium text-gray-900">
-                                      {lead.nombre}
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-2">
-                                    <div className="flex items-center space-x-1">
-                                      <Phone size={12} className="text-gray-400" />
-                                      <span className="text-gray-700">{lead.telefono}</span>
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-2">
-                                    <div>
-                                      <div className="font-medium text-gray-900">
-                                        {lead.modelo}
-                                      </div>
-                                      <div className="text-xs text-gray-500">
-                                        {lead.formaPago}
-                                      </div>
-                                      {lead.infoUsado && (
-                                        <div className="text-xs text-orange-600">
-                                          Usado: {lead.infoUsado}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-2">
-                                    <div className="flex items-center space-x-1">
-                                      <span className="text-sm">
-                                        {fuentes[lead.fuente as string]?.icon || "❓"}
-                                      </span>
-                                      <span className="text-xs text-gray-600">
-                                        {fuentes[lead.fuente as string]?.label ||
-                                          String(lead.fuente)}
-                                      </span>
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-2 text-gray-700">
-                                    {vendedor?.name || "Sin asignar"}
-                                  </td>
-                                  <td className="px-4 py-2 text-gray-500 text-xs">
-                                    {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
-                                  </td>
-                                  <td className="px-4 py-2 text-center">
-                                    <div className="flex items-center justify-center space-x-1">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setEditingLeadObservaciones(lead);
-                                          setShowObservacionesModal(true);
-                                        }}
-                                        className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                        title="Ver/Editar observaciones"
-                                      >
-                                        {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
-                                      </button>
-                                      {canReassign && (
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            openReassignModal(lead);
-                                          }}
-                                          className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
-                                          title="Reasignar lead"
-                                        >
-                                          Reasignar
-                                        </button>
-                                      )}
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setActiveSection("leads");
-                                        }}
-                                        className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                        title="Ver en tabla completa"
-                                      >
-                                        Ver
-                                      </button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-            </div>
-
-            {/* Métricas por fuente */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4">
-                Performance por Fuente
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {(() => {
-                  const teamFilter = ["owner", "director"].includes(currentUser?.role)
-                    ? selectedTeam
-                    : undefined;
-                  return getSourceMetrics(teamFilter).map((item) => (
-                    <div key={item.source} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <span className="text-lg">{item.icon}</span>
-                        <span className="font-medium text-gray-900">{item.label}</span>
-                      </div>
-                      <div className="space-y-1 text-sm">
-                        <div className="flex justify-between">
-                          <span>Total:</span>
-                          <span className="font-semibold">{item.total}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Ventas:</span>
-                          <span className="font-semibold text-green-600">{item.vendidos}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Conversión:</span>
-                          <span className="font-semibold text-purple-600">
-                            {item.conversion}%
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ));
-                })()}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Leads */}
-        {activeSection === "leads" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-bold text-gray-800">Gestión de Leads</h2>
-              <button
-                onClick={() => setShowNewLeadModal(true)}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <Plus size={20} />
-                <span>Nuevo Lead</span>
-              </button>
-            </div>
-
-            {/* Tabla de leads */}
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Cliente
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Contacto
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Vehículo
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Estado
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Fuente
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Vendedor
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Fecha
-                      </th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
-                        Acciones
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {getFilteredLeads().map((lead) => {
-                      const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
-                      const canReassign =
-                        canManageUsers() ||
-                        (currentUser?.role === "supervisor" &&
-                          lead.vendedor &&
-                          getVisibleUsers().some((u: any) => u.id === lead.vendedor));
-
-                      return (
-                        <tr key={lead.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-4">
-                            <div className="font-medium text-gray-900">{lead.nombre}</div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="flex items-center space-x-1">
-                              <Phone size={12} className="text-gray-400" />
-                              <span className="text-gray-700">{lead.telefono}</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div>
-                              <div className="font-medium text-gray-900">{lead.modelo}</div>
-                              <div className="text-xs text-gray-500">{lead.formaPago}</div>
-                              {lead.infoUsado && (
-                                <div className="text-xs text-orange-600">
-                                  Usado: {lead.infoUsado}
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <select
-                              value={lead.estado}
-                              onChange={(e) =>
-                                handleUpdateLeadStatus(lead.id, e.target.value)
-                              }
-                              className={`text-xs font-medium rounded-full px-2 py-1 border-0 text-white ${estados[lead.estado].color}`}
-                            >
-                              {Object.entries(estados).map(([key, estado]) => (
-                                <option key={key} value={key} className="text-black">
-                                  {estado.label}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="flex items-center space-x-1">
-                              <span className="text-sm">
-                                {fuentes[lead.fuente as string]?.icon || "❓"}
-                              </span>
-                              <span className="text-xs text-gray-600">
-                                {fuentes[lead.fuente as string]?.label || String(lead.fuente)}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-4 text-gray-700">
-                            <div>
-                              {vendedor?.name || "Sin asignar"}
-                              {/* NUEVO: Indicador de vendedor desactivado */}
-                              {vendedor && !vendedor.active && (
-                                <div className="text-xs text-red-600">
-                                  (Desactivado)
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-4 py-4 text-gray-500 text-xs">
-                            {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
-                          </td>
-                          <td className="px-4 py-4 text-center">
-                            <div className="flex items-center justify-center space-x-1">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingLeadObservaciones(lead);
-                                  setShowObservacionesModal(true);
-                                }}
-                                className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                title="Ver/Editar observaciones"
-                              >
-                                {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
-                              </button>
-                              {canReassign && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openReassignModal(lead);
-                                  }}
-                                  className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
-                                  title="Reasignar lead"
-                                >
-                                  Reasignar
-                                </button>
-                              )}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setViewingLeadHistorial(lead);
-                                  setShowHistorialModal(true);
-                                }}
-                                className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                title="Ver historial"
-                              >
-                                Historial
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Sección Calendario */}
         {activeSection === "calendar" && (
@@ -2505,6 +1938,7 @@ export default function CRM() {
           </div>
         )}
 
+        {/* Modales aquí... */}
         {/* NUEVO: Modal de Confirmación para Eliminar Usuario */}
         {showDeleteConfirmModal && userToDelete && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -3327,3 +2761,782 @@ export default function CRM() {
     </div>
   );
 }
+            <button
+              onClick={() =>
+                handleLogin(
+                  (document.getElementById("email") as HTMLInputElement).value,
+                  (document.getElementById("password") as HTMLInputElement).value
+                )
+              }
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700"
+            >
+              Iniciar Sesión
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ===== UI autenticada =====
+  return (
+    <div className="min-h-screen bg-gray-100 flex">
+      {/* Sidebar */}
+      <div className="bg-slate-900 text-white w-64 min-h-screen p-4">
+        <div className="mb-8">
+          <div className="flex items-center mb-4">
+            <div className="relative">
+              <svg width="40" height="36" viewBox="0 0 40 36" fill="none">
+                <path d="M10 2L30 2L35 12L30 22L10 22L5 12Z" fill="url(#gradient1)" />
+                <defs>
+                  <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#FFB800" />
+                    <stop offset="25%" stopColor="#FF6B9D" />
+                    <stop offset="50%" stopColor="#8B5CF6" />
+                    <stop offset="75%" stopColor="#06B6D4" />
+                    <stop offset="100%" stopColor="#10B981" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-2 h-2 bg-white rounded-full"></div>
+              </div>
+            </div>
+            <div className="ml-3">
+              <h1 className="text-xl font-bold text-white">Alluma</h1>
+              <p className="text-xs text-gray-400">Publicidad</p>
+            </div>
+          </div>
+
+          <div className="text-sm text-gray-300">
+            <p>{currentUser?.name || currentUser?.email}</p>
+            <p className="text-blue-300">
+              {roles[currentUser?.role] || currentUser?.role}
+            </p>
+            {/* NUEVO: Indicador si el usuario está desactivado */}
+            {!currentUser?.active && (
+              <p className="text-red-300 text-xs mt-1">
+                ⚠️ Usuario desactivado - No recibe leads nuevos
+              </p>
+            )}
+          </div>
+        </div>
+        <nav className="space-y-2">
+          {[
+            { key: "dashboard", label: "Dashboard", Icon: Home },
+            { key: "leads", label: "Leads", Icon: Users },
+            { key: "calendar", label: "Calendario", Icon: Calendar },
+            { key: "ranking", label: "Ranking", Icon: Trophy },
+            ...(["supervisor", "gerente", "director", "owner"].includes(currentUser?.role)
+              ? [{ key: "team", label: "Mi Equipo", Icon: UserCheck }]
+              : []),
+            ...(canManageUsers()
+              ? [{ key: "users", label: "Usuarios", Icon: Settings }]
+              : []),
+          ].map(({ key, label, Icon }) => (
+            <button
+              key={key}
+              onClick={() => setActiveSection(key as any)}
+              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                activeSection === (key as any)
+                  ? "bg-blue-600 text-white"
+                  : "text-gray-300 hover:bg-slate-800"
+              }`}
+            >
+              <Icon size={20} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* Main */}
+      <div className="flex-1 p-6">
+        {/* Dashboard */}
+        {activeSection === "dashboard" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-bold text-gray-800">Dashboard</h2>
+              {["owner", "director"].includes(currentUser?.role) && (
+                <select
+                  value={selectedTeam}
+                  onChange={(e) => setSelectedTeam(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                >
+                  <option value="todos">Todos los equipos</option>
+                  {users
+                    .filter((u: any) => u.role === "gerente")
+                    .map((gerente: any) => (
+                      <option key={gerente.id} value={gerente.id.toString()}>
+                        Equipo {gerente.name}
+                      </option>
+                    ))}
+                </select>
+              )}
+            </div>
+
+            {/* NUEVO: Alerta si el usuario está desactivado */}
+            {!currentUser?.active && (
+              <div className="bg-orange-50 border-l-4 border-orange-400 p-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <Bell className="h-5 w-5 text-orange-400" />
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-orange-700">
+                      <strong>Usuario Desactivado:</strong> No recibirás nuevos leads automáticamente. 
+                      Solo podrás gestionar los leads que ya tienes asignados.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Estadísticas principales */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {(() => {
+                const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                  ? selectedTeam
+                  : undefined;
+                const stats = getDashboardStats(teamFilter);
+                return (
+                  <>
+                    <div className="bg-white rounded-xl shadow-lg p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-600">Total Leads</p>
+                          <p className="text-3xl font-bold text-gray-900">
+                            {stats.totalLeads}
+                          </p>
+                        </div>
+                        <div className="bg-blue-500 p-3 rounded-full">
+                          <Users className="h-6 w-6 text-white" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-xl shadow-lg p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-600">Ventas</p>
+                          <p className="text-3xl font-bold text-green-600">
+                            {stats.vendidos}
+                          </p>
+                        </div>
+                        <div className="bg-green-500 p-3 rounded-full">
+                          <Trophy className="h-6 w-6 text-white" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-xl shadow-lg p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-600">
+                            Conversión
+                          </p>
+                          <p className="text-3xl font-bold text-purple-600">
+                            {stats.conversion}%
+                          </p>
+                        </div>
+                        <div className="bg-purple-500 p-3 rounded-full">
+                          <BarChart3 className="h-6 w-6 text-white" />
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+
+            {/* Estados de Leads - NUEVA SECCIÓN EN DASHBOARD */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold text-gray-800">Estados de Leads</h3>
+                {["owner", "director"].includes(currentUser?.role) && (
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-gray-600">Descargar Excel:</span>
+                    <button
+                      onClick={() => {
+                        const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                          ? selectedTeam
+                          : undefined;
+                        const filteredLeads = teamFilter && teamFilter !== "todos"
+                          ? getFilteredLeadsByTeam(teamFilter)
+                          : getFilteredLeads();
+                        downloadAllLeadsExcel(filteredLeads, userById, fuentes);
+                      }}
+                      className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 flex items-center space-x-1"
+                      title="Descargar Excel completo"
+                    >
+                      <Download size={12} />
+                      <span>Todos</span>
+                    </button>
+                  </div>
+                )}
+                {selectedEstado && (
+                  <button
+                    onClick={() => setSelectedEstado(null)}
+                    className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
+                  >
+                    <X size={16} />
+                    <span>Cerrar filtro</span>
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                {Object.entries(estados).map(([key, estado]) => {
+                  const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                    ? selectedTeam
+                    : undefined;
+                  const filteredLeads = teamFilter && teamFilter !== "todos"
+                    ? getFilteredLeadsByTeam(teamFilter)
+                    : getFilteredLeads();
+                  const count = filteredLeads.filter((l) => l.estado === key).length;
+                  const percentage = filteredLeads.length > 0 
+                    ? ((count / filteredLeads.length) * 100).toFixed(1)
+                    : "0";
+                  
+                  return (
+                    <div key={key} className="relative group">
+                      <button
+                        onClick={() => setSelectedEstado(selectedEstado === key ? null : key)}
+                        className={`w-full text-center transition-all duration-200 transform hover:scale-105 ${
+                          selectedEstado === key ? "ring-4 ring-blue-300 ring-opacity-50" : ""
+                        }`}
+                        title={`Ver todos los leads en estado: ${estado.label}`}
+                      >
+                        <div className={`${estado.color} text-white rounded-lg p-4 mb-2 relative cursor-pointer hover:opacity-90 transition-opacity`}>
+                          <div className="text-2xl font-bold">{count}</div>
+                          <div className="text-xs opacity-75">{percentage}%</div>
+                          
+                          {/* Botón de descarga solo para owner y director */}
+                          {["owner", "director"].includes(currentUser?.role) && count > 0 && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                                  ? selectedTeam
+                                  : undefined;
+                                const filteredLeads = teamFilter && teamFilter !== "todos"
+                                  ? getFilteredLeadsByTeam(teamFilter)
+                                  : getFilteredLeads();
+                                downloadLeadsByStateExcel(filteredLeads, key, userById, fuentes);
+                              }}
+                              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white bg-opacity-20 hover:bg-opacity-40 rounded p-1"
+                              title={`Descargar Excel: ${estado.label}`}
+                            >
+                              <Download size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </button>
+                      <div className="text-sm text-gray-600 text-center font-medium">
+                        {estado.label}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Lista filtrada de leads por estado en Dashboard */}
+              {selectedEstado && (
+                <div className="mt-6 border-t pt-6">
+                  <h4 className="text-lg font-semibold text-gray-800 mb-4">
+                    Leads en estado:{" "}
+                    <span
+                      className={`px-3 py-1 rounded-full text-white text-sm ${
+                        estados[selectedEstado].color
+                      }`}
+                    >
+                      {estados[selectedEstado].label}
+                    </span>
+                  </h4>
+
+                  {(() => {
+                    const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                      ? selectedTeam
+                      : undefined;
+                    const filteredLeads = teamFilter && teamFilter !== "todos"
+                      ? getFilteredLeadsByTeam(teamFilter)
+                      : getFilteredLeads();
+                    const leadsFiltrados = filteredLeads.filter(
+                      (l) => l.estado === selectedEstado
+                    );
+
+                    if (leadsFiltrados.length === 0) {
+                      return (
+                        <p className="text-gray-500 text-center py-8">
+                          No hay leads en estado "{estados[selectedEstado].label}"
+                        </p>
+                      );
+                    }
+
+                    return (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Cliente
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Contacto
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Vehículo
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Fuente
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Vendedor
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Fecha
+                              </th>
+                              <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">
+                                Acciones
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {leadsFiltrados.map((lead) => {
+                              const vendedor = lead.vendedor
+                                ? userById.get(lead.vendedor)
+                                : null;
+                              const canReassign =
+                                canManageUsers() ||
+                                (currentUser?.role === "supervisor" &&
+                                  lead.vendedor &&
+                                  getVisibleUsers().some((u: any) => u.id === lead.vendedor));
+                              
+                              return (
+                                <tr key={lead.id} className="hover:bg-gray-50">
+                                  <td className="px-4 py-2">
+                                    <div className="font-medium text-gray-900">
+                                      {lead.nombre}
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2">
+                                    <div className="flex items-center space-x-1">
+                                      <Phone size={12} className="text-gray-400" />
+                                      <span className="text-gray-700">{lead.telefono}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2">
+                                    <div>
+                                      <div className="font-medium text-gray-900">
+                                        {lead.modelo}
+                                      </div>
+                                      <div className="text-xs text-gray-500">
+                                        {lead.formaPago}
+                                      </div>
+                                      {lead.infoUsado && (
+                                        <div className="text-xs text-orange-600">
+                                          Usado: {lead.infoUsado}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2">
+                                    <div className="flex items-center space-x-1">
+                                      <span className="text-sm">
+                                        {fuentes[lead.fuente as string]?.icon || "❓"}
+                                      </span>
+                                      <span className="text-xs text-gray-600">
+                                        {fuentes[lead.fuente as string]?.label ||
+                                          String(lead.fuente)}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2 text-gray-700">
+                                    {vendedor?.name || "Sin asignar"}
+                                  </td>
+                                  <td className="px-4 py-2 text-gray-500 text-xs">
+                                    {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
+                                  </td>
+                                  <td className="px-4 py-2 text-center">
+                                    <div className="flex items-center justify-center space-x-1">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEditingLeadObservaciones(lead);
+                                          setShowObservacionesModal(true);
+                                        }}
+                                        className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                        title="Ver/Editar observaciones"
+                                      >
+                                        {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
+                                      </button>
+                                      {canReassign && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            openReassignModal(lead);
+                                          }}
+                                          className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
+                                          title="Reasignar lead"
+                                        >
+                                          Reasignar
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setActiveSection("leads");
+                                        }}
+                                        className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                        title="Ver en tabla completa"
+                                      >
+                                        Ver
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+
+            {/* Métricas por fuente */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h3 className="text-xl font-semibold text-gray-800 mb-4">
+                Performance por Fuente
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {(() => {
+                  const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                    ? selectedTeam
+                    : undefined;
+                  return getSourceMetrics(teamFilter).map((item) => (
+                    <div key={item.source} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <span className="text-lg">{item.icon}</span>
+                        <span className="font-medium text-gray-900">{item.label}</span>
+                      </div>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span>Total:</span>
+                          <span className="font-semibold">{item.total}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Ventas:</span>
+                          <span className="font-semibold text-green-600">{item.vendidos}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Conversión:</span>
+                          <span className="font-semibold text-purple-600">
+                            {item.conversion}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Leads */}
+        {activeSection === "leads" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-bold text-gray-800">Gestión de Leads</h2>
+              <button
+                onClick={() => setShowNewLeadModal(true)}
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                <Plus size={20} />
+                <span>Nuevo Lead</span>
+              </button>
+            </div>
+
+            {/* NUEVA: Barra de búsqueda y filtros */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="flex flex-col lg:flex-row gap-4">
+                {/* Búsqueda de texto */}
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                    <input
+                      type="text"
+                      placeholder="Buscar por cliente, teléfono, modelo, vendedor, observaciones..."
+                      value={searchText}
+                      onChange={(e) => setSearchText(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Botón para mostrar/ocultar filtros */}
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={() => setShowFilters(!showFilters)}
+                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg border transition-colors ${
+                      showFilters || getActiveFiltersCount() > 0
+                        ? "bg-blue-100 border-blue-300 text-blue-700"
+                        : "bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100"
+                    }`}
+                  >
+                    <Filter size={20} />
+                    <span>Filtros</span>
+                    {getActiveFiltersCount() > 0 && (
+                      <span className="bg-blue-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
+                        {getActiveFiltersCount()}
+                      </span>
+                    )}
+                  </button>
+
+                  {getActiveFiltersCount() > 0 && (
+                    <button
+                      onClick={clearFilters}
+                      className="flex items-center space-x-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+                    >
+                      <X size={16} />
+                      <span>Limpiar</span>
+                    </button>
+                  )}
+
+                  <div className="text-sm text-gray-600">
+                    <span className="font-medium">{getFilteredAndSearchedLeads().length}</span> leads encontrados
+                  </div>
+                </div>
+              </div>
+
+              {/* Panel de filtros expandible */}
+              {showFilters && (
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Filtro por vendedor */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <User size={16} className="inline mr-1" />
+                        Vendedor
+                      </label>
+                      <select
+                        value={selectedVendedorFilter || ""}
+                        onChange={(e) => setSelectedVendedorFilter(e.target.value ? parseInt(e.target.value, 10) : null)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Todos los vendedores</option>
+                        <option value="0">Sin asignar</option>
+                        {getVisibleUsers()
+                          .filter((u: any) => u.role === "vendedor")
+                          .map((vendedor: any) => {
+                            const leadsCount = leads.filter(l => l.vendedor === vendedor.id).length;
+                            return (
+                              <option key={vendedor.id} value={vendedor.id}>
+                                {vendedor.name} ({leadsCount} leads) {!vendedor.active ? " - Inactivo" : ""}
+                              </option>
+                            );
+                          })}
+                      </select>
+                    </div>
+
+                    {/* Filtro por estado */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Estado
+                      </label>
+                      <select
+                        value={selectedEstadoFilter}
+                        onChange={(e) => setSelectedEstadoFilter(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Todos los estados</option>
+                        {Object.entries(estados).map(([key, estado]) => (
+                          <option key={key} value={key}>
+                            {estado.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Filtro por fuente */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Fuente
+                      </label>
+                      <select
+                        value={selectedFuenteFilter}
+                        onChange={(e) => setSelectedFuenteFilter(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Todas las fuentes</option>
+                        {Object.entries(fuentes).map(([key, fuente]) => (
+                          <option key={key} value={key}>
+                            {fuente.icon} {fuente.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Tabla de leads con búsqueda y filtros aplicados */}
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Cliente
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Contacto
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Vehículo
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Estado
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Fuente
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Vendedor
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Fecha
+                      </th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {getFilteredAndSearchedLeads().length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                          {searchText.trim() || selectedVendedorFilter || selectedEstadoFilter || selectedFuenteFilter
+                            ? "No se encontraron leads que coincidan con los filtros aplicados"
+                            : "No hay leads para mostrar"}
+                        </td>
+                      </tr>
+                    ) : (
+                      getFilteredAndSearchedLeads().map((lead) => {
+                        const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
+                        const canReassign =
+                          canManageUsers() ||
+                          (currentUser?.role === "supervisor" &&
+                            lead.vendedor &&
+                            getVisibleUsers().some((u: any) => u.id === lead.vendedor));
+
+                        return (
+                          <tr key={lead.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-4">
+                              <div className="font-medium text-gray-900">{lead.nombre}</div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center space-x-1">
+                                <Phone size={12} className="text-gray-400" />
+                                <span className="text-gray-700">{lead.telefono}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <div>
+                                <div className="font-medium text-gray-900">{lead.modelo}</div>
+                                <div className="text-xs text-gray-500">{lead.formaPago}</div>
+                                {lead.infoUsado && (
+                                  <div className="text-xs text-orange-600">
+                                    Usado: {lead.infoUsado}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <select
+                                value={lead.estado}
+                                onChange={(e) =>
+                                  handleUpdateLeadStatus(lead.id, e.target.value)
+                                }
+                                className={`text-xs font-medium rounded-full px-2 py-1 border-0 text-white ${estados[lead.estado].color}`}
+                              >
+                                {Object.entries(estados).map(([key, estado]) => (
+                                  <option key={key} value={key} className="text-black">
+                                    {estado.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center space-x-1">
+                                <span className="text-sm">
+                                  {fuentes[lead.fuente as string]?.icon || "❓"}
+                                </span>
+                                <span className="text-xs text-gray-600">
+                                  {fuentes[lead.fuente as string]?.label || String(lead.fuente)}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4 text-gray-700">
+                              <div>
+                                {vendedor?.name || "Sin asignar"}
+                                {/* NUEVO: Indicador de vendedor desactivado */}
+                                {vendedor && !vendedor.active && (
+                                  <div className="text-xs text-red-600">
+                                    (Desactivado)
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-4 text-gray-500 text-xs">
+                              {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
+                            </td>
+                            <td className="px-4 py-4 text-center">
+                              <div className="flex items-center justify-center space-x-1">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingLeadObservaciones(lead);
+                                    setShowObservacionesModal(true);
+                                  }}
+                                  className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                  title="Ver/Editar observaciones"
+                                >
+                                  {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
+                                </button>
+                                {canReassign && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openReassignModal(lead);
+                                    }}
+                                    className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
+                                    title="Reasignar lead"
+                                  >
+                                    Reasignar
+                                  </button>
+                                )}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setViewingLeadHistorial(lead);
+                                    setShowHistorialModal(true);
+                                  }}
+                                  className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                  title="Ver historial"
+                                >
+                                  Historial
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
