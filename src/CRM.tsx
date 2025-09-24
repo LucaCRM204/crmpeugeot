@@ -1,1199 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Calendar,
-  Users,
-  Trophy,
-  Plus,
-  Phone,
-  BarChart3,
-  Settings,
-  Home,
-  X,
-  Trash2,
-  Edit3,
-  Bell,
-  UserCheck,
-  Download,
-  Search,
-  Filter,
-  User,
-} from "lucide-react";
-import { api } from "./api";
-import {
-  listUsers,
-  createUser as apiCreateUser,
-  updateUser as apiUpdateUser,
-  deleteUser as apiDeleteUser,
-} from "./services/users";
-import {
-  listLeads,
-  createLead as apiCreateLead,
-  updateLead as apiUpdateLead,
-} from "./services/leads";
-
-// ===== Utilidades de jerarquía =====
-function buildIndex(users: any[]) {
-  const byId = new Map(users.map((u: any) => [u.id, u]));
-  const children = new Map<number, number[]>();
-  users.forEach((u: any) => children.set(u.id, []));
-  users.forEach((u: any) => {
-    if (u.reportsTo) (children.get(u.reportsTo) as number[] | undefined)?.push(u.id);
-  });
-  return { byId, children };
-}
-
-function getDescendantUserIds(
-  rootId: number,
-  childrenIndex: Map<number, number[]>
-) {
-  const out: number[] = [];
-  const stack = [...(childrenIndex.get(rootId) || [])];
-  while (stack.length) {
-    const id = stack.pop()!;
-    out.push(id);
-    const kids = childrenIndex.get(id) || [];
-    for (const k of kids) stack.push(k);
-  }
-  return out;
-}
-
-const roles: Record<string, string> = {
-  owner: "Dueño",
-  director: "Director",
-  gerente: "Gerente",
-  supervisor: "Supervisor",
-  vendedor: "Vendedor",
-};
-
-const estados: Record<string, { label: string; color: string }> = {
-  nuevo: { label: "Nuevo", color: "bg-blue-500" },
-  contactado: { label: "Contactado", color: "bg-yellow-500" },
-  interesado: { label: "Interesado", color: "bg-orange-500" },
-  negociacion: { label: "Negociación", color: "bg-purple-500" },
-  vendido: { label: "Vendido", color: "bg-green-600" },
-  perdido: { label: "Perdido", color: "bg-red-500" },
-  numero_invalido: { label: "Número inválido", color: "bg-gray-500" },
-  no_contesta_1: { label: "No contesta 1", color: "bg-amber-500" },
-  no_contesta_2: { label: "No contesta 2", color: "bg-orange-600" },
-  no_contesta_3: { label: "No contesta 3", color: "bg-red-600" },
-};
-
-const fuentes: Record<
-  string,
-  { label: string; color: string; icon: string }
-> = {
-  meta: { label: "Meta/Facebook", color: "bg-blue-600", icon: "📱" },
-  whatsapp: { label: "WhatsApp Bot", color: "bg-green-500", icon: "💬" },
-  whatsapp_100: { label: "WhatsApp Bot 100", color: "bg-green-700", icon: "💬" },
-  sitio_web: { label: "Sitio Web", color: "bg-purple-600", icon: "🌐" },
-  referido: { label: "Referido", color: "bg-orange-500", icon: "👥" },
-  telefono: { label: "Llamada", color: "bg-indigo-500", icon: "📞" },
-  showroom: { label: "Showroom", color: "bg-gray-600", icon: "🏢" },
-  google: { label: "Google Ads", color: "bg-red-500", icon: "🎯" },
-  instagram: { label: "Instagram", color: "bg-pink-500", icon: "📸" },
-  otro: { label: "Otro", color: "bg-gray-400", icon: "❓" },
-};
-
-// Configuración de bots
-const botConfig: Record<string, { targetTeam: string | null; label: string }> =
-  {
-    whatsapp_bot_cm1: { targetTeam: "sauer", label: "Bot CM 1" },
-    whatsapp_bot_cm2: { targetTeam: "daniel", label: "Bot CM 2" },
-    whatsapp_100: { targetTeam: null, label: "Bot 100" }, // null = distribución general
-  };
-
-type LeadRow = {
-  id: number;
-  nombre: string;
-  telefono: string;
-  modelo: string;
-  formaPago?: string;
-  infoUsado?: string;
-  entrega?: boolean;
-  fecha?: string;
-  estado: keyof typeof estados;
-  vendedor: number | null;
-  notas?: string;
-  fuente: keyof typeof fuentes | string;
-  historial?: Array<{
-    estado: string;
-    timestamp: string;
-    usuario: string;
-  }>;
-};
-
-type Alert = {
-  id: number;
-  userId: number;
-  type: "lead_assigned" | "ranking_change";
-  message: string;
-  ts: string;
-  read: boolean;
-};
-
-// ===== Funciones de descarga Excel =====
-const formatDate = (dateString: string): string => {
-  if (!dateString) return "Sin fecha";
-  const date = new Date(dateString);
-  return date.toLocaleDateString("es-AR");
-};
-
-const downloadAllLeadsExcel = (leads: LeadRow[], userById: Map<number, any>, fuentes: any): void => {
-  // Crear datos para Excel
-  const excelData = leads.map(lead => {
-    const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
-    const fuente = fuentes[lead.fuente] || { label: lead.fuente };
-    
-    return {
-      'ID': lead.id,
-      'Cliente': lead.nombre,
-      'Teléfono': lead.telefono,
-      'Modelo': lead.modelo,
-      'Forma de Pago': lead.formaPago || '',
-      'Info Usado': lead.infoUsado || '',
-      'Entrega': lead.entrega ? 'Sí' : 'No',
-      'Estado': estados[lead.estado]?.label || lead.estado,
-      'Fuente': fuente.label,
-      'Vendedor': vendedor?.name || 'Sin asignar',
-      'Equipo': vendedor && vendedor.reportsTo ? `Equipo de ${userById.get(vendedor.reportsTo)?.name || '—'}` : '',
-      'Fecha': formatDate(lead.fecha || ''),
-      'Observaciones': lead.notas || ''
-    };
-  });
-
-  // Crear contenido CSV
-  const headers = Object.keys(excelData[0] || {});
-  const csvContent = [
-    headers.join(','),
-    ...excelData.map(row => 
-      headers.map(header => {
-        const value = (row as any)[header] || '';
-        // Escapar comillas y comas
-        return `"${String(value).replace(/"/g, '""')}"`;
-      }).join(',')
-    )
-  ].join('\n');
-
-  // Crear y descargar archivo
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  const url = URL.createObjectURL(blob);
-  link.setAttribute('href', url);
-  link.setAttribute('download', `todos_los_leads_${new Date().toISOString().slice(0,10)}.csv`);
-  link.style.visibility = 'hidden';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
-
-const downloadLeadsByStateExcel = (leads: LeadRow[], estado: string, userById: Map<number, any>, fuentes: any): void => {
-  const leadsByState = leads.filter(l => l.estado === estado);
-
-  if (leadsByState.length === 0) {
-    alert(`No hay leads en estado "${estados[estado]?.label || estado}"`);
-    return;
-  }
-
-  // Crear datos para Excel
-  const excelData = leadsByState.map(lead => {
-    const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
-    const fuente = fuentes[lead.fuente] || { label: lead.fuente };
-    
-    return {
-      'ID': lead.id,
-      'Cliente': lead.nombre,
-      'Teléfono': lead.telefono,
-      'Modelo': lead.modelo,
-      'Forma de Pago': lead.formaPago || '',
-      'Info Usado': lead.infoUsado || '',
-      'Entrega': lead.entrega ? 'Sí' : 'No',
-      'Fuente': fuente.label,
-      'Vendedor': vendedor?.name || 'Sin asignar',
-      'Equipo': vendedor && vendedor.reportsTo ? `Equipo de ${userById.get(vendedor.reportsTo)?.name || '—'}` : '',
-      'Fecha': formatDate(lead.fecha || ''),
-      'Observaciones': lead.notas || '',
-      'Historial': lead.historial?.map(h => 
-        `${formatDate(h.timestamp)}: ${h.estado} (${h.usuario})`
-      ).join(' | ') || ''
-    };
-  });
-
-  // Crear contenido CSV
-  const headers = Object.keys(excelData[0] || {});
-  const csvContent = [
-    headers.join(','),
-    ...excelData.map(row => 
-      headers.map(header => {
-        const value = (row as any)[header] || '';
-        // Escapar comillas y comas
-        return `"${String(value).replace(/"/g, '""')}"`;
-      }).join(',')
-    )
-  ].join('\n');
-
-  // Crear y descargar archivo
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  const url = URL.createObjectURL(blob);
-  link.setAttribute('href', url);
-  const estadoLabel = estados[estado]?.label || estado;
-  link.setAttribute('download', `leads_${estadoLabel.toLowerCase().replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.csv`);
-  link.style.visibility = 'hidden';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
-
-export default function CRM() {
-  const [users, setUsers] = useState<any[]>([]);
-  const [leads, setLeads] = useState<LeadRow[]>([]);
-  const { byId: userById, children: childrenIndex } = useMemo(
-    () => buildIndex(users),
-    [users]
-  );
-
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [activeSection, setActiveSection] = useState<
-    "dashboard" | "leads" | "calendar" | "ranking" | "users" | "alerts" | "team"
-  >("dashboard");
-  const [loginError, setLoginError] = useState("");
-  const [selectedEstado, setSelectedEstado] = useState<string | null>(null);
-  const [selectedTeam, setSelectedTeam] = useState<string>("todos");
-
-  // NUEVO: Estados para búsqueda y filtrado de leads
-  const [searchText, setSearchText] = useState("");
-  const [selectedVendedorFilter, setSelectedVendedorFilter] = useState<number | null>(null);
-  const [selectedEstadoFilter, setSelectedEstadoFilter] = useState<string>("");
-  const [selectedFuenteFilter, setSelectedFuenteFilter] = useState<string>("");
-  const [showFilters, setShowFilters] = useState(false);
-
-  // Estados para reasignación
-  const [showReassignModal, setShowReassignModal] = useState(false);
-  const [leadToReassign, setLeadToReassign] = useState<LeadRow | null>(null);
-  const [selectedVendorForReassign, setSelectedVendorForReassign] =
-    useState<number | null>(null);
-
-  // Estados para confirmación de eliminación
-  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
-  const [userToDelete, setUserToDelete] = useState<any>(null);
-
-  // ===== Login contra backend =====
-  const handleLogin = async (email: string, password: string) => {
-    try {
-      // MODIFICADO: Enviar parámetro para permitir login de usuarios desactivados
-      const r = await api.post("/auth/login", { 
-        email, 
-        password, 
-        allowInactiveUsers: true // Permitir acceso a usuarios desactivados
-      });
-
-      // Verificar respuesta exitosa
-      if (r.data?.ok && r.data?.token) {
-        // Guardar token
-        localStorage.setItem("token", r.data.token);
-        localStorage.setItem("user", JSON.stringify(r.data.user));
-
-        // Configurar axios para futuras peticiones
-        api.defaults.headers.common["Authorization"] = `Bearer ${r.data.token}`;
-
-        const u =
-          r.data.user || {
-            id: 0,
-            name: r.data?.user?.email || email,
-            email,
-            role: r.data?.user?.role || "owner",
-            reportsTo: null,
-            active: r.data?.user?.active ?? true, // IMPORTANTE: Mantener el estado real del usuario
-          };
-
-        setCurrentUser(u);
-        setIsAuthenticated(true);
-        setLoginError("");
-
-        // Cargar datos
-        const [uu, ll] = await Promise.all([listUsers(), listLeads()]);
-        const mappedLeads: LeadRow[] = (ll || []).map((L: any) => ({
-          id: L.id,
-          nombre: L.nombre,
-          telefono: L.telefono,
-          modelo: L.modelo,
-          formaPago: L.formaPago,
-          infoUsado: L.infoUsado,
-          entrega: L.entrega,
-          fecha: L.fecha || L.created_at || "",
-          estado: (L.estado || "nuevo") as LeadRow["estado"],
-          vendedor: L.assigned_to ?? null,
-          notas: L.notas || "",
-          fuente: (L.fuente || "otro") as LeadRow["fuente"],
-          historial: L.historial || [],
-        }));
-        setUsers(uu || []);
-        setLeads(mappedLeads);
-      } else {
-        throw new Error("Respuesta inválida del servidor");
-      }
-    } catch (err: any) {
-      setLoginError(err?.response?.data?.error || "Credenciales incorrectas");
-      setIsAuthenticated(false);
-    }
-  };
-
-  // ===== Acceso por rol =====
-  const getAccessibleUserIds = (user: any) => {
-    if (!user) return [] as number[];
-    if (["owner", "director"].includes(user.role))
-      return users.map((u: any) => u.id);
-    const ids = [user.id, ...getDescendantUserIds(user.id, childrenIndex)];
-    return ids;
-  };
-  const canManageUsers = () =>
-    currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
-  const isOwner = () => currentUser?.role === "owner";
-
-  // ===== Funciones de filtro por equipo =====
-  const getTeamManagerById = (teamId: string) => {
-    if (teamId === "todos") return null;
-    return users.find(
-      (u: any) => u.role === "gerente" && u.id.toString() === teamId
-    );
-  };
-
-  const getTeamUserIds = (teamId: string) => {
-    if (teamId === "todos") return [];
-    const manager = getTeamManagerById(teamId);
-    if (!manager) return [];
-
-    const descendants = getDescendantUserIds(manager.id, childrenIndex);
-    return [manager.id, ...descendants];
-  };
-
-  const getFilteredLeadsByTeam = (teamId?: string) => {
-    if (!currentUser) return [] as LeadRow[];
-
-    if (
-      teamId &&
-      teamId !== "todos" &&
-      ["owner", "director"].includes(currentUser.role)
-    ) {
-      // Filtrar por equipo específico usando ID
-      const teamUserIds = getTeamUserIds(teamId);
-      return leads.filter((l) =>
-        l.vendedor ? teamUserIds.includes(l.vendedor) : false
-      );
-    }
-
-    // Filtro normal por scope del usuario
-    const visibleUserIds = getAccessibleUserIds(currentUser);
-    return leads.filter((l) =>
-      l.vendedor ? visibleUserIds.includes(l.vendedor) : true
-    );
-  };
-
-  // ===== Nueva función para filtrar usuarios visibles según rol =====
-  const getVisibleUsers = () => {
-    if (!currentUser) return [];
-
-    return users.filter((u: any) => {
-      // Owner ve a todos
-      if (currentUser.role === "owner") return true;
-
-      // Director ve a todos menos al owner
-      if (currentUser.role === "director") return u.role !== "owner";
-
-      // Gerente solo ve a su equipo
-      if (currentUser.role === "gerente") {
-        // Ve a sí mismo
-        if (u.id === currentUser.id) return true;
-
-        // Ve a sus supervisores directos
-        if (u.reportsTo === currentUser.id) return true;
-
-        // Ve a los vendedores que reportan a sus supervisores
-        const userSupervisor = userById.get(u.reportsTo);
-        return userSupervisor && userSupervisor.reportsTo === currentUser.id;
-      }
-
-      // Supervisor solo ve a su equipo directo
-      if (currentUser.role === "supervisor") {
-        // Ve a sí mismo
-        if (u.id === currentUser.id) return true;
-
-        // Ve a sus vendedores directos
-        return u.reportsTo === currentUser.id;
-      }
-
-      return false;
-    });
-  };
-
-  // ===== NUEVA: Función para obtener leads filtrados y buscados =====
-  const getFilteredAndSearchedLeads = () => {
-    if (!currentUser) return [] as LeadRow[];
-
-    // Comenzar con leads base según scope
-    const visibleUserIds = getAccessibleUserIds(currentUser);
-    let filteredLeads = leads.filter((l) =>
-      l.vendedor ? visibleUserIds.includes(l.vendedor) : true
-    );
-
-    // Aplicar filtro por vendedor específico
-    if (selectedVendedorFilter) {
-      filteredLeads = filteredLeads.filter((l) => l.vendedor === selectedVendedorFilter);
-    }
-
-    // Aplicar filtro por estado
-    if (selectedEstadoFilter) {
-      filteredLeads = filteredLeads.filter((l) => l.estado === selectedEstadoFilter);
-    }
-
-    // Aplicar filtro por fuente
-    if (selectedFuenteFilter) {
-      filteredLeads = filteredLeads.filter((l) => l.fuente === selectedFuenteFilter);
-    }
-
-    // Aplicar búsqueda de texto
-    if (searchText.trim()) {
-      const searchLower = searchText.toLowerCase().trim();
-      filteredLeads = filteredLeads.filter((l) => {
-        const vendedor = l.vendedor ? userById.get(l.vendedor) : null;
-        return (
-          l.nombre.toLowerCase().includes(searchLower) ||
-          l.telefono.includes(searchText.trim()) ||
-          l.modelo.toLowerCase().includes(searchLower) ||
-          (l.notas && l.notas.toLowerCase().includes(searchLower)) ||
-          (vendedor && vendedor.name.toLowerCase().includes(searchLower)) ||
-          (l.formaPago && l.formaPago.toLowerCase().includes(searchLower)) ||
-          (l.infoUsado && l.infoUsado.toLowerCase().includes(searchLower))
-        );
-      });
-    }
-
-    return filteredLeads;
-  };
-
-  // ===== NUEVA: Función para limpiar filtros =====
-  const clearFilters = () => {
-    setSearchText("");
-    setSelectedVendedorFilter(null);
-    setSelectedEstadoFilter("");
-    setSelectedFuenteFilter("");
-  };
-
-  // ===== NUEVA: Función para contar leads activos por filtros =====
-  const getActiveFiltersCount = () => {
-    let count = 0;
-    if (searchText.trim()) count++;
-    if (selectedVendedorFilter) count++;
-    if (selectedEstadoFilter) count++;
-    if (selectedFuenteFilter) count++;
-    return count;
-  };
-
-  // ===== Función para obtener vendedores disponibles según el rol del usuario =====
-  const getAvailableVendorsForReassign = () => {
-    if (!currentUser) return [];
-
-    // Obtener usuarios visibles según el rol
-    const visibleUsers = getVisibleUsers();
-
-    // Filtrar solo vendedores activos
-    return visibleUsers.filter((u: any) => u.role === "vendedor" && u.active);
-  };
-
-  // ===== Función para abrir modal de reasignación =====
-  const openReassignModal = (lead: LeadRow) => {
-    setLeadToReassign(lead);
-    setSelectedVendorForReassign(lead.vendedor);
-    setShowReassignModal(true);
-  };
-
-  // ===== Función para reasignar lead =====
-  const handleReassignLead = async () => {
-    if (!leadToReassign) return;
-
-    try {
-      // ⚠️ Si tu API espera otra clave (p.ej. assigned_to), cambiala aquí.
-      await apiUpdateLead(
-        leadToReassign.id,
-        { vendedor: selectedVendorForReassign } as any
-      );
-
-      // Actualizar estado local
-      setLeads((prev) =>
-        prev.map((l) =>
-          l.id === leadToReassign.id
-          ? { ...l, vendedor: selectedVendorForReassign }
-          : l
-        )
-      );
-
-      // Enviar notificación al nuevo vendedor
-      if (selectedVendorForReassign) {
-        pushAlert(
-          selectedVendorForReassign,
-          "lead_assigned",
-          `Lead reasignado: ${leadToReassign.nombre} - ${leadToReassign.modelo}`
-        );
-      }
-
-      // Agregar entrada al historial
-      addHistorialEntry(
-        leadToReassign.id,
-        `Reasignado a ${
-          selectedVendorForReassign
-            ? userById.get(selectedVendorForReassign)?.name
-            : "Sin asignar"
-        }`
-      );
-
-      setShowReassignModal(false);
-      setLeadToReassign(null);
-      setSelectedVendorForReassign(null);
-    } catch (e) {
-      console.error("No pude reasignar el lead", e);
-    }
-  };
-
-  // ===== Round-robin con soporte para bots específicos - MODIFICADO =====
-  const [rrIndex, setRrIndex] = useState(0);
-
-  // MODIFICADO: Solo obtener vendedores ACTIVOS
-  const getActiveVendorIdsInScope = (scopeUser?: any) => {
-    if (!scopeUser) return [] as number[];
-    const scope = getAccessibleUserIds(scopeUser);
-    return users
-      .filter(
-        (u: any) => u.role === "vendedor" && u.active && scope.includes(u.id)
-      )
-      .map((u: any) => u.id);
-  };
-
-  // MODIFICADO: Solo obtener vendedores ACTIVOS del equipo
-  const getVendorsByTeam = (teamName: string) => {
-    // Buscar el gerente del equipo por nombre
-    const manager = users.find(
-      (u: any) =>
-        u.role === "gerente" &&
-        u.name.toLowerCase().includes(teamName.toLowerCase())
-    );
-
-    if (!manager) return [];
-
-    // Obtener todos los descendientes del gerente
-    const descendants = getDescendantUserIds(manager.id, childrenIndex);
-    return users
-      .filter(
-        (u: any) =>
-          u.role === "vendedor" && u.active && descendants.includes(u.id)
-      )
-      .map((u: any) => u.id);
-  };
-
-  const pickNextVendorId = (scopeUser?: any, botSource?: string) => {
-    let pool: number[] = [];
-
-    if (botSource && botConfig[botSource]) {
-      const botConf = botConfig[botSource];
-      if (botConf.targetTeam) {
-        // Bot específico para un equipo - SOLO ACTIVOS
-        pool = getVendorsByTeam(botConf.targetTeam);
-      } else {
-        // Bot 100 - distribución general - SOLO ACTIVOS
-        pool = getActiveVendorIdsInScope(scopeUser || currentUser);
-      }
-    } else {
-      // Asignación manual normal - SOLO ACTIVOS
-      pool = getActiveVendorIdsInScope(scopeUser || currentUser);
-    }
-
-    if (pool.length === 0) return null;
-    const id = pool[rrIndex % pool.length];
-    setRrIndex((i) => i + 1);
-    return id;
-  };
-
-  // ===== Alertas (locales de UI) =====
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const nextAlertId = useRef(1);
-  const pushAlert = (userId: number, type: Alert["type"], message: string) => {
-    setAlerts((prev) => [
-      ...prev,
-      {
-        id: nextAlertId.current++,
-        userId,
-        type,
-        message,
-        ts: new Date().toISOString(),
-        read: false,
-      },
-    ]);
-  };
-  const pushAlertToChain = (
-    vendorId: number,
-    type: Alert["type"],
-    message: string
-  ) => {
-    pushAlert(vendorId, type, message);
-    const sup = users.find((u: any) => u.id === userById.get(vendorId)?.reportsTo);
-    if (sup) pushAlert(sup.id, type, message);
-    const gerente = sup ? users.find((u: any) => u.id === sup.reportsTo) : null;
-    if (gerente) pushAlert(gerente.id, type, message);
-  };
-
-  // ===== Filtrados y ranking =====
-  const visibleUserIds = useMemo(
-    () => getAccessibleUserIds(currentUser),
-    [currentUser, users]
-  );
-
-  const getFilteredLeads = () => {
-    if (!currentUser) return [] as LeadRow[];
-    return leads.filter((l) =>
-      l.vendedor ? visibleUserIds.includes(l.vendedor) : true
-    );
-  };
-
-  const getRanking = () => {
-    const vendedores = users.filter((u: any) => u.role === "vendedor");
-    return vendedores
-      .map((v: any) => {
-        const ventas = leads.filter(
-          (l) => l.vendedor === v.id && l.estado === "vendido"
-        ).length;
-        const leadsAsignados = leads.filter((l) => l.vendedor === v.id).length;
-        return {
-          id: v.id,
-          nombre: v.name,
-          ventas,
-          leadsAsignados,
-          team: `Equipo de ${userById.get(v.reportsTo)?.name || "—"}`,
-        };
-      })
-      .sort((a, b) => b.ventas - a.ventas);
-  };
-
-  const getRankingInScope = () => {
-    const vendedores = users.filter(
-      (u: any) => u.role === "vendedor" && visibleUserIds.includes(u.id)
-    );
-    return vendedores
-      .map((v: any) => {
-        const ventas = leads.filter(
-          (l) => l.vendedor === v.id && l.estado === "vendido"
-        ).length;
-        const leadsAsignados = leads.filter((l) => l.vendedor === v.id).length;
-        return {
-          id: v.id,
-          nombre: v.name,
-          ventas,
-          leadsAsignados,
-          team: `Equipo de ${userById.get(v.reportsTo)?.name || "—"}`,
-        };
-      })
-      .sort((a, b) => b.ventas - a.ventas);
-  };
-
-  // ===== Nueva función para obtener ranking del equipo gerencial =====
-  const getRankingByManagerialTeam = () => {
-    if (!currentUser) return [];
-    
-    // Si es vendedor, buscar su gerente
-    if (currentUser.role === "vendedor") {
-      // Encontrar su supervisor
-      const supervisor = userById.get(currentUser.reportsTo);
-      if (!supervisor) return getRankingInScope(); // fallback
-      
-      // Encontrar el gerente del supervisor
-      const gerente = userById.get(supervisor.reportsTo);
-      if (!gerente) return getRankingInScope(); // fallback
-      
-      // Obtener todos los vendedores bajo este gerente
-      const teamUserIds = getDescendantUserIds(gerente.id, childrenIndex);
-      const vendedores = users.filter(
-        (u: any) => u.role === "vendedor" && teamUserIds.includes(u.id)
-      );
-      
-      return vendedores
-        .map((v: any) => {
-          const ventas = leads.filter(
-            (l) => l.vendedor === v.id && l.estado === "vendido"
-          ).length;
-          const leadsAsignados = leads.filter((l) => l.vendedor === v.id).length;
-          return {
-            id: v.id,
-            nombre: v.name,
-            ventas,
-            leadsAsignados,
-            team: `Equipo de ${gerente.name}`,
-          };
-        })
-        .sort((a, b) => b.ventas - a.ventas);
-    }
-    
-    // Para otros roles, usar el ranking normal en scope
-    return getRankingInScope();
-  };
-
-  const prevRankingRef = useRef(new Map<number, number>());
-  useEffect(() => {
-    const r = getRanking();
-    const curr = new Map<number, number>();
-    r.forEach((row, idx) => curr.set(row.id, idx + 1));
-    const prev = prevRankingRef.current;
-    curr.forEach((pos, vid) => {
-      const before = prev.get(vid);
-      if (before && before !== pos) {
-        const delta = before - pos;
-        const msg =
-          delta > 0
-            ? `¡Subiste ${Math.abs(delta)} puesto(s) en el ranking!`
-            : `Bajaste ${Math.abs(delta)} puesto(s) en el ranking.`;
-        pushAlertToChain(vid, "ranking_change", msg);
-      }
-    });
-    prevRankingRef.current = curr;
-  }, [leads, users, userById]);
-
-  const getDashboardStats = (teamFilter?: string) => {
-    const filteredLeads =
-      teamFilter && teamFilter !== "todos"
-        ? getFilteredLeadsByTeam(teamFilter)
-        : getFilteredLeads();
-    const vendidos = filteredLeads.filter((lead) => lead.estado === "vendido")
-      .length;
-    const conversion =
-      filteredLeads.length > 0
-        ? ((vendidos / filteredLeads.length) * 100).toFixed(1)
-        : "0";
-    return { totalLeads: filteredLeads.length, vendidos, conversion };
-  };
-
-  const getSourceMetrics = (teamFilter?: string) => {
-    const filteredLeads =
-      teamFilter && teamFilter !== "todos"
-        ? getFilteredLeadsByTeam(teamFilter)
-        : getFilteredLeads();
-    const sourceData = Object.keys(fuentes)
-      .map((source) => {
-        const sourceLeads = filteredLeads.filter(
-          (lead) => lead.fuente === source
-        );
-        const vendidos = sourceLeads.filter(
-          (lead) => lead.estado === "vendido"
-        ).length;
-        const conversion =
-          sourceLeads.length > 0
-            ? ((vendidos / sourceLeads.length) * 100).toFixed(1)
-            : "0";
-        return {
-          source,
-          total: sourceLeads.length,
-          vendidos,
-          conversion: parseFloat(conversion),
-          ...fuentes[source],
-        };
-      })
-      .filter((item) => item.total > 0)
-      .sort((a, b) => b.total - a.total);
-
-    return sourceData;
-  };
-
-  // ===== Acciones de Leads (API) =====
-  const mapLeadFromApi = (L: any): LeadRow => ({
-    id: L.id,
-    nombre: L.nombre,
-    telefono: L.telefono,
-    modelo: L.modelo,
-    formaPago: L.formaPago,
-    infoUsado: L.infoUsado,
-    entrega: L.entrega,
-    fecha: L.fecha || L.created_at || "",
-    estado: (L.estado || "nuevo") as LeadRow["estado"],
-    vendedor: L.assigned_to ?? null,
-    notas: L.notas || "",
-    fuente: (L.fuente || "otro") as LeadRow["fuente"],
-    historial: L.historial || [],
-  });
-
-  const addHistorialEntry = (leadId: number, estado: string) => {
-    if (!currentUser) return;
-    setLeads((prev) =>
-      prev.map((lead) =>
-        lead.id === leadId
-          ? {
-              ...lead,
-              historial: [
-                ...(lead.historial || []),
-                {
-                  estado,
-                  timestamp: new Date().toISOString(),
-                  usuario: currentUser.name,
-                },
-              ],
-            }
-          : lead
-      )
-    );
-  };
-
-  const handleUpdateLeadStatus = async (leadId: number, newStatus: string) => {
-    try {
-      const updated = await apiUpdateLead(leadId, { estado: newStatus } as any);
-      setLeads((prev) =>
-        prev.map((l) => (l.id === leadId ? { ...l, ...mapLeadFromApi(updated) } : l))
-      );
-
-      // Agregar entrada al historial
-      addHistorialEntry(leadId, newStatus);
-    } catch (e) {
-      console.error("No pude actualizar estado del lead", e);
-    }
-  };
-
-  // ===== Crear Lead y Modales =====
-  const [showNewLeadModal, setShowNewLeadModal] = useState(false);
-  const [showObservacionesModal, setShowObservacionesModal] = useState(false);
-  const [showHistorialModal, setShowHistorialModal] = useState(false);
-  const [editingLeadObservaciones, setEditingLeadObservaciones] =
-    useState<LeadRow | null>(null);
-  const [viewingLeadHistorial, setViewingLeadHistorial] =
-    useState<LeadRow | null>(null);
-
-  const handleUpdateObservaciones = async (
-    leadId: number,
-    observaciones: string
-  ) => {
-    try {
-      const updated = await apiUpdateLead(leadId, { notas: observaciones } as any);
-      setLeads((prev) =>
-        prev.map((l) => (l.id === leadId ? { ...l, ...mapLeadFromApi(updated) } : l))
-      );
-      setShowObservacionesModal(false);
-      setEditingLeadObservaciones(null);
-    } catch (e) {
-      console.error("No pude actualizar observaciones del lead", e);
-    }
-  };
-
-  const handleCreateLead = async () => {
-    const nombre = (document.getElementById("new-nombre") as HTMLInputElement)
-      .value
-      .trim();
-    const telefono = (
-      document.getElementById("new-telefono") as HTMLInputElement
-    ).value.trim();
-    const modelo = (document.getElementById("new-modelo") as HTMLInputElement)
-      .value
-      .trim();
-    const formaPago = (document.getElementById("new-formaPago") as HTMLSelectElement).value;
-    const infoUsado = (
-      document.getElementById("new-infoUsado") as HTMLInputElement
-    ).value.trim();
-    const entrega = (document.getElementById("new-entrega") as HTMLInputElement)
-      .checked;
-    const fecha = (document.getElementById("new-fecha") as HTMLInputElement)
-      .value;
-    const fuente = (document.getElementById("new-fuente") as HTMLSelectElement)
-      .value;
-    const autoAssign = (
-      document.getElementById("new-autoassign") as HTMLInputElement
-    )?.checked;
-    const vendedorSelVal = (document.getElementById("new-vendedor") as HTMLSelectElement)
-      .value;
-
-    const vendedorIdSelRaw = parseInt(vendedorSelVal, 10);
-    const vendedorIdSel = Number.isNaN(vendedorIdSelRaw)
-      ? null
-      : vendedorIdSelRaw;
-
-    // Detectar si es un bot y asignar según configuración - SOLO A ACTIVOS
-    let vendedorId: number | null = null;
-    if (autoAssign) {
-      vendedorId = pickNextVendorId(currentUser, fuente) ?? vendedorIdSel ?? null;
-    } else {
-      // Verificar que el vendedor seleccionado esté activo si se asigna manualmente
-      if (vendedorIdSel) {
-        const selectedVendor = users.find(u => u.id === vendedorIdSel);
-        if (selectedVendor && selectedVendor.active) {
-          vendedorId = vendedorIdSel;
-        } else {
-          alert("El vendedor seleccionado está desactivado. Por favor selecciona otro vendedor o usa la asignación automática.");
-          return;
-        }
-      } else {
-        vendedorId = null;
-      }
-    }
-
-    if (nombre && telefono && modelo && fuente) {
-      try {
-        const created = await apiCreateLead({
-          nombre,
-          telefono,
-          modelo,
-          formaPago,
-          notas: "",
-          estado: "nuevo",
-          fuente,
-          infoUsado,
-          entrega,
-          fecha,
-          vendedor: vendedorId,
-        } as any);
-        const mapped = mapLeadFromApi(created);
-        if (mapped.vendedor)
-          pushAlert(
-            mapped.vendedor,
-            "lead_assigned",
-            `Nuevo lead asignado: ${mapped.nombre}`
-          );
-        setLeads((prev) => [mapped, ...prev]);
-        setShowNewLeadModal(false);
-
-        addHistorialEntry(mapped.id, "nuevo");
-      } catch (e) {
-        console.error("No pude crear el lead", e);
-      }
-    }
-  };
-
-  // ===== Calendario (UI local) =====
-  const [events, setEvents] = useState<any[]>([]);
-  const [selectedCalendarUserId, setSelectedCalendarUserId] = useState<number | null>(null);
-  const [showNewEventModal, setShowNewEventModal] = useState(false);
-  const visibleUsers = useMemo(() => (currentUser ? getVisibleUsers() : []), [currentUser, users]);
-  const eventsForSelectedUser = useMemo(() => {
-    const uid = selectedCalendarUserId || currentUser?.id;
-    return events
-      .filter((e) => e.userId === uid)
-      .sort((a, b) => ((a.date + (a.time || "")) > (b.date + (b.time || "")) ? 1 : -1));
-  }, [events, selectedCalendarUserId, currentUser]);
-  const formatterEs = new Intl.DateTimeFormat("es-AR", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-  });
-
-  const createEvent = () => {
-    const title = (document.getElementById("ev-title") as HTMLInputElement).value;
-    const date = (document.getElementById("ev-date") as HTMLInputElement).value;
-    const time = (document.getElementById("ev-time") as HTMLInputElement).value;
-    const userId = parseInt((document.getElementById("ev-user") as HTMLSelectElement).value, 10);
-    if (title && date && userId) {
-      setEvents((prev) => [
-        ...prev,
-        {
-          id: Math.max(0, ...prev.map((e: any) => e.id)) + 1,
-          title,
-          date,
-          time: time || "09:00",
-          userId,
-        },
-      ]);
-      setShowNewEventModal(false);
-    }
-  };
-  const deleteEvent = (id: number) =>
-    setEvents((prev) => prev.filter((e: any) => e.id !== id));
-
-  // ===== Gestión de Usuarios (API) =====
-  const [showUserModal, setShowUserModal] = useState(false);
-  const [editingUser, setEditingUser] = useState<any>(null);
-  const [modalRole, setModalRole] = useState<
-    "owner" | "director" | "gerente" | "supervisor" | "vendedor"
-  >("vendedor");
-  const [modalReportsTo, setModalReportsTo] = useState<number | null>(null);
-
-  const validRolesByUser = (user: any) => {
-    if (!user) return [];
-    switch (user.role) {
-      case "owner":
-        return ["director", "gerente", "supervisor", "vendedor"];
-      case "director":
-        return ["gerente", "supervisor", "vendedor"];
-      case "gerente":
-        return ["supervisor", "vendedor"];
-      default:
-        return [];
-    }
-  };
-  const validManagersByRole = (role: string) => {
-    switch (role) {
-      case "owner":
-        return [];
-      case "director":
-        return users.filter((u: any) => u.role === "owner");
-      case "gerente":
-        return users.filter((u: any) => u.role === "director");
-      case "supervisor":
-        return users.filter((u: any) => u.role === "gerente");
-      case "vendedor":
-        return users.filter((u: any) => u.role === "supervisor");
-      default:
-        return [];
-    }
-  };
-
-  const openCreateUser = () => {
-    setEditingUser(null);
-    const availableRoles = validRolesByUser(currentUser);
-    const roleDefault = (availableRoles?.[0] as typeof modalRole) || "vendedor";
-    const validManagers = validManagersByRole(roleDefault);
-    setModalRole(roleDefault);
-    setModalReportsTo(validManagers[0]?.id ?? null);
-    setShowUserModal(true);
-  };
-
-  const openEditUser = (u: any) => {
-    setEditingUser(u);
-    const roleCurrent = u.role as typeof modalRole;
-    const availableRoles: string[] =
-      currentUser.role === "owner" && u.id === currentUser.id
-        ? ["owner", ...validRolesByUser(currentUser)]
-        : validRolesByUser(currentUser);
-    const roleToSet = availableRoles.includes(roleCurrent)
-      ? roleCurrent
-      : (availableRoles[0] as any);
-    const validManagers = validManagersByRole(roleToSet);
-    setModalRole(roleToSet as any);
-    setModalReportsTo(
-      roleToSet === "owner" ? null : u.reportsTo ?? validManagers[0]?.id ?? null
-    );
-    setShowUserModal(true);
-  };
-
-  const saveUser = async () => {
-    const name = (document.getElementById("u-name") as HTMLInputElement).value.trim();
-    const email = (document.getElementById("u-email") as HTMLInputElement).value.trim();
-    const password = (document.getElementById("u-pass") as HTMLInputElement).value;
-    const active = (document.getElementById("u-active") as HTMLInputElement).checked;
-
-    if (!name || !email) return;
-    const finalReportsTo = modalRole === "owner" ? null : modalReportsTo ?? null;
-
-    try {
-      if (editingUser) {
-        const updated = await apiUpdateUser(editingUser.id, {
-          name,
-          email,
-          password: password || undefined,
-          role: modalRole,
-          reportsTo: finalReportsTo,
-          active: active ? 1 : 0,
-        });
-        setUsers((prev) => prev.map((u: any) => (u.id === editingUser.id ? updated : u)));
-      } else {
-        const created = await apiCreateUser({
-          name,
-          email,
-          password: password || "123456",
-          role: modalRole,
-          reportsTo: finalReportsTo,
-          active: active ? 1 : 0,
-        } as any);
-        setUsers((prev) => [...prev, created]);
-      }
-      setShowUserModal(false);
-    } catch (e) {
-      console.error("No pude guardar usuario", e);
-    }
-  };
-
-  // ===== NUEVA: Función para abrir modal de confirmación de eliminación =====
-  const openDeleteConfirm = (user: any) => {
-    if (user.role === "owner") {
-      alert("No podés eliminar al Dueño.");
-      return;
-    }
-    
-    const hasChildren = users.some((u: any) => u.reportsTo === user.id);
-    if (hasChildren) {
-      alert("No se puede eliminar: el usuario tiene integrantes a cargo. Primero reasigne o elimine a sus subordinados.");
-      return;
-    }
-
-    const hasAssignedLeads = leads.some((l) => l.vendedor === user.id);
-    if (hasAssignedLeads) {
-      alert("No se puede eliminar: el usuario tiene leads asignados. Primero reasigne todos sus leads a otros vendedores.");
-      return;
-    }
-
-    setUserToDelete(user);
-    setShowDeleteConfirmModal(true);
-  };
-
-  // ===== NUEVA: Función para confirmar eliminación =====
-  const confirmDeleteUser = async () => {
-    if (!userToDelete) return;
-
-    try {
-      await apiDeleteUser(userToDelete.id);
-      setUsers((prev) => prev.filter((u: any) => u.id !== userToDelete.id));
-      setShowDeleteConfirmModal(false);
-      setUserToDelete(null);
-    } catch (e) {
-      console.error("No pude eliminar usuario", e);
-      alert("Error al eliminar el usuario. Por favor, intenta nuevamente.");
-    }
-  };
-
-  // ===== UI: Login =====
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-blue-800 flex items-center justify-center">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
-          <div className="text-center mb-8">
-            <div className="flex items-center justify-center mb-4">
-              <svg width="48" height="42" viewBox="0 0 40 36" fill="none">
-                <path d="M10 2L30 2L35 12L30 22L10 22L5 12Z" fill="url(#gradient2)" />
-                <defs>
-                  <linearGradient id="gradient2" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#FFB800" />
-                    <stop offset="25%" stopColor="#FF6B9D" />
-                    <stop offset="50%" stopColor="#8B5CF6" />
-                    <stop offset="75%" stopColor="#06B6D4" />
-                    <stop offset="100%" stopColor="#10B981" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <div className="ml-3">
-                <h1 className="text-2xl font-bold text-gray-800">Alluma</h1>
-                <p className="text-sm text-gray-600">Publicidad</p>
-              </div>
-            </div>
-            <p className="text-gray-600">Sistema de gestión CRM</p>
-          </div>
-
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-              <input
-                type="email"
-                id="email"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="tu@alluma.com"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Contraseña</label>
-              <input
-                type="password"
-                id="password"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="••••••••"
-              />
-            </div>
-            {loginError && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                <p className="text-red-700 text-sm">{loginError}</p>
-              </div>
-            )}
-
-        {/* Sección Calendario */}
-        {activeSection === "calendar" && (
-          <div className="space-y-6">
+﻿<div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-3xl font-bold text-gray-800">Calendario</h2>
               <div className="flex items-center space-x-3">
@@ -1472,7 +277,7 @@ export default function CRM() {
                   })}
                 </div>
 
-                {/* Lista filtrada de leads por estado en Mi Equipo */}
+                {/* Lista filtrada de leads por estado en Mi Equipo con cambio de estados */}
                 {selectedEstado && (
                   <div className="mt-6 border-t pt-6">
                     <h4 className="text-lg font-semibold text-gray-800 mb-4">
@@ -1522,6 +327,9 @@ export default function CRM() {
                                   Vehículo
                                 </th>
                                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                  Estado
+                                </th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                                   Fuente
                                 </th>
                                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
@@ -1567,6 +375,22 @@ export default function CRM() {
                                           </div>
                                         )}
                                       </div>
+                                    </td>
+                                    <td className="px-4 py-2">
+                                      {/* NUEVO: Dropdown para cambiar estado directamente desde Mi Equipo */}
+                                      <select
+                                        value={lead.estado}
+                                        onChange={(e) =>
+                                          handleChangeLeadStateFromDashboard(lead.id, e.target.value)
+                                        }
+                                        className={`text-xs font-medium rounded-full px-2 py-1 border-0 text-white cursor-pointer ${estados[lead.estado].color}`}
+                                      >
+                                        {Object.entries(estados).map(([key, estado]) => (
+                                          <option key={key} value={key} className="text-black">
+                                            {estado.label}
+                                          </option>
+                                        ))}
+                                      </select>
                                     </td>
                                     <td className="px-4 py-2">
                                       <div className="flex items-center space-x-1">
@@ -1700,13 +524,16 @@ export default function CRM() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-3xl font-bold text-gray-800">Gestión de Usuarios</h2>
-              <button
-                onClick={openCreateUser}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <Plus size={20} />
-                <span>Nuevo Usuario</span>
-              </button>
+              {/* MODIFICADO: Solo mostrar botón crear usuario si tiene permisos */}
+              {canCreateUsers() && (
+                <button
+                  onClick={openCreateUser}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <Plus size={20} />
+                  <span>Nuevo Usuario</span>
+                </button>
+              )}
             </div>
 
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
@@ -1793,7 +620,7 @@ export default function CRM() {
                                 </button>
                               )}
                             </div>
-                            {/* NUEVO: Mensaje explicativo para vendedores desactivados */}
+                            {/* Mensaje explicativo para vendedores desactivados */}
                             {user.role === "vendedor" && !user.active && (
                               <div className="text-xs text-orange-600 mt-1">
                                 No recibe leads nuevos
@@ -1821,7 +648,7 @@ export default function CRM() {
                               >
                                 <Edit3 size={16} />
                               </button>
-                              {/* MODIFICADO: Solo el owner puede eliminar usuarios */}
+                              {/* Solo el owner puede eliminar usuarios */}
                               {isOwner() && user.id !== currentUser?.id && (
                                 <button
                                   onClick={() => openDeleteConfirm(user)}
@@ -1938,8 +765,8 @@ export default function CRM() {
           </div>
         )}
 
-        {/* Modales aquí... */}
-        {/* NUEVO: Modal de Confirmación para Eliminar Usuario */}
+        {/* Modales */}
+        {/* Modal de Confirmación para Eliminar Usuario */}
         {showDeleteConfirmModal && userToDelete && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-xl p-6 w-full max-w-md">
@@ -2354,7 +1181,7 @@ export default function CRM() {
           </div>
         )}
 
-        {/* Modal: Nuevo Lead */}
+        {/* MODIFICADO: Modal: Nuevo Lead con asignación por scope */}
         {showNewLeadModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-xl p-6 w-full max-w-3xl">
@@ -2367,7 +1194,7 @@ export default function CRM() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nombre
+                    Nombre *
                   </label>
                   <input
                     type="text"
@@ -2377,7 +1204,7 @@ export default function CRM() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Teléfono
+                    Teléfono *
                   </label>
                   <input
                     type="text"
@@ -2387,7 +1214,7 @@ export default function CRM() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Modelo
+                    Modelo *
                   </label>
                   <input
                     type="text"
@@ -2406,61 +1233,6 @@ export default function CRM() {
                     <option value="Contado">Contado</option>
                     <option value="Financiado">Financiado</option>
                   </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fuente del Lead
-                  </label>
-                  <select
-                    id="new-fuente"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    defaultValue="sitio_web"
-                  >
-                    {Object.entries(fuentes).map(([key, fuente]) => (
-                      <option key={key} value={key}>
-                        {fuente.icon} {fuente.label}
-                      </option>
-                    ))}
-                    {/* Opciones específicas para bots */}
-                    <option value="whatsapp_bot_cm1">💬 Bot CM 1 (Equipo Sauer)</option>
-                    <option value="whatsapp_bot_cm2">💬 Bot CM 2 (Equipo Daniel)</option>
-                    <option value="whatsapp_100">💬 Bot 100 (Distribución general)</option>
-                  </select>
-                  <div className="mt-2 text-xs space-y-1">
-                    {(() => {
-                      const robertoManager = users.find(
-                        (u: any) =>
-                          u.role === "gerente" &&
-                          u.name.toLowerCase().includes("roberto")
-                      );
-                      const danielManager = users.find(
-                        (u: any) =>
-                          u.role === "gerente" &&
-                          u.name.toLowerCase().includes("daniel")
-                      );
-
-                      return (
-                        <>
-                          {robertoManager && (
-                            <div className="text-green-600">
-                              💬 Bot CM 1 → Equipo {robertoManager.name} automáticamente (solo activos)
-                            </div>
-                          )}
-                          {danielManager && (
-                            <div className="text-green-600">
-                              💬 Bot CM 2 → Equipo {danielManager.name} automáticamente (solo activos)
-                            </div>
-                          )}
-                          <div className="text-green-600">
-                            💬 Bot 100 → Distribución general (solo activos)
-                          </div>
-                          <div className="text-gray-500">
-                            Otras fuentes → Asignación manual o scope actual (solo activos)
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -2501,30 +1273,38 @@ export default function CRM() {
                     className="rounded border-gray-300 text-blue-600"
                   />
                   <span className="text-sm text-gray-700">
-                    Asignación automática y equitativa a vendedores activos
+                    Asignación automática y equitativa (solo vendedores activos en mi scope)
                   </span>
                 </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Asignar a vendedor (opcional - solo vendedores activos)
+                    Asignar a vendedor/supervisor (opcional - solo usuarios activos de mi equipo)
                   </label>
                   <select
                     id="new-vendedor"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   >
                     <option value="">Sin asignar</option>
-                    {getVisibleUsers()
-                      .filter((u: any) => u.role === "vendedor")
-                      .map((u: any) => (
-                        <option key={u.id} value={u.id} disabled={!u.active}>
-                          {u.name} {u.active ? "✓ Activo" : "✗ Inactivo"}
-                        </option>
-                      ))}
+                    {getAssignableUsers().map((u: any) => (
+                      <option key={u.id} value={u.id} disabled={!u.active}>
+                        {u.name} ({roles[u.role]}) {u.active ? "✓ Activo" : "✗ Inactivo"}
+                      </option>
+                    ))}
                   </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Si está tildado "Asignación automática", se ignorará esta selección.
-                    Solo se puede asignar a vendedores activos.
-                  </p>
+                  <div className="text-xs text-gray-500 mt-2 space-y-1">
+                    <div className="text-blue-600 font-medium">
+                      📝 Lead creado por: {currentUser?.name}
+                    </div>
+                    <div className="text-teal-600">
+                      🏷️ Fuente: "Creado por usuario"
+                    </div>
+                    <div>
+                      Si está tildado "Asignación automática", se ignorará la selección manual.
+                    </div>
+                    <div>
+                      Solo puedes asignar a usuarios activos de tu equipo según tu rol.
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -2643,7 +1423,7 @@ export default function CRM() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nombre
+                    Nombre *
                   </label>
                   <input
                     type="text"
@@ -2654,7 +1434,7 @@ export default function CRM() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email
+                    Email *
                   </label>
                   <input
                     type="email"
@@ -2665,16 +1445,21 @@ export default function CRM() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Contraseña {editingUser && "(dejar vacío para mantener)"}
+                    Contraseña {editingUser ? "(dejar vacío para mantener)" : "*"}
                   </label>
                   <input
                     type="password"
                     id="u-pass"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                     placeholder={
-                      editingUser ? "Nueva contraseña (opcional)" : "Contraseña"
+                      editingUser ? "Nueva contraseña (opcional)" : "Contraseña obligatoria"
                     }
                   />
+                  {!editingUser && (
+                    <p className="text-xs text-red-600 mt-1">
+                      * La contraseña es obligatoria para nuevos usuarios
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -2760,7 +1545,1302 @@ export default function CRM() {
       </div>
     </div>
   );
+}import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Calendar,
+  Users,
+  Trophy,
+  Plus,
+  Phone,
+  BarChart3,
+  Settings,
+  Home,
+  X,
+  Trash2,
+  Edit3,
+  Bell,
+  UserCheck,
+  Download,
+  Search,
+  Filter,
+  User,
+} from "lucide-react";
+import { api } from "./api";
+import {
+  listUsers,
+  createUser as apiCreateUser,
+  updateUser as apiUpdateUser,
+  deleteUser as apiDeleteUser,
+} from "./services/users";
+import {
+  listLeads,
+  createLead as apiCreateLead,
+  updateLead as apiUpdateLead,
+} from "./services/leads";
+
+// ===== Utilidades de jerarquía =====
+function buildIndex(users: any[]) {
+  const byId = new Map(users.map((u: any) => [u.id, u]));
+  const children = new Map<number, number[]>();
+  users.forEach((u: any) => children.set(u.id, []));
+  users.forEach((u: any) => {
+    if (u.reportsTo) (children.get(u.reportsTo) as number[] | undefined)?.push(u.id);
+  });
+  return { byId, children };
 }
+
+function getDescendantUserIds(
+  rootId: number,
+  childrenIndex: Map<number, number[]>
+) {
+  const out: number[] = [];
+  const stack = [...(childrenIndex.get(rootId) || [])];
+  while (stack.length) {
+    const id = stack.pop()!;
+    out.push(id);
+    const kids = childrenIndex.get(id) || [];
+    for (const k of kids) stack.push(k);
+  }
+  return out;
+}
+
+const roles: Record<string, string> = {
+  owner: "Dueño",
+  director: "Director",
+  gerente: "Gerente",
+  supervisor: "Supervisor",
+  vendedor: "Vendedor",
+};
+
+const estados: Record<string, { label: string; color: string }> = {
+  nuevo: { label: "Nuevo", color: "bg-blue-500" },
+  contactado: { label: "Contactado", color: "bg-yellow-500" },
+  interesado: { label: "Interesado", color: "bg-orange-500" },
+  negociacion: { label: "Negociación", color: "bg-purple-500" },
+  vendido: { label: "Vendido", color: "bg-green-600" },
+  perdido: { label: "Perdido", color: "bg-red-500" },
+  numero_invalido: { label: "Número inválido", color: "bg-gray-500" },
+  no_contesta_1: { label: "No contesta 1", color: "bg-amber-500" },
+  no_contesta_2: { label: "No contesta 2", color: "bg-orange-600" },
+  no_contesta_3: { label: "No contesta 3", color: "bg-red-600" },
+};
+
+const fuentes: Record<
+  string,
+  { label: string; color: string; icon: string }
+> = {
+  meta: { label: "Meta/Facebook", color: "bg-blue-600", icon: "📱" },
+  whatsapp: { label: "WhatsApp Bot", color: "bg-green-500", icon: "💬" },
+  whatsapp_100: { label: "WhatsApp Bot 100", color: "bg-green-700", icon: "💬" },
+  sitio_web: { label: "Sitio Web", color: "bg-purple-600", icon: "🌐" },
+  referido: { label: "Referido", color: "bg-orange-500", icon: "👥" },
+  telefono: { label: "Llamada", color: "bg-indigo-500", icon: "📞" },
+  showroom: { label: "Showroom", color: "bg-gray-600", icon: "🏢" },
+  google: { label: "Google Ads", color: "bg-red-500", icon: "🎯" },
+  instagram: { label: "Instagram", color: "bg-pink-500", icon: "📸" },
+  otro: { label: "Otro", color: "bg-gray-400", icon: "❓" },
+  creado_por_usuario: { label: "Creado por usuario", color: "bg-teal-500", icon: "👨‍💼" },
+};
+
+// Configuración de bots
+const botConfig: Record<string, { targetTeam: string | null; label: string }> =
+  {
+    whatsapp_bot_cm1: { targetTeam: "sauer", label: "Bot CM 1" },
+    whatsapp_bot_cm2: { targetTeam: "daniel", label: "Bot CM 2" },
+    whatsapp_100: { targetTeam: null, label: "Bot 100" }, // null = distribución general
+  };
+
+type LeadRow = {
+  id: number;
+  nombre: string;
+  telefono: string;
+  modelo: string;
+  formaPago?: string;
+  infoUsado?: string;
+  entrega?: boolean;
+  fecha?: string;
+  estado: keyof typeof estados;
+  vendedor: number | null;
+  notas?: string;
+  fuente: keyof typeof fuentes | string;
+  historial?: Array<{
+    estado: string;
+    timestamp: string;
+    usuario: string;
+  }>;
+};
+
+type Alert = {
+  id: number;
+  userId: number;
+  type: "lead_assigned" | "ranking_change";
+  message: string;
+  ts: string;
+  read: boolean;
+};
+
+// ===== Funciones de descarga Excel =====
+const formatDate = (dateString: string): string => {
+  if (!dateString) return "Sin fecha";
+  const date = new Date(dateString);
+  return date.toLocaleDateString("es-AR");
+};
+
+const downloadAllLeadsExcel = (leads: LeadRow[], userById: Map<number, any>, fuentes: any): void => {
+  // Crear datos para Excel
+  const excelData = leads.map(lead => {
+    const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
+    const fuente = fuentes[lead.fuente] || { label: lead.fuente };
+    
+    return {
+      'ID': lead.id,
+      'Cliente': lead.nombre,
+      'Teléfono': lead.telefono,
+      'Modelo': lead.modelo,
+      'Forma de Pago': lead.formaPago || '',
+      'Info Usado': lead.infoUsado || '',
+      'Entrega': lead.entrega ? 'Sí' : 'No',
+      'Estado': estados[lead.estado]?.label || lead.estado,
+      'Fuente': fuente.label,
+      'Vendedor': vendedor?.name || 'Sin asignar',
+      'Equipo': vendedor && vendedor.reportsTo ? `Equipo de ${userById.get(vendedor.reportsTo)?.name || '—'}` : '',
+      'Fecha': formatDate(lead.fecha || ''),
+      'Observaciones': lead.notas || ''
+    };
+  });
+
+  // Crear contenido CSV
+  const headers = Object.keys(excelData[0] || {});
+  const csvContent = [
+    headers.join(','),
+    ...excelData.map(row => 
+      headers.map(header => {
+        const value = (row as any)[header] || '';
+        // Escapar comillas y comas
+        return `"${String(value).replace(/"/g, '""')}"`;
+      }).join(',')
+    )
+  ].join('\n');
+
+  // Crear y descargar archivo
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', `todos_los_leads_${new Date().toISOString().slice(0,10)}.csv`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+const downloadLeadsByStateExcel = (leads: LeadRow[], estado: string, userById: Map<number, any>, fuentes: any): void => {
+  const leadsByState = leads.filter(l => l.estado === estado);
+
+  if (leadsByState.length === 0) {
+    alert(`No hay leads en estado "${estados[estado]?.label || estado}"`);
+    return;
+  }
+
+  // Crear datos para Excel
+  const excelData = leadsByState.map(lead => {
+    const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
+    const fuente = fuentes[lead.fuente] || { label: lead.fuente };
+    
+    return {
+      'ID': lead.id,
+      'Cliente': lead.nombre,
+      'Teléfono': lead.telefono,
+      'Modelo': lead.modelo,
+      'Forma de Pago': lead.formaPago || '',
+      'Info Usado': lead.infoUsado || '',
+      'Entrega': lead.entrega ? 'Sí' : 'No',
+      'Fuente': fuente.label,
+      'Vendedor': vendedor?.name || 'Sin asignar',
+      'Equipo': vendedor && vendedor.reportsTo ? `Equipo de ${userById.get(vendedor.reportsTo)?.name || '—'}` : '',
+      'Fecha': formatDate(lead.fecha || ''),
+      'Observaciones': lead.notas || '',
+      'Historial': lead.historial?.map(h => 
+        `${formatDate(h.timestamp)}: ${h.estado} (${h.usuario})`
+      ).join(' | ') || ''
+    };
+  });
+
+  // Crear contenido CSV
+  const headers = Object.keys(excelData[0] || {});
+  const csvContent = [
+    headers.join(','),
+    ...excelData.map(row => 
+      headers.map(header => {
+        const value = (row as any)[header] || '';
+        // Escapar comillas y comas
+        return `"${String(value).replace(/"/g, '""')}"`;
+      }).join(',')
+    )
+  ].join('\n');
+
+  // Crear y descargar archivo
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  const estadoLabel = estados[estado]?.label || estado;
+  link.setAttribute('download', `leads_${estadoLabel.toLowerCase().replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.csv`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+export default function CRM() {
+  const [users, setUsers] = useState<any[]>([]);
+  const [leads, setLeads] = useState<LeadRow[]>([]);
+  const { byId: userById, children: childrenIndex } = useMemo(
+    () => buildIndex(users),
+    [users]
+  );
+
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [activeSection, setActiveSection] = useState<
+    "dashboard" | "leads" | "calendar" | "ranking" | "users" | "alerts" | "team"
+  >("dashboard");
+  const [loginError, setLoginError] = useState("");
+  const [selectedEstado, setSelectedEstado] = useState<string | null>(null);
+  const [selectedTeam, setSelectedTeam] = useState<string>("todos");
+
+  // NUEVO: Estados para búsqueda y filtrado de leads
+  const [searchText, setSearchText] = useState("");
+  const [selectedVendedorFilter, setSelectedVendedorFilter] = useState<number | null>(null);
+  const [selectedEstadoFilter, setSelectedEstadoFilter] = useState<string>("");
+  const [selectedFuenteFilter, setSelectedFuenteFilter] = useState<string>("");
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Estados para reasignación
+  const [showReassignModal, setShowReassignModal] = useState(false);
+  const [leadToReassign, setLeadToReassign] = useState<LeadRow | null>(null);
+  const [selectedVendorForReassign, setSelectedVendorForReassign] =
+    useState<number | null>(null);
+
+  // Estados para confirmación de eliminación
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<any>(null);
+
+  // ===== Login contra backend =====
+  const handleLogin = async (email: string, password: string) => {
+    try {
+      // MODIFICADO: Enviar parámetro para permitir login de usuarios desactivados
+      const r = await api.post("/auth/login", { 
+        email, 
+        password, 
+        allowInactiveUsers: true // Permitir acceso a usuarios desactivados
+      });
+
+      // Verificar respuesta exitosa
+      if (r.data?.ok && r.data?.token) {
+        // Guardar token
+        localStorage.setItem("token", r.data.token);
+        localStorage.setItem("user", JSON.stringify(r.data.user));
+
+        // Configurar axios para futuras peticiones
+        api.defaults.headers.common["Authorization"] = `Bearer ${r.data.token}`;
+
+        const u =
+          r.data.user || {
+            id: 0,
+            name: r.data?.user?.email || email,
+            email,
+            role: r.data?.user?.role || "owner",
+            reportsTo: null,
+            active: r.data?.user?.active ?? true, // IMPORTANTE: Mantener el estado real del usuario
+          };
+
+        setCurrentUser(u);
+        setIsAuthenticated(true);
+        setLoginError("");
+
+        // Cargar datos
+        const [uu, ll] = await Promise.all([listUsers(), listLeads()]);
+        const mappedLeads: LeadRow[] = (ll || []).map((L: any) => ({
+          id: L.id,
+          nombre: L.nombre,
+          telefono: L.telefono,
+          modelo: L.modelo,
+          formaPago: L.formaPago,
+          infoUsado: L.infoUsado,
+          entrega: L.entrega,
+          fecha: L.fecha || L.created_at || "",
+          estado: (L.estado || "nuevo") as LeadRow["estado"],
+          vendedor: L.assigned_to ?? null,
+          notas: L.notas || "",
+          fuente: (L.fuente || "otro") as LeadRow["fuente"],
+          historial: L.historial || [],
+        }));
+        setUsers(uu || []);
+        setLeads(mappedLeads);
+      } else {
+        throw new Error("Respuesta inválida del servidor");
+      }
+    } catch (err: any) {
+      setLoginError(err?.response?.data?.error || "Credenciales incorrectas");
+      setIsAuthenticated(false);
+    }
+  };
+
+  // ===== Acceso por rol =====
+  const getAccessibleUserIds = (user: any) => {
+    if (!user) return [] as number[];
+    if (["owner", "director"].includes(user.role))
+      return users.map((u: any) => u.id);
+    const ids = [user.id, ...getDescendantUserIds(user.id, childrenIndex)];
+    return ids;
+  };
+  
+  // MODIFICADO: Función para determinar si puede crear usuarios
+  const canCreateUsers = () =>
+    currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
+  
+  // MODIFICADO: Función para determinar si puede gestionar usuarios (editar/ver)
+  const canManageUsers = () =>
+    currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
+  
+  // MODIFICADO: Función para determinar si puede crear leads
+  const canCreateLeads = () =>
+    currentUser && ["owner", "director", "gerente", "supervisor", "vendedor"].includes(currentUser.role);
+
+  const isOwner = () => currentUser?.role === "owner";
+
+  // ===== Funciones de filtro por equipo =====
+  const getTeamManagerById = (teamId: string) => {
+    if (teamId === "todos") return null;
+    return users.find(
+      (u: any) => u.role === "gerente" && u.id.toString() === teamId
+    );
+  };
+
+  const getTeamUserIds = (teamId: string) => {
+    if (teamId === "todos") return [];
+    const manager = getTeamManagerById(teamId);
+    if (!manager) return [];
+
+    const descendants = getDescendantUserIds(manager.id, childrenIndex);
+    return [manager.id, ...descendants];
+  };
+
+  const getFilteredLeadsByTeam = (teamId?: string) => {
+    if (!currentUser) return [] as LeadRow[];
+
+    if (
+      teamId &&
+      teamId !== "todos" &&
+      ["owner", "director"].includes(currentUser.role)
+    ) {
+      // Filtrar por equipo específico usando ID
+      const teamUserIds = getTeamUserIds(teamId);
+      return leads.filter((l) =>
+        l.vendedor ? teamUserIds.includes(l.vendedor) : false
+      );
+    }
+
+    // Filtro normal por scope del usuario
+    const visibleUserIds = getAccessibleUserIds(currentUser);
+    return leads.filter((l) =>
+      l.vendedor ? visibleUserIds.includes(l.vendedor) : true
+    );
+  };
+
+  // ===== Nueva función para filtrar usuarios visibles según rol =====
+  const getVisibleUsers = () => {
+    if (!currentUser) return [];
+
+    return users.filter((u: any) => {
+      // Owner ve a todos
+      if (currentUser.role === "owner") return true;
+
+      // Director ve a todos menos al owner
+      if (currentUser.role === "director") return u.role !== "owner";
+
+      // Gerente solo ve a su equipo
+      if (currentUser.role === "gerente") {
+        // Ve a sí mismo
+        if (u.id === currentUser.id) return true;
+
+        // Ve a sus supervisores directos
+        if (u.reportsTo === currentUser.id) return true;
+
+        // Ve a los vendedores que reportan a sus supervisores
+        const userSupervisor = userById.get(u.reportsTo);
+        return userSupervisor && userSupervisor.reportsTo === currentUser.id;
+      }
+
+      // Supervisor solo ve a su equipo directo
+      if (currentUser.role === "supervisor") {
+        // Ve a sí mismo
+        if (u.id === currentUser.id) return true;
+
+        // Ve a sus vendedores directos
+        return u.reportsTo === currentUser.id;
+      }
+
+      // Vendedor solo se ve a sí mismo
+      if (currentUser.role === "vendedor") {
+        return u.id === currentUser.id;
+      }
+
+      return false;
+    });
+  };
+
+  // ===== NUEVA: Función para obtener usuarios donde puede asignar leads según el rol =====
+  const getAssignableUsers = () => {
+    if (!currentUser) return [];
+
+    // Para owner y director: pueden asignar a cualquier vendedor activo
+    if (["owner", "director"].includes(currentUser.role)) {
+      return users.filter((u: any) => u.role === "vendedor" && u.active);
+    }
+
+    // Para gerente: puede asignar a su equipo (supervisores y vendedores bajo su mando)
+    if (currentUser.role === "gerente") {
+      const teamIds = [currentUser.id, ...getDescendantUserIds(currentUser.id, childrenIndex)];
+      return users.filter((u: any) => 
+        (u.role === "vendedor" || u.role === "supervisor") && 
+        u.active && 
+        teamIds.includes(u.id)
+      );
+    }
+
+    // Para supervisor: puede asignar a sí mismo y a sus vendedores directos
+    if (currentUser.role === "supervisor") {
+      return users.filter((u: any) => 
+        u.active && (
+          u.id === currentUser.id || 
+          (u.role === "vendedor" && u.reportsTo === currentUser.id)
+        )
+      );
+    }
+
+    // Para vendedor: solo puede asignarse a sí mismo
+    if (currentUser.role === "vendedor") {
+      return currentUser.active ? [currentUser] : [];
+    }
+
+    return [];
+  };
+
+  // ===== NUEVA: Función para obtener leads filtrados y buscados =====
+  const getFilteredAndSearchedLeads = () => {
+    if (!currentUser) return [] as LeadRow[];
+
+    // Comenzar con leads base según scope
+    const visibleUserIds = getAccessibleUserIds(currentUser);
+    let filteredLeads = leads.filter((l) =>
+      l.vendedor ? visibleUserIds.includes(l.vendedor) : true
+    );
+
+    // Aplicar filtro por vendedor específico
+    if (selectedVendedorFilter) {
+      filteredLeads = filteredLeads.filter((l) => l.vendedor === selectedVendedorFilter);
+    }
+
+    // Aplicar filtro por estado
+    if (selectedEstadoFilter) {
+      filteredLeads = filteredLeads.filter((l) => l.estado === selectedEstadoFilter);
+    }
+
+    // Aplicar filtro por fuente
+    if (selectedFuenteFilter) {
+      filteredLeads = filteredLeads.filter((l) => l.fuente === selectedFuenteFilter);
+    }
+
+    // Aplicar búsqueda de texto
+    if (searchText.trim()) {
+      const searchLower = searchText.toLowerCase().trim();
+      filteredLeads = filteredLeads.filter((l) => {
+        const vendedor = l.vendedor ? userById.get(l.vendedor) : null;
+        return (
+          l.nombre.toLowerCase().includes(searchLower) ||
+          l.telefono.includes(searchText.trim()) ||
+          l.modelo.toLowerCase().includes(searchLower) ||
+          (l.notas && l.notas.toLowerCase().includes(searchLower)) ||
+          (vendedor && vendedor.name.toLowerCase().includes(searchLower)) ||
+          (l.formaPago && l.formaPago.toLowerCase().includes(searchLower)) ||
+          (l.infoUsado && l.infoUsado.toLowerCase().includes(searchLower))
+        );
+      });
+    }
+
+    return filteredLeads;
+  };
+
+  // ===== NUEVA: Función para limpiar filtros =====
+  const clearFilters = () => {
+    setSearchText("");
+    setSelectedVendedorFilter(null);
+    setSelectedEstadoFilter("");
+    setSelectedFuenteFilter("");
+  };
+
+  // ===== NUEVA: Función para contar leads activos por filtros =====
+  const getActiveFiltersCount = () => {
+    let count = 0;
+    if (searchText.trim()) count++;
+    if (selectedVendedorFilter) count++;
+    if (selectedEstadoFilter) count++;
+    if (selectedFuenteFilter) count++;
+    return count;
+  };
+
+  // ===== Función para obtener vendedores disponibles según el rol del usuario =====
+  const getAvailableVendorsForReassign = () => {
+    if (!currentUser) return [];
+
+    // Obtener usuarios visibles según el rol
+    const visibleUsers = getVisibleUsers();
+
+    // Filtrar solo vendedores activos
+    return visibleUsers.filter((u: any) => u.role === "vendedor" && u.active);
+  };
+
+  // ===== Función para abrir modal de reasignación =====
+  const openReassignModal = (lead: LeadRow) => {
+    setLeadToReassign(lead);
+    setSelectedVendorForReassign(lead.vendedor);
+    setShowReassignModal(true);
+  };
+
+  // ===== Función para reasignar lead =====
+  const handleReassignLead = async () => {
+    if (!leadToReassign) return;
+
+    try {
+      // ⚠️ Si tu API espera otra clave (p.ej. assigned_to), cambiala aquí.
+      await apiUpdateLead(
+        leadToReassign.id,
+        { vendedor: selectedVendorForReassign } as any
+      );
+
+      // Actualizar estado local
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadToReassign.id
+          ? { ...l, vendedor: selectedVendorForReassign }
+          : l
+        )
+      );
+
+      // Enviar notificación al nuevo vendedor
+      if (selectedVendorForReassign) {
+        pushAlert(
+          selectedVendorForReassign,
+          "lead_assigned",
+          `Lead reasignado: ${leadToReassign.nombre} - ${leadToReassign.modelo}`
+        );
+      }
+
+      // Agregar entrada al historial
+      addHistorialEntry(
+        leadToReassign.id,
+        `Reasignado a ${
+          selectedVendorForReassign
+            ? userById.get(selectedVendorForReassign)?.name
+            : "Sin asignar"
+        }`
+      );
+
+      setShowReassignModal(false);
+      setLeadToReassign(null);
+      setSelectedVendorForReassign(null);
+    } catch (e) {
+      console.error("No pude reasignar el lead", e);
+    }
+  };
+
+  // ===== Round-robin con soporte para bots específicos - MODIFICADO =====
+  const [rrIndex, setRrIndex] = useState(0);
+
+  // MODIFICADO: Solo obtener vendedores ACTIVOS
+  const getActiveVendorIdsInScope = (scopeUser?: any) => {
+    if (!scopeUser) return [] as number[];
+    const scope = getAccessibleUserIds(scopeUser);
+    return users
+      .filter(
+        (u: any) => u.role === "vendedor" && u.active && scope.includes(u.id)
+      )
+      .map((u: any) => u.id);
+  };
+
+  // MODIFICADO: Solo obtener vendedores ACTIVOS del equipo
+  const getVendorsByTeam = (teamName: string) => {
+    // Buscar el gerente del equipo por nombre
+    const manager = users.find(
+      (u: any) =>
+        u.role === "gerente" &&
+        u.name.toLowerCase().includes(teamName.toLowerCase())
+    );
+
+    if (!manager) return [];
+
+    // Obtener todos los descendientes del gerente
+    const descendants = getDescendantUserIds(manager.id, childrenIndex);
+    return users
+      .filter(
+        (u: any) =>
+          u.role === "vendedor" && u.active && descendants.includes(u.id)
+      )
+      .map((u: any) => u.id);
+  };
+
+  const pickNextVendorId = (scopeUser?: any, botSource?: string) => {
+    let pool: number[] = [];
+
+    if (botSource && botConfig[botSource]) {
+      const botConf = botConfig[botSource];
+      if (botConf.targetTeam) {
+        // Bot específico para un equipo - SOLO ACTIVOS
+        pool = getVendorsByTeam(botConf.targetTeam);
+      } else {
+        // Bot 100 - distribución general - SOLO ACTIVOS
+        pool = getActiveVendorIdsInScope(scopeUser || currentUser);
+      }
+    } else {
+      // Asignación manual normal - SOLO ACTIVOS
+      pool = getActiveVendorIdsInScope(scopeUser || currentUser);
+    }
+
+    if (pool.length === 0) return null;
+    const id = pool[rrIndex % pool.length];
+    setRrIndex((i) => i + 1);
+    return id;
+  };
+
+  // ===== Alertas (locales de UI) =====
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const nextAlertId = useRef(1);
+  const pushAlert = (userId: number, type: Alert["type"], message: string) => {
+    setAlerts((prev) => [
+      ...prev,
+      {
+        id: nextAlertId.current++,
+        userId,
+        type,
+        message,
+        ts: new Date().toISOString(),
+        read: false,
+      },
+    ]);
+  };
+  const pushAlertToChain = (
+    vendorId: number,
+    type: Alert["type"],
+    message: string
+  ) => {
+    pushAlert(vendorId, type, message);
+    const sup = users.find((u: any) => u.id === userById.get(vendorId)?.reportsTo);
+    if (sup) pushAlert(sup.id, type, message);
+    const gerente = sup ? users.find((u: any) => u.id === sup.reportsTo) : null;
+    if (gerente) pushAlert(gerente.id, type, message);
+  };
+
+  // ===== Filtrados y ranking =====
+  const visibleUserIds = useMemo(
+    () => getAccessibleUserIds(currentUser),
+    [currentUser, users]
+  );
+
+  const getFilteredLeads = () => {
+    if (!currentUser) return [] as LeadRow[];
+    return leads.filter((l) =>
+      l.vendedor ? visibleUserIds.includes(l.vendedor) : true
+    );
+  };
+
+  const getRanking = () => {
+    const vendedores = users.filter((u: any) => u.role === "vendedor");
+    return vendedores
+      .map((v: any) => {
+        const ventas = leads.filter(
+          (l) => l.vendedor === v.id && l.estado === "vendido"
+        ).length;
+        const leadsAsignados = leads.filter((l) => l.vendedor === v.id).length;
+        return {
+          id: v.id,
+          nombre: v.name,
+          ventas,
+          leadsAsignados,
+          team: `Equipo de ${userById.get(v.reportsTo)?.name || "—"}`,
+        };
+      })
+      .sort((a, b) => b.ventas - a.ventas);
+  };
+
+  const getRankingInScope = () => {
+    const vendedores = users.filter(
+      (u: any) => u.role === "vendedor" && visibleUserIds.includes(u.id)
+    );
+    return vendedores
+      .map((v: any) => {
+        const ventas = leads.filter(
+          (l) => l.vendedor === v.id && l.estado === "vendido"
+        ).length;
+        const leadsAsignados = leads.filter((l) => l.vendedor === v.id).length;
+        return {
+          id: v.id,
+          nombre: v.name,
+          ventas,
+          leadsAsignados,
+          team: `Equipo de ${userById.get(v.reportsTo)?.name || "—"}`,
+        };
+      })
+      .sort((a, b) => b.ventas - a.ventas);
+  };
+
+  // ===== Nueva función para obtener ranking del equipo gerencial =====
+  const getRankingByManagerialTeam = () => {
+    if (!currentUser) return [];
+    
+    // Si es vendedor, buscar su gerente
+    if (currentUser.role === "vendedor") {
+      // Encontrar su supervisor
+      const supervisor = userById.get(currentUser.reportsTo);
+      if (!supervisor) return getRankingInScope(); // fallback
+      
+      // Encontrar el gerente del supervisor
+      const gerente = userById.get(supervisor.reportsTo);
+      if (!gerente) return getRankingInScope(); // fallback
+      
+      // Obtener todos los vendedores bajo este gerente
+      const teamUserIds = getDescendantUserIds(gerente.id, childrenIndex);
+      const vendedores = users.filter(
+        (u: any) => u.role === "vendedor" && teamUserIds.includes(u.id)
+      );
+      
+      return vendedores
+        .map((v: any) => {
+          const ventas = leads.filter(
+            (l) => l.vendedor === v.id && l.estado === "vendido"
+          ).length;
+          const leadsAsignados = leads.filter((l) => l.vendedor === v.id).length;
+          return {
+            id: v.id,
+            nombre: v.name,
+            ventas,
+            leadsAsignados,
+            team: `Equipo de ${gerente.name}`,
+          };
+        })
+        .sort((a, b) => b.ventas - a.ventas);
+    }
+    
+    // Para otros roles, usar el ranking normal en scope
+    return getRankingInScope();
+  };
+
+  const prevRankingRef = useRef(new Map<number, number>());
+  useEffect(() => {
+    const r = getRanking();
+    const curr = new Map<number, number>();
+    r.forEach((row, idx) => curr.set(row.id, idx + 1));
+    const prev = prevRankingRef.current;
+    curr.forEach((pos, vid) => {
+      const before = prev.get(vid);
+      if (before && before !== pos) {
+        const delta = before - pos;
+        const msg =
+          delta > 0
+            ? `¡Subiste ${Math.abs(delta)} puesto(s) en el ranking!`
+            : `Bajaste ${Math.abs(delta)} puesto(s) en el ranking.`;
+        pushAlertToChain(vid, "ranking_change", msg);
+      }
+    });
+    prevRankingRef.current = curr;
+  }, [leads, users, userById]);
+
+  const getDashboardStats = (teamFilter?: string) => {
+    const filteredLeads =
+      teamFilter && teamFilter !== "todos"
+        ? getFilteredLeadsByTeam(teamFilter)
+        : getFilteredLeads();
+    const vendidos = filteredLeads.filter((lead) => lead.estado === "vendido")
+      .length;
+    const conversion =
+      filteredLeads.length > 0
+        ? ((vendidos / filteredLeads.length) * 100).toFixed(1)
+        : "0";
+    return { totalLeads: filteredLeads.length, vendidos, conversion };
+  };
+
+  const getSourceMetrics = (teamFilter?: string) => {
+    const filteredLeads =
+      teamFilter && teamFilter !== "todos"
+        ? getFilteredLeadsByTeam(teamFilter)
+        : getFilteredLeads();
+    const sourceData = Object.keys(fuentes)
+      .map((source) => {
+        const sourceLeads = filteredLeads.filter(
+          (lead) => lead.fuente === source
+        );
+        const vendidos = sourceLeads.filter(
+          (lead) => lead.estado === "vendido"
+        ).length;
+        const conversion =
+          sourceLeads.length > 0
+            ? ((vendidos / sourceLeads.length) * 100).toFixed(1)
+            : "0";
+        return {
+          source,
+          total: sourceLeads.length,
+          vendidos,
+          conversion: parseFloat(conversion),
+          ...fuentes[source],
+        };
+      })
+      .filter((item) => item.total > 0)
+      .sort((a, b) => b.total - a.total);
+
+    return sourceData;
+  };
+
+  // ===== NUEVA: Función para cambiar estado de lead directamente desde dashboard =====
+  const handleChangeLeadStateFromDashboard = async (leadId: number, newState: string) => {
+    try {
+      await apiUpdateLead(leadId, { estado: newState } as any);
+
+      // Actualizar estado local
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadId
+            ? { ...l, estado: newState as LeadRow["estado"] }
+            : l
+        )
+      );
+
+      // Agregar entrada al historial
+      addHistorialEntry(leadId, newState);
+    } catch (e) {
+      console.error("No pude actualizar estado del lead", e);
+    }
+  };
+
+  // ===== Acciones de Leads (API) =====
+  const mapLeadFromApi = (L: any): LeadRow => ({
+    id: L.id,
+    nombre: L.nombre,
+    telefono: L.telefono,
+    modelo: L.modelo,
+    formaPago: L.formaPago,
+    infoUsado: L.infoUsado,
+    entrega: L.entrega,
+    fecha: L.fecha || L.created_at || "",
+    estado: (L.estado || "nuevo") as LeadRow["estado"],
+    vendedor: L.assigned_to ?? null,
+    notas: L.notas || "",
+    fuente: (L.fuente || "otro") as LeadRow["fuente"],
+    historial: L.historial || [],
+  });
+
+  const addHistorialEntry = (leadId: number, estado: string) => {
+    if (!currentUser) return;
+    setLeads((prev) =>
+      prev.map((lead) =>
+        lead.id === leadId
+          ? {
+              ...lead,
+              historial: [
+                ...(lead.historial || []),
+                {
+                  estado,
+                  timestamp: new Date().toISOString(),
+                  usuario: currentUser.name,
+                },
+              ],
+            }
+          : lead
+      )
+    );
+  };
+
+  const handleUpdateLeadStatus = async (leadId: number, newStatus: string) => {
+    try {
+      const updated = await apiUpdateLead(leadId, { estado: newStatus } as any);
+      setLeads((prev) =>
+        prev.map((l) => (l.id === leadId ? { ...l, ...mapLeadFromApi(updated) } : l))
+      );
+
+      // Agregar entrada al historial
+      addHistorialEntry(leadId, newStatus);
+    } catch (e) {
+      console.error("No pude actualizar estado del lead", e);
+    }
+  };
+
+  // ===== Crear Lead y Modales =====
+  const [showNewLeadModal, setShowNewLeadModal] = useState(false);
+  const [showObservacionesModal, setShowObservacionesModal] = useState(false);
+  const [showHistorialModal, setShowHistorialModal] = useState(false);
+  const [editingLeadObservaciones, setEditingLeadObservaciones] =
+    useState<LeadRow | null>(null);
+  const [viewingLeadHistorial, setViewingLeadHistorial] =
+    useState<LeadRow | null>(null);
+
+  const handleUpdateObservaciones = async (
+    leadId: number,
+    observaciones: string
+  ) => {
+    try {
+      const updated = await apiUpdateLead(leadId, { notas: observaciones } as any);
+      setLeads((prev) =>
+        prev.map((l) => (l.id === leadId ? { ...l, ...mapLeadFromApi(updated) } : l))
+      );
+      setShowObservacionesModal(false);
+      setEditingLeadObservaciones(null);
+    } catch (e) {
+      console.error("No pude actualizar observaciones del lead", e);
+    }
+  };
+
+  // ===== MODIFICADO: Crear Lead con fuente "creado_por_usuario" =====
+  const handleCreateLead = async () => {
+    const nombre = (document.getElementById("new-nombre") as HTMLInputElement)
+      .value
+      .trim();
+    const telefono = (
+      document.getElementById("new-telefono") as HTMLInputElement
+    ).value.trim();
+    const modelo = (document.getElementById("new-modelo") as HTMLInputElement)
+      .value
+      .trim();
+    const formaPago = (document.getElementById("new-formaPago") as HTMLSelectElement).value;
+    const infoUsado = (
+      document.getElementById("new-infoUsado") as HTMLInputElement
+    ).value.trim();
+    const entrega = (document.getElementById("new-entrega") as HTMLInputElement)
+      .checked;
+    const fecha = (document.getElementById("new-fecha") as HTMLInputElement)
+      .value;
+    const autoAssign = (
+      document.getElementById("new-autoassign") as HTMLInputElement
+    )?.checked;
+    const vendedorSelVal = (document.getElementById("new-vendedor") as HTMLSelectElement)
+      .value;
+
+    const vendedorIdSelRaw = parseInt(vendedorSelVal, 10);
+    const vendedorIdSel = Number.isNaN(vendedorIdSelRaw)
+      ? null
+      : vendedorIdSelRaw;
+
+    // MODIFICADO: Siempre usar fuente "creado_por_usuario" para leads creados manualmente
+    const fuente = "creado_por_usuario";
+
+    // Asignación de vendedor según lógica actual
+    let vendedorId: number | null = null;
+    if (autoAssign) {
+      // Para asignación automática, usar el scope disponible del usuario actual
+      const assignableUsers = getAssignableUsers().filter(u => u.role === "vendedor");
+      if (assignableUsers.length > 0) {
+        vendedorId = assignableUsers[rrIndex % assignableUsers.length].id;
+        setRrIndex((i) => i + 1);
+      }
+    } else {
+      // Verificar que el vendedor seleccionado esté en el scope del usuario
+      if (vendedorIdSel) {
+        const assignableUsers = getAssignableUsers();
+        const selectedVendor = assignableUsers.find(u => u.id === vendedorIdSel);
+        if (selectedVendor && selectedVendor.active) {
+          vendedorId = vendedorIdSel;
+        } else {
+          alert("El vendedor seleccionado no está disponible para asignación o está desactivado.");
+          return;
+        }
+      } else {
+        vendedorId = null;
+      }
+    }
+
+    if (nombre && telefono && modelo) {
+      try {
+        const created = await apiCreateLead({
+          nombre,
+          telefono,
+          modelo,
+          formaPago,
+          notas: `Lead creado por: ${currentUser?.name}`,
+          estado: "nuevo",
+          fuente,
+          infoUsado,
+          entrega,
+          fecha,
+          vendedor: vendedorId,
+        } as any);
+        const mapped = mapLeadFromApi(created);
+        if (mapped.vendedor)
+          pushAlert(
+            mapped.vendedor,
+            "lead_assigned",
+            `Nuevo lead asignado: ${mapped.nombre}`
+          );
+        setLeads((prev) => [mapped, ...prev]);
+        setShowNewLeadModal(false);
+
+        addHistorialEntry(mapped.id, `nuevo - Creado por ${currentUser?.name}`);
+      } catch (e) {
+        console.error("No pude crear el lead", e);
+      }
+    }
+  };
+
+  // ===== Calendario (UI local) =====
+  const [events, setEvents] = useState<any[]>([]);
+  const [selectedCalendarUserId, setSelectedCalendarUserId] = useState<number | null>(null);
+  const [showNewEventModal, setShowNewEventModal] = useState(false);
+  const visibleUsers = useMemo(() => (currentUser ? getVisibleUsers() : []), [currentUser, users]);
+  const eventsForSelectedUser = useMemo(() => {
+    const uid = selectedCalendarUserId || currentUser?.id;
+    return events
+      .filter((e) => e.userId === uid)
+      .sort((a, b) => ((a.date + (a.time || "")) > (b.date + (b.time || "")) ? 1 : -1));
+  }, [events, selectedCalendarUserId, currentUser]);
+  const formatterEs = new Intl.DateTimeFormat("es-AR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+  });
+
+  const createEvent = () => {
+    const title = (document.getElementById("ev-title") as HTMLInputElement).value;
+    const date = (document.getElementById("ev-date") as HTMLInputElement).value;
+    const time = (document.getElementById("ev-time") as HTMLInputElement).value;
+    const userId = parseInt((document.getElementById("ev-user") as HTMLSelectElement).value, 10);
+    if (title && date && userId) {
+      setEvents((prev) => [
+        ...prev,
+        {
+          id: Math.max(0, ...prev.map((e: any) => e.id)) + 1,
+          title,
+          date,
+          time: time || "09:00",
+          userId,
+        },
+      ]);
+      setShowNewEventModal(false);
+    }
+  };
+  const deleteEvent = (id: number) =>
+    setEvents((prev) => prev.filter((e: any) => e.id !== id));
+
+  // ===== Gestión de Usuarios (API) =====
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [modalRole, setModalRole] = useState<
+    "owner" | "director" | "gerente" | "supervisor" | "vendedor"
+  >("vendedor");
+  const [modalReportsTo, setModalReportsTo] = useState<number | null>(null);
+
+  const validRolesByUser = (user: any) => {
+    if (!user) return [];
+    switch (user.role) {
+      case "owner":
+        return ["director", "gerente", "supervisor", "vendedor"];
+      case "director":
+        return ["gerente", "supervisor", "vendedor"];
+      case "gerente":
+        return ["supervisor", "vendedor"];
+      default:
+        return [];
+    }
+  };
+  const validManagersByRole = (role: string) => {
+    switch (role) {
+      case "owner":
+        return [];
+      case "director":
+        return users.filter((u: any) => u.role === "owner");
+      case "gerente":
+        return users.filter((u: any) => u.role === "director");
+      case "supervisor":
+        return users.filter((u: any) => u.role === "gerente");
+      case "vendedor":
+        return users.filter((u: any) => u.role === "supervisor");
+      default:
+        return [];
+    }
+  };
+
+  const openCreateUser = () => {
+    setEditingUser(null);
+    const availableRoles = validRolesByUser(currentUser);
+    const roleDefault = (availableRoles?.[0] as typeof modalRole) || "vendedor";
+    const validManagers = validManagersByRole(roleDefault);
+    setModalRole(roleDefault);
+    setModalReportsTo(validManagers[0]?.id ?? null);
+    setShowUserModal(true);
+  };
+
+  const openEditUser = (u: any) => {
+    setEditingUser(u);
+    const roleCurrent = u.role as typeof modalRole;
+    const availableRoles: string[] =
+      currentUser.role === "owner" && u.id === currentUser.id
+        ? ["owner", ...validRolesByUser(currentUser)]
+        : validRolesByUser(currentUser);
+    const roleToSet = availableRoles.includes(roleCurrent)
+      ? roleCurrent
+      : (availableRoles[0] as any);
+    const validManagers = validManagersByRole(roleToSet);
+    setModalRole(roleToSet as any);
+    setModalReportsTo(
+      roleToSet === "owner" ? null : u.reportsTo ?? validManagers[0]?.id ?? null
+    );
+    setShowUserModal(true);
+  };
+
+  // ===== MODIFICADO: Función saveUser mejorada =====
+  const saveUser = async () => {
+    const name = (document.getElementById("u-name") as HTMLInputElement).value.trim();
+    const email = (document.getElementById("u-email") as HTMLInputElement).value.trim();
+    const password = (document.getElementById("u-pass") as HTMLInputElement).value.trim();
+    const active = (document.getElementById("u-active") as HTMLInputElement).checked;
+
+    if (!name || !email) {
+      alert("Nombre y email son obligatorios");
+      return;
+    }
+
+    if (!editingUser && !password) {
+      alert("La contraseña es obligatoria para nuevos usuarios");
+      return;
+    }
+
+    const finalReportsTo = modalRole === "owner" ? null : modalReportsTo ?? null;
+
+    try {
+      if (editingUser) {
+        // Preparar datos para actualización
+        const updateData: any = {
+          name,
+          email,
+          role: modalRole,
+          reportsTo: finalReportsTo,
+          active: active ? 1 : 0,
+        };
+        
+        // Solo incluir password si se proporcionó
+        if (password) {
+          updateData.password = password;
+        }
+
+        const updated = await apiUpdateUser(editingUser.id, updateData);
+        setUsers((prev) => prev.map((u: any) => (u.id === editingUser.id ? updated : u)));
+      } else {
+        // Crear nuevo usuario
+        const created = await apiCreateUser({
+          name,
+          email,
+          password,
+          role: modalRole,
+          reportsTo: finalReportsTo,
+          active: active ? 1 : 0,
+        } as any);
+        setUsers((prev) => [...prev, created]);
+      }
+      setShowUserModal(false);
+      setEditingUser(null);
+    } catch (e: any) {
+      console.error("No pude guardar usuario", e);
+      alert(`Error al guardar usuario: ${e?.response?.data?.error || e.message || "Error desconocido"}`);
+    }
+  };
+
+  // ===== NUEVA: Función para abrir modal de confirmación de eliminación =====
+  const openDeleteConfirm = (user: any) => {
+    if (user.role === "owner") {
+      alert("No podés eliminar al Dueño.");
+      return;
+    }
+    
+    const hasChildren = users.some((u: any) => u.reportsTo === user.id);
+    if (hasChildren) {
+      alert("No se puede eliminar: el usuario tiene integrantes a cargo. Primero reasigne o elimine a sus subordinados.");
+      return;
+    }
+
+    const hasAssignedLeads = leads.some((l) => l.vendedor === user.id);
+    if (hasAssignedLeads) {
+      alert("No se puede eliminar: el usuario tiene leads asignados. Primero reasigne todos sus leads a otros vendedores.");
+      return;
+    }
+
+    setUserToDelete(user);
+    setShowDeleteConfirmModal(true);
+  };
+
+  // ===== NUEVA: Función para confirmar eliminación =====
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return;
+
+    try {
+      await apiDeleteUser(userToDelete.id);
+      setUsers((prev) => prev.filter((u: any) => u.id !== userToDelete.id));
+      setShowDeleteConfirmModal(false);
+      setUserToDelete(null);
+    } catch (e) {
+      console.error("No pude eliminar usuario", e);
+      alert("Error al eliminar el usuario. Por favor, intenta nuevamente.");
+    }
+  };
+
+  // ===== UI: Login =====
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-blue-800 flex items-center justify-center">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+          <div className="text-center mb-8">
+            <div className="flex items-center justify-center mb-4">
+              <svg width="48" height="42" viewBox="0 0 40 36" fill="none">
+                <path d="M10 2L30 2L35 12L30 22L10 22L5 12Z" fill="url(#gradient2)" />
+                <defs>
+                  <linearGradient id="gradient2" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#FFB800" />
+                    <stop offset="25%" stopColor="#FF6B9D" />
+                    <stop offset="50%" stopColor="#8B5CF6" />
+                    <stop offset="75%" stopColor="#06B6D4" />
+                    <stop offset="100%" stopColor="#10B981" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div className="ml-3">
+                <h1 className="text-2xl font-bold text-gray-800">Alluma</h1>
+                <p className="text-sm text-gray-600">Publicidad</p>
+              </div>
+            </div>
+            <p className="text-gray-600">Sistema de gestión CRM</p>
+          </div>
+
+          <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+              <input
+                type="email"
+                id="email"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="tu@alluma.com"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Contraseña</label>
+              <input
+                type="password"
+                id="password"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="••••••••"
+              />
+            </div>
+            {loginError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-red-700 text-sm">{loginError}</p>
+              </div>
+            )}
+
             <button
               onClick={() =>
                 handleLogin(
@@ -2947,7 +3027,7 @@ export default function CRM() {
               })()}
             </div>
 
-            {/* Estados de Leads - NUEVA SECCIÓN EN DASHBOARD */}
+            {/* Estados de Leads - NUEVA SECCIÓN EN DASHBOARD CON CAMBIO DE ESTADOS */}
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-semibold text-gray-800">Estados de Leads</h3>
@@ -3037,7 +3117,7 @@ export default function CRM() {
                 })}
               </div>
 
-              {/* Lista filtrada de leads por estado en Dashboard */}
+              {/* MODIFICADO: Lista filtrada de leads por estado en Dashboard con cambio de estados */}
               {selectedEstado && (
                 <div className="mt-6 border-t pt-6">
                   <h4 className="text-lg font-semibold text-gray-800 mb-4">
@@ -3083,6 +3163,9 @@ export default function CRM() {
                               </th>
                               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                                 Vehículo
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Estado
                               </th>
                               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                                 Fuente
@@ -3136,6 +3219,22 @@ export default function CRM() {
                                         </div>
                                       )}
                                     </div>
+                                  </td>
+                                  <td className="px-4 py-2">
+                                    {/* NUEVO: Dropdown para cambiar estado directamente */}
+                                    <select
+                                      value={lead.estado}
+                                      onChange={(e) =>
+                                        handleChangeLeadStateFromDashboard(lead.id, e.target.value)
+                                      }
+                                      className={`text-xs font-medium rounded-full px-2 py-1 border-0 text-white cursor-pointer ${estados[lead.estado].color}`}
+                                    >
+                                      {Object.entries(estados).map(([key, estado]) => (
+                                        <option key={key} value={key} className="text-black">
+                                          {estado.label}
+                                        </option>
+                                      ))}
+                                    </select>
                                   </td>
                                   <td className="px-4 py-2">
                                     <div className="flex items-center space-x-1">
@@ -3248,13 +3347,16 @@ export default function CRM() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-3xl font-bold text-gray-800">Gestión de Leads</h2>
-              <button
-                onClick={() => setShowNewLeadModal(true)}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <Plus size={20} />
-                <span>Nuevo Lead</span>
-              </button>
+              {/* MODIFICADO: Solo mostrar botón si puede crear leads */}
+              {canCreateLeads() && (
+                <button
+                  onClick={() => setShowNewLeadModal(true)}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <Plus size={20} />
+                  <span>Nuevo Lead</span>
+                </button>
+              )}
             </div>
 
             {/* NUEVA: Barra de búsqueda y filtros */}
