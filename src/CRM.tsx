@@ -539,24 +539,6 @@ export default function CRM() {
       .map((u: any) => u.id);
   };
 
-  const pickNextVendorId = (scopeUser?: any, botSource?: string) => {
-    let pool: number[] = [];
-    if (botSource && botConfig[botSource]) {
-      const botConf = botConfig[botSource];
-      if (botConf.targetTeam) {
-        pool = getVendorsByTeam(botConf.targetTeam);
-      } else {
-        pool = getActiveVendorIdsInScope(scopeUser || currentUser);
-      }
-    } else {
-      pool = getActiveVendorIdsInScope(scopeUser || currentUser);
-    }
-    if (pool.length === 0) return null;
-    const id = pool[rrIndex % pool.length];
-    setRrIndex((i) => i + 1);
-    return id;
-  };
-
   // ===== FUNCIONES DE ALERTAS =====
   const pushAlert = (userId: number, type: Alert["type"], message: string) => {
     setAlerts((prev) => [
