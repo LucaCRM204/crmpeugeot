@@ -1,4 +1,5 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+﻿// CRM.tsx
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Calendar,
   Users,
@@ -31,7 +32,32 @@ import {
   updateLead as apiUpdateLead,
 } from "./services/leads";
 
-// ===== CONSTANTES Y CONFIGURACIÓN =====
+// ===== Utilidades de jerarquía =====
+function buildIndex(users: any[]) {
+  const byId = new Map(users.map((u: any) => [u.id, u]));
+  const children = new Map<number, number[]>();
+  users.forEach((u: any) => children.set(u.id, []));
+  users.forEach((u: any) => {
+    if (u.reportsTo) (children.get(u.reportsTo) as number[] | undefined)?.push(u.id);
+  });
+  return { byId, children };
+}
+
+function getDescendantUserIds(
+  rootId: number,
+  childrenIndex: Map<number, number[]>
+) {
+  const out: number[] = [];
+  const stack = [...(childrenIndex.get(rootId) || [])];
+  while (stack.length) {
+    const id = stack.pop()!;
+    out.push(id);
+    const kids = childrenIndex.get(id) || [];
+    for (const k of kids) stack.push(k);
+  }
+  return out;
+}
+
 const roles: Record<string, string> = {
   owner: "Dueño",
   director: "Director",
@@ -53,7 +79,10 @@ const estados: Record<string, { label: string; color: string }> = {
   no_contesta_3: { label: "No contesta 3", color: "bg-red-600" },
 };
 
-const fuentes: Record<string, { label: string; color: string; icon: string }> = {
+const fuentes: Record<
+  string,
+  { label: string; color: string; icon: string }
+> = {
   meta: { label: "Meta/Facebook", color: "bg-blue-600", icon: "📱" },
   whatsapp: { label: "WhatsApp Bot", color: "bg-green-500", icon: "💬" },
   whatsapp_100: { label: "WhatsApp Bot 100", color: "bg-green-700", icon: "💬" },
@@ -64,16 +93,16 @@ const fuentes: Record<string, { label: string; color: string; icon: string }> = 
   google: { label: "Google Ads", color: "bg-red-500", icon: "🎯" },
   instagram: { label: "Instagram", color: "bg-pink-500", icon: "📸" },
   otro: { label: "Otro", color: "bg-gray-400", icon: "❓" },
-  creado_por_usuario: { label: "Creado por usuario", color: "bg-teal-500", icon: "👨‍💼" },
 };
 
-const botConfig: Record<string, { targetTeam: string | null; label: string }> = {
-  whatsapp_bot_cm1: { targetTeam: "sauer", label: "Bot CM 1" },
-  whatsapp_bot_cm2: { targetTeam: "daniel", label: "Bot CM 2" },
-  whatsapp_100: { targetTeam: null, label: "Bot 100" },
-};
+// Configuración de bots (si aplica en tu backend)
+const botConfig: Record<string, { targetTeam: string | null; label: string }> =
+  {
+    whatsapp_bot_cm1: { targetTeam: "sauer", label: "Bot CM 1" },
+    whatsapp_bot_cm2: { targetTeam: "daniel", label: "Bot CM 2" },
+    whatsapp_100: { targetTeam: null, label: "Bot 100" }, // null = distribución general
+  };
 
-// ===== TYPES =====
 type LeadRow = {
   id: number;
   nombre: string;
@@ -86,7 +115,7 @@ type LeadRow = {
   estado: keyof typeof estados;
   vendedor: number | null;
   notas?: string;
-  fuente: keyof typeof fuentes | string;
+  fuente: keyof typeof fuentes | string; // puede venir "creado_por:<id>"
   historial?: Array<{
     estado: string;
     timestamp: string;
@@ -103,305 +132,240 @@ type Alert = {
   read: boolean;
 };
 
-// ===== UTILIDADES DE JERARQUÍA =====
-function buildIndex(users: any[]) {
-  const byId = new Map(users.map((u: any) => [u.id, u]));
-  const children = new Map<number, number[]>();
-  users.forEach((u: any) => children.set(u.id, []));
-  users.forEach((u: any) => {
-    if (u.reportsTo) (children.get(u.reportsTo) as number[] | undefined)?.push(u.id);
-  });
-  return { byId, children };
-}
-
-function getDescendantUserIds(rootId: number, childrenIndex: Map<number, number[]>) {
-  const out: number[] = [];
-  const stack = [...(childrenIndex.get(rootId) || [])];
-  while (stack.length) {
-    const id = stack.pop()!;
-    out.push(id);
-    const kids = childrenIndex.get(id) || [];
-    for (const k of kids) stack.push(k);
+// ===== Helpers para mostrar fuente =====
+function fuenteToLabel(f: string, userById: Map<number, any>) {
+  if (typeof f === "string" && f.startsWith("creado_por:")) {
+    const idStr = f.split(":")[1];
+    const uid = parseInt(idStr, 10);
+    const u = userById.get(uid);
+    return { icon: "✍️", label: `Creado por ${u?.name || "Usuario"}` };
   }
-  return out;
+  const found = (fuentes as any)[f] || null;
+  if (found) return { icon: found.icon, label: found.label };
+  return { icon: "❓", label: String(f) };
 }
 
-// ===== UTILIDADES DE DESCARGA EXCEL =====
+// ===== Funciones de descarga Excel =====
 const formatDate = (dateString: string): string => {
   if (!dateString) return "Sin fecha";
   const date = new Date(dateString);
   return date.toLocaleDateString("es-AR");
 };
 
-const downloadAllLeadsExcel = (leads: LeadRow[], userById: Map<number, any>, fuentes: any): void => {
-  const excelData = leads.map(lead => {
+const escapeCSV = (val: any) =>
+  `"${String(val ?? "").replace(/"/g, '""')}"`;
+
+const downloadAllLeadsExcel = (
+  leads: LeadRow[],
+  userById: Map<number, any>
+): void => {
+  const excelData = leads.map((lead) => {
     const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
-    const fuente = fuentes[lead.fuente] || { label: lead.fuente };
-    
+    const { label: fuenteLabel } = fuenteToLabel(lead.fuente as string, userById);
     return {
-      'ID': lead.id,
-      'Cliente': lead.nombre,
-      'Teléfono': lead.telefono,
-      'Modelo': lead.modelo,
-      'Forma de Pago': lead.formaPago || '',
-      'Info Usado': lead.infoUsado || '',
-      'Entrega': lead.entrega ? 'Sí' : 'No',
-      'Estado': estados[lead.estado]?.label || lead.estado,
-      'Fuente': fuente.label,
-      'Vendedor': vendedor?.name || 'Sin asignar',
-      'Equipo': vendedor && vendedor.reportsTo ? `Equipo de ${userById.get(vendedor.reportsTo)?.name || '—'}` : '',
-      'Fecha': formatDate(lead.fecha || ''),
-      'Observaciones': lead.notas || ''
+      ID: lead.id,
+      Cliente: lead.nombre,
+      Teléfono: lead.telefono,
+      Modelo: lead.modelo,
+      "Forma de Pago": lead.formaPago || "",
+      "Info Usado": lead.infoUsado || "",
+      Entrega: lead.entrega ? "Sí" : "No",
+      Estado: estados[lead.estado]?.label || lead.estado,
+      Fuente: fuenteLabel,
+      Vendedor: vendedor?.name || "Sin asignar",
+      Equipo:
+        vendedor && vendedor.reportsTo
+          ? `Equipo de ${userById.get(vendedor.reportsTo)?.name || "—"}`
+          : "",
+      Fecha: formatDate(lead.fecha || ""),
+      Observaciones: lead.notas || "",
     };
   });
 
   const headers = Object.keys(excelData[0] || {});
   const csvContent = [
-    headers.join(','),
-    ...excelData.map(row => 
-      headers.map(header => {
-        const value = (row as any)[header] || '';
-        return `"${String(value).replace(/"/g, '""')}"`;
-      }).join(',')
-    )
-  ].join('\n');
+    headers.join(","),
+    ...excelData.map((row) => headers.map((h) => escapeCSV((row as any)[h])).join(",")),
+  ].join("\n");
 
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
   const url = URL.createObjectURL(blob);
-  link.setAttribute('href', url);
-  link.setAttribute('download', `todos_los_leads_${new Date().toISOString().slice(0,10)}.csv`);
-  link.style.visibility = 'hidden';
+  link.setAttribute("href", url);
+  link.setAttribute(
+    "download",
+    `todos_los_leads_${new Date().toISOString().slice(0, 10)}.csv`
+  );
+  link.style.visibility = "hidden";
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
 };
 
-const downloadLeadsByStateExcel = (leads: LeadRow[], estado: string, userById: Map<number, any>, fuentes: any): void => {
-  const leadsByState = leads.filter(l => l.estado === estado);
-
+const downloadLeadsByStateExcel = (
+  leads: LeadRow[],
+  estado: string,
+  userById: Map<number, any>
+): void => {
+  const leadsByState = leads.filter((l) => l.estado === estado);
   if (leadsByState.length === 0) {
     alert(`No hay leads en estado "${estados[estado]?.label || estado}"`);
     return;
   }
 
-  const excelData = leadsByState.map(lead => {
+  const excelData = leadsByState.map((lead) => {
     const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
-    const fuente = fuentes[lead.fuente] || { label: lead.fuente };
-    
+    const { label: fuenteLabel } = fuenteToLabel(lead.fuente as string, userById);
     return {
-      'ID': lead.id,
-      'Cliente': lead.nombre,
-      'Teléfono': lead.telefono,
-      'Modelo': lead.modelo,
-      'Forma de Pago': lead.formaPago || '',
-      'Info Usado': lead.infoUsado || '',
-      'Entrega': lead.entrega ? 'Sí' : 'No',
-      'Fuente': fuente.label,
-      'Vendedor': vendedor?.name || 'Sin asignar',
-      'Equipo': vendedor && vendedor.reportsTo ? `Equipo de ${userById.get(vendedor.reportsTo)?.name || '—'}` : '',
-      'Fecha': formatDate(lead.fecha || ''),
-      'Observaciones': lead.notas || '',
-      'Historial': lead.historial?.map(h => 
-        `${formatDate(h.timestamp)}: ${h.estado} (${h.usuario})`
-      ).join(' | ') || ''
+      ID: lead.id,
+      Cliente: lead.nombre,
+      Teléfono: lead.telefono,
+      Modelo: lead.modelo,
+      "Forma de Pago": lead.formaPago || "",
+      "Info Usado": lead.infoUsado || "",
+      Entrega: lead.entrega ? "Sí" : "No",
+      Fuente: fuenteLabel,
+      Vendedor: vendedor?.name || "Sin asignar",
+      Equipo:
+        vendedor && vendedor.reportsTo
+          ? `Equipo de ${userById.get(vendedor.reportsTo)?.name || "—"}`
+          : "",
+      Fecha: formatDate(lead.fecha || ""),
+      Observaciones: lead.notas || "",
+      Historial:
+        lead.historial
+          ?.map((h) => `${formatDate(h.timestamp)}: ${h.estado} (${h.usuario})`)
+          .join(" | ") || "",
     };
   });
 
   const headers = Object.keys(excelData[0] || {});
   const csvContent = [
-    headers.join(','),
-    ...excelData.map(row => 
-      headers.map(header => {
-        const value = (row as any)[header] || '';
-        return `"${String(value).replace(/"/g, '""')}"`;
-      }).join(',')
-    )
-  ].join('\n');
+    headers.join(","),
+    ...excelData.map((row) => headers.map((h) => escapeCSV((row as any)[h])).join(",")),
+  ].join("\n");
 
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
   const url = URL.createObjectURL(blob);
-  link.setAttribute('href', url);
+  link.setAttribute("href", url);
   const estadoLabel = estados[estado]?.label || estado;
-  link.setAttribute('download', `leads_${estadoLabel.toLowerCase().replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.csv`);
-  link.style.visibility = 'hidden';
+  link.setAttribute(
+    "download",
+    `leads_${estadoLabel.toLowerCase().replace(/\s+/g, "_")}_${new Date()
+      .toISOString()
+      .slice(0, 10)}.csv`
+  );
+  link.style.visibility = "hidden";
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
 };
 
-// ===== COMPONENTE PRINCIPAL =====
 export default function CRM() {
-  // ===== ESTADOS PRINCIPALES =====
   const [users, setUsers] = useState<any[]>([]);
   const [leads, setLeads] = useState<LeadRow[]>([]);
+  const { byId: userById, children: childrenIndex } = useMemo(
+    () => buildIndex(users),
+    [users]
+  );
+
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [loginError, setLoginError] = useState("");
-  
-  const { byId: userById, children: childrenIndex } = useMemo(() => buildIndex(users), [users]);
-
-  // ===== ESTADOS DE UI =====
   const [activeSection, setActiveSection] = useState<
     "dashboard" | "leads" | "calendar" | "ranking" | "users" | "alerts" | "team"
   >("dashboard");
+  const [loginError, setLoginError] = useState("");
   const [selectedEstado, setSelectedEstado] = useState<string | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<string>("todos");
 
-  // ===== ESTADOS DE FILTROS =====
+  // Búsqueda y filtros en Leads
   const [searchText, setSearchText] = useState("");
   const [selectedVendedorFilter, setSelectedVendedorFilter] = useState<number | null>(null);
   const [selectedEstadoFilter, setSelectedEstadoFilter] = useState<string>("");
   const [selectedFuenteFilter, setSelectedFuenteFilter] = useState<string>("");
   const [showFilters, setShowFilters] = useState(false);
 
-  // ===== ESTADOS DE MODALES =====
-  const [showNewLeadModal, setShowNewLeadModal] = useState(false);
-  const [showObservacionesModal, setShowObservacionesModal] = useState(false);
-  const [showHistorialModal, setShowHistorialModal] = useState(false);
+  // Reasignación
   const [showReassignModal, setShowReassignModal] = useState(false);
-  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
-  const [showUserModal, setShowUserModal] = useState(false);
-  const [showNewEventModal, setShowNewEventModal] = useState(false);
-
-  // ===== ESTADOS DE DATOS DE MODALES =====
-  const [editingLeadObservaciones, setEditingLeadObservaciones] = useState<LeadRow | null>(null);
-  const [viewingLeadHistorial, setViewingLeadHistorial] = useState<LeadRow | null>(null);
   const [leadToReassign, setLeadToReassign] = useState<LeadRow | null>(null);
-  const [selectedVendorForReassign, setSelectedVendorForReassign] = useState<number | null>(null);
+  const [selectedVendorForReassign, setSelectedVendorForReassign] =
+    useState<number | null>(null);
+
+  // Confirmación eliminación de usuario
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState<any>(null);
-  const [editingUser, setEditingUser] = useState<any>(null);
-  const [modalRole, setModalRole] = useState<"owner" | "director" | "gerente" | "supervisor" | "vendedor">("vendedor");
-  const [modalReportsTo, setModalReportsTo] = useState<number | null>(null);
 
-  // ===== ESTADOS DE CALENDARIO =====
-  const [events, setEvents] = useState<any[]>([]);
-  const [selectedCalendarUserId, setSelectedCalendarUserId] = useState<number | null>(null);
+  // ===== Login =====
+  const handleLogin = async (email: string, password: string) => {
+    try {
+      const r = await api.post("/auth/login", {
+        email,
+        password,
+        allowInactiveUsers: true,
+      });
 
-  // ===== ESTADOS DE ALERTAS =====
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const nextAlertId = useRef(1);
-  const [rrIndex, setRrIndex] = useState(0);
+      if (r.data?.ok && r.data?.token) {
+        localStorage.setItem("token", r.data.token);
+        localStorage.setItem("user", JSON.stringify(r.data.user));
+        api.defaults.headers.common["Authorization"] = `Bearer ${r.data.token}`;
 
-  // ===== FUNCIONES DE PERMISOS =====
-  const canCreateUsers = () => currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
-  const canManageUsers = () => currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
-  const canCreateLeads = () => currentUser && ["owner", "director", "gerente", "supervisor", "vendedor"].includes(currentUser.role);
-  const isOwner = () => currentUser?.role === "owner";
+        const u =
+          r.data.user || {
+            id: 0,
+            name: r.data?.user?.email || email,
+            email,
+            role: r.data?.user?.role || "owner",
+            reportsTo: null,
+            active: r.data?.user?.active ?? true,
+          };
 
-  // ===== FUNCIONES DE ACCESO Y VISIBILIDAD =====
+        setCurrentUser(u);
+        setIsAuthenticated(true);
+        setLoginError("");
+
+        const [uu, ll] = await Promise.all([listUsers(), listLeads()]);
+        const mappedLeads: LeadRow[] = (ll || []).map((L: any) => ({
+          id: L.id,
+          nombre: L.nombre,
+          telefono: L.telefono,
+          modelo: L.modelo,
+          formaPago: L.formaPago,
+          infoUsado: L.infoUsado,
+          entrega: L.entrega,
+          fecha: L.fecha || L.created_at || "",
+          estado: (L.estado || "nuevo") as LeadRow["estado"],
+          vendedor: L.assigned_to ?? L.vendedor ?? null,
+          notas: L.notas || "",
+          fuente: (L.fuente || "otro") as LeadRow["fuente"],
+          historial: L.historial || [],
+        }));
+        setUsers(uu || []);
+        setLeads(mappedLeads);
+      } else {
+        throw new Error("Respuesta inválida del servidor");
+      }
+    } catch (err: any) {
+      setLoginError(err?.response?.data?.error || "Credenciales incorrectas");
+      setIsAuthenticated(false);
+    }
+  };
+
+  // ===== Acceso por rol =====
   const getAccessibleUserIds = (user: any) => {
     if (!user) return [] as number[];
-    if (["owner", "director"].includes(user.role)) return users.map((u: any) => u.id);
+    if (["owner", "director"].includes(user.role))
+      return users.map((u: any) => u.id);
     const ids = [user.id, ...getDescendantUserIds(user.id, childrenIndex)];
     return ids;
   };
+  const canManageUsers = () =>
+    currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
+  const isOwner = () => currentUser?.role === "owner";
+  const canCreateLeads =
+    currentUser && ["vendedor", "supervisor", "gerente"].includes(currentUser.role);
 
-  const getVisibleUsers = () => {
-    if (!currentUser) return [];
-    return users.filter((u: any) => {
-      if (currentUser.role === "owner") return true;
-      if (currentUser.role === "director") return u.role !== "owner";
-      if (currentUser.role === "gerente") {
-        if (u.id === currentUser.id) return true;
-        if (u.reportsTo === currentUser.id) return true;
-        const userSupervisor = userById.get(u.reportsTo);
-        return userSupervisor && userSupervisor.reportsTo === currentUser.id;
-      }
-      if (currentUser.role === "supervisor") {
-        if (u.id === currentUser.id) return true;
-        return u.reportsTo === currentUser.id;
-      }
-      if (currentUser.role === "vendedor") return u.id === currentUser.id;
-      return false;
-    });
-  };
-
-  const getAssignableUsers = () => {
-    if (!currentUser) return [];
-    if (["owner", "director"].includes(currentUser.role)) {
-      return users.filter((u: any) => ["vendedor", "supervisor"].includes(u.role) && u.active);
-    }
-    if (currentUser.role === "gerente") {
-      const teamIds = [currentUser.id, ...getDescendantUserIds(currentUser.id, childrenIndex)];
-      return users.filter((u: any) => 
-        (u.role === "vendedor" || u.role === "supervisor") && u.active && teamIds.includes(u.id)
-      );
-    }
-    if (currentUser.role === "supervisor") {
-      return users.filter((u: any) => 
-        u.active && (u.id === currentUser.id || (u.role === "vendedor" && u.reportsTo === currentUser.id))
-      );
-    }
-    if (currentUser.role === "vendedor") {
-      return currentUser.active ? [currentUser] : [];
-    }
-    return [];
-  };
-
-  const getAvailableVendorsForReassign = () => {
-    if (!currentUser) return [];
-    const visibleUsers = getVisibleUsers();
-    return visibleUsers.filter((u: any) => u.role === "vendedor" && u.active);
-  };
-
-  // ===== FUNCIONES DE FILTROS =====
-  const getFilteredLeads = () => {
-    if (!currentUser) return [] as LeadRow[];
-    const visibleUserIds = getAccessibleUserIds(currentUser);
-    return leads.filter((l) => l.vendedor ? visibleUserIds.includes(l.vendedor) : true);
-  };
-
-  const getFilteredAndSearchedLeads = () => {
-    if (!currentUser) return [] as LeadRow[];
-    const visibleUserIds = getAccessibleUserIds(currentUser);
-    let filteredLeads = leads.filter((l) => l.vendedor ? visibleUserIds.includes(l.vendedor) : true);
-
-    if (selectedVendedorFilter) {
-      filteredLeads = filteredLeads.filter((l) => l.vendedor === selectedVendedorFilter);
-    }
-    if (selectedEstadoFilter) {
-      filteredLeads = filteredLeads.filter((l) => l.estado === selectedEstadoFilter);
-    }
-    if (selectedFuenteFilter) {
-      filteredLeads = filteredLeads.filter((l) => l.fuente === selectedFuenteFilter);
-    }
-    if (searchText.trim()) {
-      const searchLower = searchText.toLowerCase().trim();
-      filteredLeads = filteredLeads.filter((l) => {
-        const vendedor = l.vendedor ? userById.get(l.vendedor) : null;
-        return (
-          l.nombre.toLowerCase().includes(searchLower) ||
-          l.telefono.includes(searchText.trim()) ||
-          l.modelo.toLowerCase().includes(searchLower) ||
-          (l.notas && l.notas.toLowerCase().includes(searchLower)) ||
-          (vendedor && vendedor.name.toLowerCase().includes(searchLower)) ||
-          (l.formaPago && l.formaPago.toLowerCase().includes(searchLower)) ||
-          (l.infoUsado && l.infoUsado.toLowerCase().includes(searchLower))
-        );
-      });
-    }
-    return filteredLeads;
-  };
-
-  const clearFilters = () => {
-    setSearchText("");
-    setSelectedVendedorFilter(null);
-    setSelectedEstadoFilter("");
-    setSelectedFuenteFilter("");
-  };
-
-  const getActiveFiltersCount = () => {
-    let count = 0;
-    if (searchText.trim()) count++;
-    if (selectedVendedorFilter) count++;
-    if (selectedEstadoFilter) count++;
-    if (selectedFuenteFilter) count++;
-    return count;
-  };
-
-  // ===== FUNCIONES DE EQUIPO =====
+  // ===== Filtro por equipo =====
   const getTeamManagerById = (teamId: string) => {
     if (teamId === "todos") return null;
     return users.find((u: any) => u.role === "gerente" && u.id.toString() === teamId);
@@ -417,20 +381,238 @@ export default function CRM() {
 
   const getFilteredLeadsByTeam = (teamId?: string) => {
     if (!currentUser) return [] as LeadRow[];
-    if (teamId && teamId !== "todos" && ["owner", "director"].includes(currentUser.role)) {
+    if (
+      teamId &&
+      teamId !== "todos" &&
+      ["owner", "director"].includes(currentUser.role)
+    ) {
       const teamUserIds = getTeamUserIds(teamId);
-      return leads.filter((l) => l.vendedor ? teamUserIds.includes(l.vendedor) : false);
+      return leads.filter((l) =>
+        l.vendedor ? teamUserIds.includes(l.vendedor) : false
+      );
     }
     const visibleUserIds = getAccessibleUserIds(currentUser);
-    return leads.filter((l) => l.vendedor ? visibleUserIds.includes(l.vendedor) : true);
+    return leads.filter((l) =>
+      l.vendedor ? visibleUserIds.includes(l.vendedor) : true
+    );
   };
 
-  // ===== FUNCIONES DE RANKING =====
+  // ===== Usuarios visibles según rol =====
+  const getVisibleUsers = () => {
+    if (!currentUser) return [];
+
+    return users.filter((u: any) => {
+      if (currentUser.role === "owner") return true;
+      if (currentUser.role === "director") return u.role !== "owner";
+      if (currentUser.role === "gerente") {
+        if (u.id === currentUser.id) return true;
+        if (u.reportsTo === currentUser.id) return true; // supervisores
+        const userSupervisor = userById.get(u.reportsTo);
+        return userSupervisor && userSupervisor.reportsTo === currentUser.id; // vendedores bajo supervisores
+      }
+      if (currentUser.role === "supervisor") {
+        if (u.id === currentUser.id) return true;
+        return u.reportsTo === currentUser.id; // vendedores directos
+      }
+      if (currentUser.role === "vendedor") {
+        return u.id === currentUser.id; // sólo el mismo vendedor
+      }
+      return false;
+    });
+  };
+
+  // ===== Leads filtrados + búsqueda =====
+  const getFilteredAndSearchedLeads = () => {
+    if (!currentUser) return [] as LeadRow[];
+
+    const visibleUserIds = getAccessibleUserIds(currentUser);
+    let filteredLeads = leads.filter((l) =>
+      l.vendedor ? visibleUserIds.includes(l.vendedor) : true
+    );
+
+    if (selectedVendedorFilter !== null) {
+      if (selectedVendedorFilter === 0) {
+        filteredLeads = filteredLeads.filter((l) => l.vendedor === null);
+      } else {
+        filteredLeads = filteredLeads.filter((l) => l.vendedor === selectedVendedorFilter);
+      }
+    }
+
+    if (selectedEstadoFilter) {
+      filteredLeads = filteredLeads.filter((l) => l.estado === selectedEstadoFilter);
+    }
+
+    if (selectedFuenteFilter) {
+      filteredLeads = filteredLeads.filter((l) => l.fuente === selectedFuenteFilter);
+    }
+
+    if (searchText.trim()) {
+      const searchLower = searchText.toLowerCase().trim();
+      filteredLeads = filteredLeads.filter((l) => {
+        const vendedor = l.vendedor ? userById.get(l.vendedor) : null;
+        return (
+          l.nombre.toLowerCase().includes(searchLower) ||
+          l.telefono.includes(searchText.trim()) ||
+          l.modelo.toLowerCase().includes(searchLower) ||
+          (l.notas && l.notas.toLowerCase().includes(searchLower)) ||
+          (vendedor && vendedor.name.toLowerCase().includes(searchLower)) ||
+          (l.formaPago && l.formaPago.toLowerCase().includes(searchLower)) ||
+          (l.infoUsado && l.infoUsado.toLowerCase().includes(searchLower))
+        );
+      });
+    }
+
+    return filteredLeads;
+  };
+
+  const clearFilters = () => {
+    setSearchText("");
+    setSelectedVendedorFilter(null);
+    setSelectedEstadoFilter("");
+    setSelectedFuenteFilter("");
+  };
+
+  const getActiveFiltersCount = () => {
+    let count = 0;
+    if (searchText.trim()) count++;
+    if (selectedVendedorFilter !== null) count++;
+    if (selectedEstadoFilter) count++;
+    if (selectedFuenteFilter) count++;
+    return count;
+  };
+
+  // ===== Vendedores disponibles (sólo activos) =====
+  const getAvailableVendorsForReassign = () => {
+    if (!currentUser) return [];
+    const visible = getVisibleUsers();
+    return visible.filter((u: any) => u.role === "vendedor" && u.active);
+  };
+
+  // ===== Modal de reasignación =====
+  const openReassignModal = (lead: LeadRow) => {
+    setLeadToReassign(lead);
+    setSelectedVendorForReassign(lead.vendedor);
+    setShowReassignModal(true);
+  };
+
+  const handleReassignLead = async () => {
+    if (!leadToReassign) return;
+    try {
+      const payload = { vendedor: selectedVendorForReassign } as any;
+      const updated = await apiUpdateLead(leadToReassign.id, payload);
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadToReassign.id ? { ...l, ...mapLeadFromApi(updated) } : l
+        )
+      );
+
+      if (selectedVendorForReassign) {
+        const nv = userById.get(selectedVendorForReassign);
+        pushAlert(
+          selectedVendorForReassign,
+          "lead_assigned",
+          `Lead reasignado: ${leadToReassign.nombre} - ${leadToReassign.modelo}`
+        );
+        addHistorialEntry(
+          leadToReassign.id,
+          `Reasignado a ${nv?.name || "Sin asignar"}`
+        );
+      } else {
+        addHistorialEntry(leadToReassign.id, "Reasignado a Sin asignar");
+      }
+
+      setShowReassignModal(false);
+      setLeadToReassign(null);
+      setSelectedVendorForReassign(null);
+    } catch (e) {
+      console.error("No pude reasignar el lead", e);
+    }
+  };
+
+  // ===== Round-robin (sólo vendedores activos) =====
+  const [rrIndex, setRrIndex] = useState(0);
+
+  const getActiveVendorIdsInScope = (scopeUser?: any) => {
+    if (!scopeUser) return [] as number[];
+    const scope = getAccessibleUserIds(scopeUser);
+    return users
+      .filter((u: any) => u.role === "vendedor" && u.active && scope.includes(u.id))
+      .map((u: any) => u.id);
+  };
+
+  const getVendorsByTeam = (teamName: string) => {
+    const manager = users.find(
+      (u: any) =>
+        u.role === "gerente" &&
+        u.name.toLowerCase().includes(teamName.toLowerCase())
+    );
+    if (!manager) return [];
+    const descendants = getDescendantUserIds(manager.id, childrenIndex);
+    return users
+      .filter((u: any) => u.role === "vendedor" && u.active && descendants.includes(u.id))
+      .map((u: any) => u.id);
+  };
+
+  const pickNextVendorId = (scopeUser?: any, botSource?: string) => {
+    let pool: number[] = [];
+    if (botSource && botConfig[botSource]) {
+      const botConf = botConfig[botSource];
+      pool = botConf.targetTeam
+        ? getVendorsByTeam(botConf.targetTeam)
+        : getActiveVendorIdsInScope(scopeUser || currentUser);
+    } else {
+      pool = getActiveVendorIdsInScope(scopeUser || currentUser);
+    }
+    if (pool.length === 0) return null;
+    const id = pool[rrIndex % pool.length];
+    setRrIndex((i) => i + 1);
+    return id;
+  };
+
+  // ===== Alertas =====
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const nextAlertId = useRef(1);
+  const pushAlert = (userId: number, type: Alert["type"], message: string) => {
+    setAlerts((prev) => [
+      ...prev,
+      {
+        id: nextAlertId.current++,
+        userId,
+        type,
+        message,
+        ts: new Date().toISOString(),
+        read: false,
+      },
+    ]);
+  };
+  const pushAlertToChain = (vendorId: number, type: Alert["type"], message: string) => {
+    pushAlert(vendorId, type, message);
+    const sup = users.find((u: any) => u.id === userById.get(vendorId)?.reportsTo);
+    if (sup) pushAlert(sup.id, type, message);
+    const gerente = sup ? users.find((u: any) => u.id === sup.reportsTo) : null;
+    if (gerente) pushAlert(gerente.id, type, message);
+  };
+
+  // ===== Ranking =====
+  const visibleUserIds = useMemo(
+    () => getAccessibleUserIds(currentUser),
+    [currentUser, users]
+  );
+
+  const getFilteredLeads = () => {
+    if (!currentUser) return [] as LeadRow[];
+    return leads.filter((l) =>
+      l.vendedor ? visibleUserIds.includes(l.vendedor) : true
+    );
+  };
+
   const getRanking = () => {
     const vendedores = users.filter((u: any) => u.role === "vendedor");
     return vendedores
       .map((v: any) => {
-        const ventas = leads.filter((l) => l.vendedor === v.id && l.estado === "vendido").length;
+        const ventas = leads.filter(
+          (l) => l.vendedor === v.id && l.estado === "vendido"
+        ).length;
         const leadsAsignados = leads.filter((l) => l.vendedor === v.id).length;
         return {
           id: v.id,
@@ -444,11 +626,14 @@ export default function CRM() {
   };
 
   const getRankingInScope = () => {
-    const visibleUserIds = getAccessibleUserIds(currentUser);
-    const vendedores = users.filter((u: any) => u.role === "vendedor" && visibleUserIds.includes(u.id));
+    const vendedores = users.filter(
+      (u: any) => u.role === "vendedor" && visibleUserIds.includes(u.id)
+    );
     return vendedores
       .map((v: any) => {
-        const ventas = leads.filter((l) => l.vendedor === v.id && l.estado === "vendido").length;
+        const ventas = leads.filter(
+          (l) => l.vendedor === v.id && l.estado === "vendido"
+        ).length;
         const leadsAsignados = leads.filter((l) => l.vendedor === v.id).length;
         return {
           id: v.id,
@@ -468,11 +653,16 @@ export default function CRM() {
       if (!supervisor) return getRankingInScope();
       const gerente = userById.get(supervisor.reportsTo);
       if (!gerente) return getRankingInScope();
+
       const teamUserIds = getDescendantUserIds(gerente.id, childrenIndex);
-      const vendedores = users.filter((u: any) => u.role === "vendedor" && teamUserIds.includes(u.id));
+      const vendedores = users.filter(
+        (u: any) => u.role === "vendedor" && teamUserIds.includes(u.id)
+      );
       return vendedores
         .map((v: any) => {
-          const ventas = leads.filter((l) => l.vendedor === v.id && l.estado === "vendido").length;
+          const ventas = leads.filter(
+            (l) => l.vendedor === v.id && l.estado === "vendido"
+          ).length;
           const leadsAsignados = leads.filter((l) => l.vendedor === v.id).length;
           return {
             id: v.id,
@@ -487,100 +677,68 @@ export default function CRM() {
     return getRankingInScope();
   };
 
-  // ===== FUNCIONES DE ESTADÍSTICAS =====
+  const prevRankingRef = useRef(new Map<number, number>());
+  useEffect(() => {
+    const r = getRanking();
+    const curr = new Map<number, number>();
+    r.forEach((row, idx) => curr.set(row.id, idx + 1));
+    const prev = prevRankingRef.current;
+    curr.forEach((pos, vid) => {
+      const before = prev.get(vid);
+      if (before && before !== pos) {
+        const delta = before - pos;
+        const msg =
+          delta > 0
+            ? `¡Subiste ${Math.abs(delta)} puesto(s) en el ranking!`
+            : `Bajaste ${Math.abs(delta)} puesto(s) en el ranking.`;
+        pushAlertToChain(vid, "ranking_change", msg);
+      }
+    });
+    prevRankingRef.current = curr;
+  }, [leads, users, userById]);
+
+  // ===== Dashboard métricas =====
   const getDashboardStats = (teamFilter?: string) => {
-    const filteredLeads = teamFilter && teamFilter !== "todos"
-      ? getFilteredLeadsByTeam(teamFilter)
-      : getFilteredLeads();
+    const filteredLeads =
+      teamFilter && teamFilter !== "todos"
+        ? getFilteredLeadsByTeam(teamFilter)
+        : getFilteredLeads();
     const vendidos = filteredLeads.filter((lead) => lead.estado === "vendido").length;
-    const conversion = filteredLeads.length > 0 ? ((vendidos / filteredLeads.length) * 100).toFixed(1) : "0";
+    const conversion =
+      filteredLeads.length > 0
+        ? ((vendidos / filteredLeads.length) * 100).toFixed(1)
+        : "0";
     return { totalLeads: filteredLeads.length, vendidos, conversion };
   };
 
   const getSourceMetrics = (teamFilter?: string) => {
-    const filteredLeads = teamFilter && teamFilter !== "todos"
-      ? getFilteredLeadsByTeam(teamFilter)
-      : getFilteredLeads();
+    const filteredLeads =
+      teamFilter && teamFilter !== "todos"
+        ? getFilteredLeadsByTeam(teamFilter)
+        : getFilteredLeads();
     const sourceData = Object.keys(fuentes)
       .map((source) => {
         const sourceLeads = filteredLeads.filter((lead) => lead.fuente === source);
         const vendidos = sourceLeads.filter((lead) => lead.estado === "vendido").length;
-        const conversion = sourceLeads.length > 0 ? ((vendidos / sourceLeads.length) * 100).toFixed(1) : "0";
+        const conversion =
+          sourceLeads.length > 0
+            ? ((vendidos / sourceLeads.length) * 100).toFixed(1)
+            : "0";
         return {
           source,
           total: sourceLeads.length,
           vendidos,
           conversion: parseFloat(conversion),
-          ...fuentes[source],
+          ...(fuentes as any)[source],
         };
       })
       .filter((item) => item.total > 0)
       .sort((a, b) => b.total - a.total);
+
     return sourceData;
   };
 
-  // ===== FUNCIONES DE ASIGNACIÓN =====
-  const getActiveVendorIdsInScope = (scopeUser?: any) => {
-    if (!scopeUser) return [] as number[];
-    const scope = getAccessibleUserIds(scopeUser);
-    return users
-      .filter((u: any) => u.role === "vendedor" && u.active && scope.includes(u.id))
-      .map((u: any) => u.id);
-  };
-
-  const getVendorsByTeam = (teamName: string) => {
-    const manager = users.find((u: any) =>
-      u.role === "gerente" && u.name.toLowerCase().includes(teamName.toLowerCase())
-    );
-    if (!manager) return [];
-    const descendants = getDescendantUserIds(manager.id, childrenIndex);
-    return users
-      .filter((u: any) => u.role === "vendedor" && u.active && descendants.includes(u.id))
-      .map((u: any) => u.id);
-  };
-
-  const pickNextVendorId = (scopeUser?: any, botSource?: string) => {
-    let pool: number[] = [];
-    if (botSource && botConfig[botSource]) {
-      const botConf = botConfig[botSource];
-      if (botConf.targetTeam) {
-        pool = getVendorsByTeam(botConf.targetTeam);
-      } else {
-        pool = getActiveVendorIdsInScope(scopeUser || currentUser);
-      }
-    } else {
-      pool = getActiveVendorIdsInScope(scopeUser || currentUser);
-    }
-    if (pool.length === 0) return null;
-    const id = pool[rrIndex % pool.length];
-    setRrIndex((i) => i + 1);
-    return id;
-  };
-
-  // ===== FUNCIONES DE ALERTAS =====
-  const pushAlert = (userId: number, type: Alert["type"], message: string) => {
-    setAlerts((prev) => [
-      ...prev,
-      {
-        id: nextAlertId.current++,
-        userId,
-        type,
-        message,
-        ts: new Date().toISOString(),
-        read: false,
-      },
-    ]);
-  };
-
-  const pushAlertToChain = (vendorId: number, type: Alert["type"], message: string) => {
-    pushAlert(vendorId, type, message);
-    const sup = users.find((u: any) => u.id === userById.get(vendorId)?.reportsTo);
-    if (sup) pushAlert(sup.id, type, message);
-    const gerente = sup ? users.find((u: any) => u.id === sup.reportsTo) : null;
-    if (gerente) pushAlert(gerente.id, type, message);
-  };
-
-  // ===== FUNCIONES DE LEADS =====
+  // ===== Mapeo Lead API =====
   const mapLeadFromApi = (L: any): LeadRow => ({
     id: L.id,
     nombre: L.nombre,
@@ -591,7 +749,7 @@ export default function CRM() {
     entrega: L.entrega,
     fecha: L.fecha || L.created_at || "",
     estado: (L.estado || "nuevo") as LeadRow["estado"],
-    vendedor: L.assigned_to ?? null,
+    vendedor: L.assigned_to ?? L.vendedor ?? null,
     notas: L.notas || "",
     fuente: (L.fuente || "otro") as LeadRow["fuente"],
     historial: L.historial || [],
@@ -630,281 +788,10 @@ export default function CRM() {
     }
   };
 
-  const handleChangeLeadStateFromDashboard = async (leadId: number, newState: string) => {
-    try {
-      await apiUpdateLead(leadId, { estado: newState } as any);
-      setLeads((prev) =>
-        prev.map((l) =>
-          l.id === leadId ? { ...l, estado: newState as LeadRow["estado"] } : l
-        )
-      );
-      addHistorialEntry(leadId, newState);
-    } catch (e) {
-      console.error("No pude actualizar estado del lead", e);
-    }
-  };
-
-  const handleUpdateObservaciones = async (leadId: number, observaciones: string) => {
-    try {
-      const updated = await apiUpdateLead(leadId, { notas: observaciones } as any);
-      setLeads((prev) =>
-        prev.map((l) => (l.id === leadId ? { ...l, ...mapLeadFromApi(updated) } : l))
-      );
-      setShowObservacionesModal(false);
-      setEditingLeadObservaciones(null);
-    } catch (e) {
-      console.error("No pude actualizar observaciones del lead", e);
-    }
-  };
-
-  const handleCreateLead = async () => {
-    const nombre = (document.getElementById("new-nombre") as HTMLInputElement).value.trim();
-    const telefono = (document.getElementById("new-telefono") as HTMLInputElement).value.trim();
-    const modelo = (document.getElementById("new-modelo") as HTMLInputElement).value.trim();
-    const formaPago = (document.getElementById("new-formaPago") as HTMLSelectElement).value;
-    const infoUsado = (document.getElementById("new-infoUsado") as HTMLInputElement).value.trim();
-    const entrega = (document.getElementById("new-entrega") as HTMLInputElement).checked;
-    const fecha = (document.getElementById("new-fecha") as HTMLInputElement).value;
-    const autoAssign = (document.getElementById("new-autoassign") as HTMLInputElement)?.checked;
-    const vendedorSelVal = (document.getElementById("new-vendedor") as HTMLSelectElement).value;
-
-    const vendedorIdSelRaw = parseInt(vendedorSelVal, 10);
-    const vendedorIdSel = Number.isNaN(vendedorIdSelRaw) ? null : vendedorIdSelRaw;
-    const fuente = "creado_por_usuario";
-
-    let vendedorId: number | null = null;
-    if (autoAssign) {
-      const assignableUsers = getAssignableUsers().filter(u => u.role === "vendedor");
-      if (assignableUsers.length > 0) {
-        vendedorId = assignableUsers[rrIndex % assignableUsers.length].id;
-        setRrIndex((i) => i + 1);
-      }
-    } else {
-      if (vendedorIdSel) {
-        const assignableUsers = getAssignableUsers();
-        const selectedVendor = assignableUsers.find(u => u.id === vendedorIdSel);
-        if (selectedVendor && selectedVendor.active) {
-          vendedorId = vendedorIdSel;
-        } else {
-          alert("El vendedor seleccionado no está disponible para asignación o está desactivado.");
-          return;
-        }
-      } else {
-        vendedorId = null;
-      }
-    }
-
-    if (nombre && telefono && modelo) {
-      try {
-        const created = await apiCreateLead({
-          nombre,
-          telefono,
-          modelo,
-          formaPago,
-          notas: `Lead creado por: ${currentUser?.name}`,
-          estado: "nuevo",
-          fuente,
-          infoUsado,
-          entrega,
-          fecha,
-          vendedor: vendedorId,
-        } as any);
-        const mapped = mapLeadFromApi(created);
-        if (mapped.vendedor) {
-          pushAlert(mapped.vendedor, "lead_assigned", `Nuevo lead asignado: ${mapped.nombre}`);
-        }
-        setLeads((prev) => [mapped, ...prev]);
-        setShowNewLeadModal(false);
-        addHistorialEntry(mapped.id, `nuevo - Creado por ${currentUser?.name}`);
-      } catch (e) {
-        console.error("No pude crear el lead", e);
-      }
-    }
-  };
-
-  // ===== FUNCIONES DE REASIGNACIÓN =====
-  const openReassignModal = (lead: LeadRow) => {
-    setLeadToReassign(lead);
-    setSelectedVendorForReassign(lead.vendedor);
-    setShowReassignModal(true);
-  };
-
-  const handleReassignLead = async () => {
-    if (!leadToReassign) return;
-    try {
-      await apiUpdateLead(leadToReassign.id, { vendedor: selectedVendorForReassign } as any);
-      setLeads((prev) =>
-        prev.map((l) =>
-          l.id === leadToReassign.id ? { ...l, vendedor: selectedVendorForReassign } : l
-        )
-      );
-      if (selectedVendorForReassign) {
-        pushAlert(
-          selectedVendorForReassign,
-          "lead_assigned",
-          `Lead reasignado: ${leadToReassign.nombre} - ${leadToReassign.modelo}`
-        );
-      }
-      addHistorialEntry(
-        leadToReassign.id,
-        `Reasignado a ${
-          selectedVendorForReassign
-            ? userById.get(selectedVendorForReassign)?.name
-            : "Sin asignar"
-        }`
-      );
-      setShowReassignModal(false);
-      setLeadToReassign(null);
-      setSelectedVendorForReassign(null);
-    } catch (e) {
-      console.error("No pude reasignar el lead", e);
-    }
-  };
-
-  // ===== FUNCIONES DE USUARIOS =====
-  const validRolesByUser = (user: any) => {
-    if (!user) return [];
-    switch (user.role) {
-      case "owner":
-        return ["director", "gerente", "supervisor", "vendedor"];
-      case "director":
-        return ["gerente", "supervisor", "vendedor"];
-      case "gerente":
-        return ["supervisor", "vendedor"];
-      default:
-        return [];
-    }
-  };
-
-  const validManagersByRole = (role: string) => {
-    switch (role) {
-      case "owner":
-        return [];
-      case "director":
-        return users.filter((u: any) => u.role === "owner");
-      case "gerente":
-        return users.filter((u: any) => u.role === "director");
-      case "supervisor":
-        return users.filter((u: any) => u.role === "gerente");
-      case "vendedor":
-        return users.filter((u: any) => u.role === "supervisor");
-      default:
-        return [];
-    }
-  };
-
-  const openCreateUser = () => {
-    setEditingUser(null);
-    const availableRoles = validRolesByUser(currentUser);
-    const roleDefault = (availableRoles?.[0] as typeof modalRole) || "vendedor";
-    const validManagers = validManagersByRole(roleDefault);
-    setModalRole(roleDefault);
-    setModalReportsTo(validManagers[0]?.id ?? null);
-    setShowUserModal(true);
-  };
-
-  const openEditUser = (u: any) => {
-    setEditingUser(u);
-    const roleCurrent = u.role as typeof modalRole;
-    const availableRoles: string[] =
-      currentUser.role === "owner" && u.id === currentUser.id
-        ? ["owner", ...validRolesByUser(currentUser)]
-        : validRolesByUser(currentUser);
-    const roleToSet = availableRoles.includes(roleCurrent)
-      ? roleCurrent
-      : (availableRoles[0] as any);
-    const validManagers = validManagersByRole(roleToSet);
-    setModalRole(roleToSet as any);
-    setModalReportsTo(
-      roleToSet === "owner" ? null : u.reportsTo ?? validManagers[0]?.id ?? null
-    );
-    setShowUserModal(true);
-  };
-
-  const saveUser = async () => {
-    const name = (document.getElementById("u-name") as HTMLInputElement).value.trim();
-    const email = (document.getElementById("u-email") as HTMLInputElement).value.trim();
-    const password = (document.getElementById("u-pass") as HTMLInputElement).value.trim();
-    const active = (document.getElementById("u-active") as HTMLInputElement).checked;
-
-    if (!name || !email) {
-      alert("Nombre y email son obligatorios");
-      return;
-    }
-
-    if (!editingUser && !password) {
-      alert("La contraseña es obligatoria para nuevos usuarios");
-      return;
-    }
-
-    const finalReportsTo = modalRole === "owner" ? null : modalReportsTo ?? null;
-
-    try {
-      if (editingUser) {
-        const updateData: any = {
-          name,
-          email,
-          role: modalRole,
-          reportsTo: finalReportsTo,
-          active: active ? 1 : 0,
-        };
-        if (password) {
-          updateData.password = password;
-        }
-        const updated = await apiUpdateUser(editingUser.id, updateData);
-        setUsers((prev) => prev.map((u: any) => (u.id === editingUser.id ? updated : u)));
-      } else {
-        const created = await apiCreateUser({
-          name,
-          email,
-          password,
-          role: modalRole,
-          reportsTo: finalReportsTo,
-          active: active ? 1 : 0,
-        } as any);
-        setUsers((prev) => [...prev, created]);
-      }
-      setShowUserModal(false);
-      setEditingUser(null);
-    } catch (e: any) {
-      console.error("No pude guardar usuario", e);
-      alert(`Error al guardar usuario: ${e?.response?.data?.error || e.message || "Error desconocido"}`);
-    }
-  };
-
-  const openDeleteConfirm = (user: any) => {
-    if (user.role === "owner") {
-      alert("No podés eliminar al Dueño.");
-      return;
-    }
-    const hasChildren = users.some((u: any) => u.reportsTo === user.id);
-    if (hasChildren) {
-      alert("No se puede eliminar: el usuario tiene integrantes a cargo. Primero reasigne o elimine a sus subordinados.");
-      return;
-    }
-    const hasAssignedLeads = leads.some((l) => l.vendedor === user.id);
-    if (hasAssignedLeads) {
-      alert("No se puede eliminar: el usuario tiene leads asignados. Primero reasigne todos sus leads a otros vendedores.");
-      return;
-    }
-    setUserToDelete(user);
-    setShowDeleteConfirmModal(true);
-  };
-
-  const confirmDeleteUser = async () => {
-    if (!userToDelete) return;
-    try {
-      await apiDeleteUser(userToDelete.id);
-      setUsers((prev) => prev.filter((u: any) => u.id !== userToDelete.id));
-      setShowDeleteConfirmModal(false);
-      setUserToDelete(null);
-    } catch (e) {
-      console.error("No pude eliminar usuario", e);
-      alert("Error al eliminar el usuario. Por favor, intenta nuevamente.");
-    }
-  };
-
-  // ===== FUNCIONES DE CALENDARIO =====
+  // ===== Calendario (local) =====
+  const [events, setEvents] = useState<any[]>([]);
+  const [selectedCalendarUserId, setSelectedCalendarUserId] = useState<number | null>(null);
+  const [showNewEventModal, setShowNewEventModal] = useState(false);
   const visibleUsers = useMemo(() => (currentUser ? getVisibleUsers() : []), [currentUser, users]);
   const eventsForSelectedUser = useMemo(() => {
     const uid = selectedCalendarUserId || currentUser?.id;
@@ -912,7 +799,6 @@ export default function CRM() {
       .filter((e) => e.userId === uid)
       .sort((a, b) => ((a.date + (a.time || "")) > (b.date + (b.time || "")) ? 1 : -1));
   }, [events, selectedCalendarUserId, currentUser]);
-
   const formatterEs = new Intl.DateTimeFormat("es-AR", {
     weekday: "long",
     day: "2-digit",
@@ -938,85 +824,298 @@ export default function CRM() {
       setShowNewEventModal(false);
     }
   };
+  const deleteEvent = (id: number) =>
+    setEvents((prev) => prev.filter((e: any) => e.id !== id));
 
-  const deleteEvent = (id: number) => setEvents((prev) => prev.filter((e: any) => e.id !== id));
+  // ===== Gestión de Usuarios =====
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [modalRole, setModalRole] = useState<
+    "owner" | "director" | "gerente" | "supervisor" | "vendedor"
+  >("vendedor");
+  const [modalReportsTo, setModalReportsTo] = useState<number | null>(null);
+  const [password1, setPassword1] = useState("");
+  const [password2, setPassword2] = useState("");
 
-  // ===== LOGIN =====
-  const handleLogin = async (email: string, password: string) => {
-    try {
-      const r = await api.post("/auth/login", { 
-        email, 
-        password, 
-        allowInactiveUsers: true
-      });
-
-      if (r.data?.ok && r.data?.token) {
-        localStorage.setItem("token", r.data.token);
-        localStorage.setItem("user", JSON.stringify(r.data.user));
-        api.defaults.headers.common["Authorization"] = `Bearer ${r.data.token}`;
-
-        const u = r.data.user || {
-          id: 0,
-          name: r.data?.user?.email || email,
-          email,
-          role: r.data?.user?.role || "owner",
-          reportsTo: null,
-          active: r.data?.user?.active ?? true,
-        };
-
-        setCurrentUser(u);
-        setIsAuthenticated(true);
-        setLoginError("");
-
-        const [uu, ll] = await Promise.all([listUsers(), listLeads()]);
-        const mappedLeads: LeadRow[] = (ll || []).map((L: any) => ({
-          id: L.id,
-          nombre: L.nombre,
-          telefono: L.telefono,
-          modelo: L.modelo,
-          formaPago: L.formaPago,
-          infoUsado: L.infoUsado,
-          entrega: L.entrega,
-          fecha: L.fecha || L.created_at || "",
-          estado: (L.estado || "nuevo") as LeadRow["estado"],
-          vendedor: L.assigned_to ?? null,
-          notas: L.notas || "",
-          fuente: (L.fuente || "otro") as LeadRow["fuente"],
-          historial: L.historial || [],
-        }));
-        setUsers(uu || []);
-        setLeads(mappedLeads);
-      } else {
-        throw new Error("Respuesta inválida del servidor");
-      }
-    } catch (err: any) {
-      setLoginError(err?.response?.data?.error || "Credenciales incorrectas");
-      setIsAuthenticated(false);
+  const validRolesByUser = (user: any) => {
+    if (!user) return [];
+    switch (user.role) {
+      case "owner":
+        return ["director", "gerente", "supervisor", "vendedor"];
+      case "director":
+        return ["gerente", "supervisor", "vendedor"];
+      case "gerente":
+        return ["supervisor", "vendedor"];
+      default:
+        return [];
+    }
+  };
+  const validManagersByRole = (role: string) => {
+    switch (role) {
+      case "owner":
+        return [];
+      case "director":
+        return users.filter((u: any) => u.role === "owner");
+      case "gerente":
+        return users.filter((u: any) => u.role === "director");
+      case "supervisor":
+        return users.filter((u: any) => u.role === "gerente");
+      case "vendedor":
+        return users.filter((u: any) => u.role === "supervisor");
+      default:
+        return [];
     }
   };
 
-  // ===== EFFECTS =====
-  const prevRankingRef = useRef(new Map<number, number>());
-  
-  useEffect(() => {
-    const r = getRanking();
-    const curr = new Map<number, number>();
-    r.forEach((row, idx) => curr.set(row.id, idx + 1));
-    const prev = prevRankingRef.current;
-    curr.forEach((pos, vid) => {
-      const before = prev.get(vid);
-      if (before && before !== pos) {
-        const delta = before - pos;
-        const msg = delta > 0
-          ? `¡Subiste ${Math.abs(delta)} puesto(s) en el ranking!`
-          : `Bajaste ${Math.abs(delta)} puesto(s) en el ranking.`;
-        pushAlertToChain(vid, "ranking_change", msg);
-      }
-    });
-    prevRankingRef.current = curr;
-  }, [leads, users, userById]);
+  const openCreateUser = () => {
+    setEditingUser(null);
+    const availableRoles = validRolesByUser(currentUser);
+    const roleDefault = (availableRoles?.[0] as typeof modalRole) || "vendedor";
+    const validManagers = validManagersByRole(roleDefault);
+    setModalRole(roleDefault);
+    setModalReportsTo(validManagers[0]?.id ?? null);
+    setPassword1("");
+    setPassword2("");
+    setShowUserModal(true);
+  };
 
-  // ===== RENDER PRINCIPAL =====
+  const openEditUser = (u: any) => {
+    setEditingUser(u);
+    const roleCurrent = u.role as typeof modalRole;
+    const availableRoles: string[] =
+      currentUser.role === "owner" && u.id === currentUser.id
+        ? ["owner", ...validRolesByUser(currentUser)]
+        : validRolesByUser(currentUser);
+    const roleToSet = availableRoles.includes(roleCurrent)
+      ? roleCurrent
+      : (availableRoles[0] as any);
+    const validManagers = validManagersByRole(roleToSet);
+    setModalRole(roleToSet as any);
+    setModalReportsTo(
+      roleToSet === "owner" ? null : u.reportsTo ?? validManagers[0]?.id ?? null
+    );
+    setPassword1("");
+    setPassword2("");
+    setShowUserModal(true);
+  };
+
+  const saveUser = async () => {
+    if (!["owner", "director", "gerente"].includes(currentUser?.role)) {
+      alert("No tenés permisos para crear/editar usuarios.");
+      return;
+    }
+
+    const name = (document.getElementById("u-name") as HTMLInputElement).value.trim();
+    const email = (document.getElementById("u-email") as HTMLInputElement).value.trim();
+    const active = (document.getElementById("u-active") as HTMLInputElement).checked;
+
+    if (!name || !email) {
+      alert("Nombre y email son obligatorios.");
+      return;
+    }
+
+    const finalReportsTo = modalRole === "owner" ? null : modalReportsTo ?? null;
+
+    // Validaciones de contraseña
+    if (!editingUser) {
+      if (!password1) {
+        alert("La contraseña es obligatoria para crear un usuario.");
+        return;
+      }
+      if (password1 !== password2) {
+        alert("Las contraseñas no coinciden.");
+        return;
+      }
+    } else {
+      if (password1 || password2) {
+        if (password1 !== password2) {
+          alert("Las contraseñas no coinciden.");
+          return;
+        }
+      }
+    }
+
+    try {
+      if (editingUser) {
+        const payload: any = {
+          name,
+          email,
+          role: modalRole,
+          reportsTo: finalReportsTo,
+          active: active ? 1 : 0,
+        };
+        if (password1) payload.password = password1; // actualizar sólo si se ingresó
+
+        const updated = await apiUpdateUser(editingUser.id, payload);
+        setUsers((prev) => prev.map((u: any) => (u.id === editingUser.id ? updated : u)));
+      } else {
+        // CREACIÓN: enviar exactamente la password que escribió el usuario
+        const created = await apiCreateUser({
+          name,
+          email,
+          password: password1,
+          role: modalRole,
+          reportsTo: finalReportsTo,
+          active: active ? 1 : 0,
+        } as any);
+        setUsers((prev) => [...prev, created]);
+      }
+      setShowUserModal(false);
+    } catch (e) {
+      console.error("No pude guardar usuario", e);
+      alert("Error al guardar el usuario. Revisá que el email no exista ya.");
+    }
+  };
+
+  const openDeleteConfirm = (user: any) => {
+    if (user.role === "owner") {
+      alert("No podés eliminar al Dueño.");
+      return;
+    }
+
+    const hasChildren = users.some((u: any) => u.reportsTo === user.id);
+    if (hasChildren) {
+      alert("No se puede eliminar: el usuario tiene integrantes a cargo. Primero reasigna/elimina a sus subordinados.");
+      return;
+    }
+
+    const hasAssignedLeads = leads.some((l) => l.vendedor === user.id);
+    if (hasAssignedLeads) {
+      alert("No se puede eliminar: el usuario tiene leads asignados. Reasignalos primero.");
+      return;
+    }
+
+    setUserToDelete(user);
+    setShowDeleteConfirmModal(true);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return;
+    try {
+      await apiDeleteUser(userToDelete.id);
+      setUsers((prev) => prev.filter((u: any) => u.id !== userToDelete.id));
+      setShowDeleteConfirmModal(false);
+      setUserToDelete(null);
+    } catch (e) {
+      console.error("No pude eliminar usuario", e);
+      alert("Error al eliminar el usuario. Intentá de nuevo.");
+    }
+  };
+
+  // ===== Crear Lead (modal) =====
+  const [showNewLeadModal, setShowNewLeadModal] = useState(false);
+  const [showObservacionesModal, setShowObservacionesModal] = useState(false);
+  const [showHistorialModal, setShowHistorialModal] = useState(false);
+  const [editingLeadObservaciones, setEditingLeadObservaciones] = useState<LeadRow | null>(null);
+  const [viewingLeadHistorial, setViewingLeadHistorial] = useState<LeadRow | null>(null);
+
+  const handleUpdateObservaciones = async (leadId: number, observaciones: string) => {
+    try {
+      const updated = await apiUpdateLead(leadId, { notas: observaciones } as any);
+      setLeads((prev) =>
+        prev.map((l) => (l.id === leadId ? { ...l, ...mapLeadFromApi(updated) } : l))
+      );
+      setShowObservacionesModal(false);
+      setEditingLeadObservaciones(null);
+    } catch (e) {
+      console.error("No pude actualizar observaciones del lead", e);
+    }
+  };
+
+  const handleCreateLead = async () => {
+    const nombre = (document.getElementById("new-nombre") as HTMLInputElement).value.trim();
+    const telefono = (document.getElementById("new-telefono") as HTMLInputElement).value.trim();
+    const modelo = (document.getElementById("new-modelo") as HTMLInputElement).value.trim();
+    const formaPago = (document.getElementById("new-formaPago") as HTMLSelectElement).value;
+    const infoUsado = (document.getElementById("new-infoUsado") as HTMLInputElement).value.trim();
+    const entrega = (document.getElementById("new-entrega") as HTMLInputElement).checked;
+    const fecha = (document.getElementById("new-fecha") as HTMLInputElement).value;
+
+    // Si el creador es vendedor/supervisor/gerente => la fuente es "creado_por:<id>"
+    const creatorIsManual =
+      currentUser && ["vendedor", "supervisor", "gerente"].includes(currentUser.role);
+
+    let fuente: string;
+    if (creatorIsManual) {
+      fuente = `creado_por:${currentUser.id}`;
+    } else {
+      // Para owner/director dejo elegir fuente
+      const fuenteSel = (document.getElementById("new-fuente") as HTMLSelectElement)?.value || "otro";
+      fuente = fuenteSel;
+    }
+
+    // Asignación
+    const autoAssign = (document.getElementById("new-autoassign") as HTMLInputElement)?.checked;
+    const vendedorSelVal = (document.getElementById("new-vendedor") as HTMLSelectElement).value;
+    const vendedorIdSelRaw = parseInt(vendedorSelVal, 10);
+    const vendedorIdSel = Number.isNaN(vendedorIdSelRaw) ? null : vendedorIdSelRaw;
+
+    let vendedorId: number | null = null;
+
+    if (autoAssign) {
+      // Round-robin en el scope del usuario
+      vendedorId = pickNextVendorId(currentUser, creatorIsManual ? undefined : fuente) ?? vendedorIdSel ?? null;
+    } else {
+      if (vendedorIdSel !== null) {
+        // validar que el vendedor seleccionado esté activo
+        const selectedVendor = users.find((u) => u.id === vendedorIdSel);
+        if (selectedVendor && selectedVendor.active) {
+          // Validar que esté dentro del scope permitido
+          const allowedIds = getAvailableVendorsForReassign().map((u: any) => u.id);
+          if (allowedIds.includes(vendedorIdSel)) {
+            vendedorId = vendedorIdSel;
+          } else {
+            alert("No podés asignar leads fuera de tu equipo.");
+            return;
+          }
+        } else if (vendedorIdSel) {
+          alert("El vendedor seleccionado está desactivado.");
+          return;
+        } else {
+          vendedorId = null;
+        }
+      }
+    }
+
+    if (nombre && telefono && modelo) {
+      try {
+        const created = await apiCreateLead({
+          nombre,
+          telefono,
+          modelo,
+          formaPago,
+          notas: "",
+          estado: "nuevo",
+          fuente, // <<<<<< importante: creado_por:<id> para roles vendedor/supervisor/gerente
+          infoUsado,
+          entrega,
+          fecha,
+          vendedor: vendedorId,
+        } as any);
+
+        const mapped = mapLeadFromApi(created);
+
+        if (mapped.vendedor) {
+          pushAlert(
+            mapped.vendedor,
+            "lead_assigned",
+            `Nuevo lead asignado: ${mapped.nombre}`
+          );
+        }
+
+        setLeads((prev) => [mapped, ...prev]);
+        setShowNewLeadModal(false);
+        addHistorialEntry(mapped.id, "nuevo");
+      } catch (e) {
+        console.error("No pude crear el lead", e);
+        alert("Error al crear el lead.");
+      }
+    } else {
+      alert("Nombre, teléfono y modelo son obligatorios.");
+    }
+  };
+
+  // ===== UI: Login =====
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-blue-800 flex items-center justify-center">
@@ -1067,1338 +1166,6 @@ export default function CRM() {
                 <p className="text-red-700 text-sm">{loginError}</p>
               </div>
             )}
-
-        {/* SECCIÓN MI EQUIPO */}
-        {activeSection === "team" &&
-          ["supervisor", "gerente", "director", "owner"].includes(currentUser?.role) && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-3xl font-bold text-gray-800">Mi Equipo</h2>
-                {["owner", "director"].includes(currentUser?.role) && (
-                  <select
-                    value={selectedTeam}
-                    onChange={(e) => setSelectedTeam(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
-                  >
-                    <option value="todos">Todos los equipos</option>
-                    {users
-                      .filter((u: any) => u.role === "gerente")
-                      .map((gerente: any) => (
-                        <option key={gerente.id} value={gerente.id.toString()}>
-                          Equipo {gerente.name}
-                        </option>
-                      ))}
-                  </select>
-                )}
-              </div>
-
-              {/* Estadísticas por estado */}
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-semibold text-gray-800">
-                    Estados de Leads - Mi Equipo
-                  </h3>
-                  {selectedEstado && (
-                    <button
-                      onClick={() => setSelectedEstado(null)}
-                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
-                    >
-                      <X size={16} />
-                      <span>Cerrar filtro</span>
-                    </button>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                  {Object.entries(estados).map(([key, estado]) => {
-                    const teamFilter = ["owner", "director"].includes(currentUser?.role)
-                      ? selectedTeam
-                      : undefined;
-                    const filteredLeads =
-                      teamFilter && teamFilter !== "todos"
-                        ? getFilteredLeadsByTeam(teamFilter)
-                        : getFilteredLeads();
-                    const count = filteredLeads.filter((l) => l.estado === key).length;
-                    return (
-                      <button
-                        key={key}
-                        onClick={() => setSelectedEstado(selectedEstado === key ? null : key)}
-                        className={`text-center transition-all duration-200 transform hover:scale-105 ${
-                          selectedEstado === key ? "ring-4 ring-blue-300 ring-opacity-50" : ""
-                        }`}
-                        title={`Ver todos los leads en estado: ${estado.label}`}
-                      >
-                        <div className={`${estado.color} text-white rounded-lg p-4 mb-2 hover:opacity-90`}>
-                          <div className="text-2xl font-bold">{count}</div>
-                        </div>
-                        <div className="text-sm text-gray-600">{estado.label}</div>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Lista filtrada de leads por estado en Mi Equipo */}
-                {selectedEstado && (
-                  <div className="mt-6 border-t pt-6">
-                    <h4 className="text-lg font-semibold text-gray-800 mb-4">
-                      Leads de mi equipo en estado:{" "}
-                      <span
-                        className={`px-3 py-1 rounded-full text-white text-sm ${
-                          estados[selectedEstado].color
-                        }`}
-                      >
-                        {estados[selectedEstado].label}
-                      </span>
-                    </h4>
-
-                    {(() => {
-                      const teamFilter = ["owner", "director"].includes(currentUser?.role)
-                        ? selectedTeam
-                        : undefined;
-                      const filteredLeads =
-                        teamFilter && teamFilter !== "todos"
-                          ? getFilteredLeadsByTeam(teamFilter)
-                          : getFilteredLeads();
-                      const leadsFiltrados = filteredLeads.filter(
-                        (l) => l.estado === selectedEstado
-                      );
-
-                      if (leadsFiltrados.length === 0) {
-                        return (
-                          <p className="text-gray-500 text-center py-8">
-                            No hay leads de tu equipo en estado "
-                            {estados[selectedEstado].label}"
-                          </p>
-                        );
-                      }
-
-                      return (
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead className="bg-gray-50">
-                              <tr>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                  Cliente
-                                </th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                  Contacto
-                                </th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                  Vehículo
-                                </th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                  Estado
-                                </th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                  Fuente
-                                </th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                  Vendedor
-                                </th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                  Fecha
-                                </th>
-                                <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">
-                                  Acciones
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200">
-                              {leadsFiltrados.map((lead) => {
-                                const vendedor = lead.vendedor
-                                  ? userById.get(lead.vendedor)
-                                  : null;
-                                return (
-                                  <tr key={lead.id} className="hover:bg-gray-50">
-                                    <td className="px-4 py-2">
-                                      <div className="font-medium text-gray-900">
-                                        {lead.nombre}
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-2">
-                                      <div className="flex items-center space-x-1">
-                                        <Phone size={12} className="text-gray-400" />
-                                        <span className="text-gray-700">{lead.telefono}</span>
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-2">
-                                      <div>
-                                        <div className="font-medium text-gray-900">
-                                          {lead.modelo}
-                                        </div>
-                                        <div className="text-xs text-gray-500">
-                                          {lead.formaPago}
-                                        </div>
-                                        {lead.infoUsado && (
-                                          <div className="text-xs text-orange-600">
-                                            Usado: {lead.infoUsado}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-2">
-                                      <select
-                                        value={lead.estado}
-                                        onChange={(e) =>
-                                          handleChangeLeadStateFromDashboard(lead.id, e.target.value)
-                                        }
-                                        className={`text-xs font-medium rounded-full px-2 py-1 border-0 text-white cursor-pointer ${estados[lead.estado].color}`}
-                                      >
-                                        {Object.entries(estados).map(([key, estado]) => (
-                                          <option key={key} value={key} className="text-black">
-                                            {estado.label}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </td>
-                                    <td className="px-4 py-2">
-                                      <div className="flex items-center space-x-1">
-                                        <span className="text-sm">
-                                          {fuentes[lead.fuente as string]?.icon || "❓"}
-                                        </span>
-                                        <span className="text-xs text-gray-600">
-                                          {fuentes[lead.fuente as string]?.label ||
-                                            String(lead.fuente)}
-                                        </span>
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-2 text-gray-700">
-                                      {vendedor?.name || "Sin asignar"}
-                                    </td>
-                                    <td className="px-4 py-2 text-gray-500 text-xs">
-                                      {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
-                                    </td>
-                                    <td className="px-4 py-2 text-center">
-                                      <div className="flex items-center justify-center space-x-1">
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setEditingLeadObservaciones(lead);
-                                            setShowObservacionesModal(true);
-                                          }}
-                                          className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                          title="Ver/Editar observaciones"
-                                        >
-                                          {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
-                                        </button>
-                                        {(canManageUsers() ||
-                                          (currentUser?.role === "supervisor" &&
-                                            lead.vendedor &&
-                                            getVisibleUsers().some(
-                                              (u: any) => u.id === lead.vendedor
-                                            ))) && (
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              openReassignModal(lead);
-                                            }}
-                                            className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
-                                            title="Reasignar lead"
-                                          >
-                                            Reasignar
-                                          </button>
-                                        )}
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setActiveSection("leads");
-                                          }}
-                                          className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                          title="Ver en tabla completa"
-                                        >
-                                          Ver
-                                        </button>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
-              </div>
-
-              {/* Top vendedores en mi organización */}
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <h3 className="text-xl font-semibold text-gray-800 mb-4">
-                  Top Vendedores en Mi Organización
-                </h3>
-                <div className="space-y-3">
-                  {getRankingInScope().map((vendedor, index) => (
-                    <div
-                      key={vendedor.id}
-                      className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
-                            index === 0
-                              ? "bg-yellow-500"
-                              : index === 1
-                              ? "bg-gray-400"
-                              : index === 2
-                              ? "bg-orange-600"
-                              : "bg-gray-300"
-                          }`}
-                        >
-                          {index + 1}
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            {vendedor.nombre}
-                          </p>
-                          <p className="text-xs text-gray-500">{vendedor.team}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-green-600">
-                          {vendedor.ventas} ventas
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {vendedor.leadsAsignados} leads •{" "}
-                          {vendedor.leadsAsignados > 0
-                            ? ((vendedor.ventas / vendedor.leadsAsignados) * 100).toFixed(0)
-                            : 0}
-                          %
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {getRankingInScope().length === 0 && (
-                  <p className="text-gray-500 text-center py-8">
-                    No hay vendedores en tu equipo
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-        {/* SECCIÓN USUARIOS */}
-        {activeSection === "users" && canManageUsers() && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-bold text-gray-800">Gestión de Usuarios</h2>
-              {canCreateUsers() && (
-                <button
-                  onClick={openCreateUser}
-                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  <Plus size={20} />
-                  <span>Nuevo Usuario</span>
-                </button>
-              )}
-            </div>
-
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Usuario
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Rol
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Reporta a
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Estado
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Performance
-                      </th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
-                        Acciones
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {getVisibleUsers().map((user: any) => {
-                      const userLeads = leads.filter((l) => l.vendedor === user.id);
-                      const userSales = userLeads.filter((l) => l.estado === "vendido").length;
-                      const manager = user.reportsTo ? userById.get(user.reportsTo) : null;
-
-                      return (
-                        <tr key={user.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-4">
-                            <div>
-                              <div className="font-medium text-gray-900">{user.name}</div>
-                              <div className="text-sm text-gray-500">{user.email}</div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                              {roles[user.role] || user.role}
-                            </span>
-                          </td>
-                          <td className="px-4 py-4 text-sm text-gray-700">
-                            {manager?.name || "—"}
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="flex items-center space-x-2">
-                              <span
-                                className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                  user.active
-                                    ? "bg-green-100 text-green-800"
-                                    : "bg-red-100 text-red-800"
-                                }`}
-                              >
-                                {user.active ? "Activo" : "Inactivo"}
-                              </span>
-                              {user.role === "vendedor" && (
-                                <button
-                                  onClick={async () => {
-                                    try {
-                                      const updated = await apiUpdateUser(user.id, {
-                                        ...user,
-                                        active: user.active ? 0 : 1,
-                                      });
-                                      setUsers((prev) =>
-                                        prev.map((u: any) => (u.id === user.id ? updated : u))
-                                      );
-                                    } catch (e) {
-                                      console.error("No pude cambiar estado del usuario", e);
-                                    }
-                                  }}
-                                  className={`px-2 py-1 text-xs rounded ${
-                                    user.active
-                                      ? "bg-red-100 text-red-700 hover:bg-red-200"
-                                      : "bg-green-100 text-green-700 hover:bg-green-200"
-                                  }`}
-                                  title={user.active ? "Desactivar vendedor" : "Activar vendedor"}
-                                >
-                                  {user.active ? "Desactivar" : "Activar"}
-                                </button>
-                              )}
-                            </div>
-                            {user.role === "vendedor" && !user.active && (
-                              <div className="text-xs text-orange-600 mt-1">
-                                No recibe leads nuevos
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-4 py-4">
-                            {user.role === "vendedor" ? (
-                              <div className="text-sm">
-                                <div>{userLeads.length} leads</div>
-                                <div className="text-green-600 font-medium">
-                                  {userSales} ventas
-                                </div>
-                              </div>
-                            ) : (
-                              <span className="text-gray-400">—</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="flex items-center justify-center space-x-2">
-                              <button
-                                onClick={() => openEditUser(user)}
-                                className="p-1 text-blue-600 hover:text-blue-800"
-                                title="Editar usuario"
-                              >
-                                <Edit3 size={16} />
-                              </button>
-                              {isOwner() && user.id !== currentUser?.id && (
-                                <button
-                                  onClick={() => openDeleteConfirm(user)}
-                                  className="p-1 text-red-600 hover:text-red-800"
-                                  title="Eliminar usuario"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* SECCIÓN ALERTAS */}
-        {activeSection === "alerts" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-bold text-gray-800">Alertas y Notificaciones</h2>
-              <button
-                onClick={() => {
-                  setAlerts((prev) =>
-                    prev.map((a) =>
-                      a.userId === currentUser?.id ? { ...a, read: true } : a
-                    )
-                  );
-                }}
-                className="px-4 py-2 text-sm text-blue-600 hover:text-blue-800"
-              >
-                Marcar todas como leídas
-              </button>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              {alerts.filter((a) => a.userId === currentUser?.id).length === 0 ? (
-                <div className="text-center py-12">
-                  <Bell size={48} className="mx-auto text-gray-300 mb-4" />
-                  <p className="text-gray-500">No tienes alertas pendientes</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {alerts
-                    .filter((a) => a.userId === currentUser?.id)
-                    .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
-                    .map((alert) => (
-                      <div
-                        key={alert.id}
-                        className={`p-4 border rounded-lg ${
-                          alert.read
-                            ? "border-gray-200 bg-gray-50"
-                            : "border-blue-200 bg-blue-50"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-start space-x-3">
-                            <div
-                              className={`mt-1 w-2 h-2 rounded-full ${
-                                alert.read ? "bg-gray-400" : "bg-blue-500"
-                              }`}
-                            />
-                            <div>
-                              <p
-                                className={`font-medium ${
-                                  alert.read ? "text-gray-700" : "text-gray-900"
-                                }`}
-                              >
-                                {alert.type === "lead_assigned"
-                                  ? "Nuevo Lead Asignado"
-                                  : "Cambio en Ranking"}
-                              </p>
-                              <p
-                                className={`text-sm ${
-                                  alert.read ? "text-gray-500" : "text-gray-700"
-                                }`}
-                              >
-                                {alert.message}
-                              </p>
-                              <p className="text-xs text-gray-400 mt-1">
-                                {new Date(alert.ts).toLocaleDateString("es-AR")}{" "}
-                                {new Date(alert.ts).toLocaleTimeString("es-AR")}
-                              </p>
-                            </div>
-                          </div>
-                          {!alert.read && (
-                            <button
-                              onClick={() => {
-                                setAlerts((prev) =>
-                                  prev.map((a) =>
-                                    a.id === alert.id ? { ...a, read: true } : a
-                                  )
-                                );
-                              }}
-                              className="text-blue-600 hover:text-blue-800 text-sm"
-                            >
-                              Marcar como leída
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ===== MODALES ===== */}
-        
-        {/* Modal de Confirmación para Eliminar Usuario */}
-        {showDeleteConfirmModal && userToDelete && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-md">
-              <div className="flex items-center mb-6">
-                <div className="bg-red-100 p-3 rounded-full mr-4">
-                  <Trash2 className="h-6 w-6 text-red-600" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-800">
-                    Confirmar Eliminación
-                  </h3>
-                  <p className="text-sm text-gray-600">
-                    Esta acción no se puede deshacer
-                  </p>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                <h4 className="font-medium text-gray-800 mb-2">Usuario a eliminar:</h4>
-                <div className="text-sm space-y-1">
-                  <div><strong>Nombre:</strong> {userToDelete.name}</div>
-                  <div><strong>Email:</strong> {userToDelete.email}</div>
-                  <div><strong>Rol:</strong> {roles[userToDelete.role] || userToDelete.role}</div>
-                </div>
-              </div>
-
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <Bell className="h-5 w-5 text-red-400" />
-                  </div>
-                  <div className="ml-3">
-                    <h4 className="text-sm font-medium text-red-800">
-                      Atención - Eliminación Permanente
-                    </h4>
-                    <div className="mt-2 text-sm text-red-700">
-                      <ul className="list-disc pl-5 space-y-1">
-                        <li>Se eliminará permanentemente del sistema</li>
-                        <li>Se perderá acceso a todas las funcionalidades</li>
-                        <li>No podrá recuperar su cuenta</li>
-                        <li>Los datos históricos se mantendrán para auditoría</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex space-x-3">
-                <button
-                  onClick={confirmDeleteUser}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
-                >
-                  Sí, Eliminar Usuario
-                </button>
-                <button
-                  onClick={() => {
-                    setShowDeleteConfirmModal(false);
-                    setUserToDelete(null);
-                  }}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Reasignación de Lead */}
-        {showReassignModal && leadToReassign && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">
-                  Reasignar Lead - {leadToReassign.nombre}
-                </h3>
-                <button
-                  onClick={() => {
-                    setShowReassignModal(false);
-                    setLeadToReassign(null);
-                    setSelectedVendorForReassign(null);
-                  }}
-                >
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-
-              <div className="mb-6">
-                <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                  <h4 className="font-medium text-gray-800 mb-2">Información del Lead</h4>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="font-medium text-gray-600">Cliente:</span>{" "}
-                      {leadToReassign.nombre}
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Teléfono:</span>{" "}
-                      {leadToReassign.telefono}
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Vehículo:</span>{" "}
-                      {leadToReassign.modelo}
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Estado:</span>
-                      <span
-                        className={`ml-2 px-2 py-1 rounded-full text-xs font-medium text-white ${estados[leadToReassign.estado].color}`}
-                      >
-                        {estados[leadToReassign.estado].label}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Fuente:</span>
-                      <span className="ml-2">
-                        {fuentes[leadToReassign.fuente as string]?.icon || "❓"}{" "}
-                        {fuentes[leadToReassign.fuente as string]?.label ||
-                          String(leadToReassign.fuente)}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Vendedor actual:</span>{" "}
-                      {leadToReassign.vendedor
-                        ? userById.get(leadToReassign.vendedor)?.name
-                        : "Sin asignar"}
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
-                    Seleccionar nuevo vendedor (solo vendedores activos)
-                  </label>
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    <div
-                      onClick={() => setSelectedVendorForReassign(null)}
-                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                        selectedVendorForReassign === null
-                          ? "border-blue-500 bg-blue-50"
-                          : "border-gray-200 hover:bg-gray-50"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-gray-400 rounded-full flex items-center justify-center">
-                            <span className="text-white font-medium text-sm">--</span>
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900">Sin asignar</p>
-                            <p className="text-sm text-gray-500">
-                              Dejar el lead sin vendedor asignado
-                            </p>
-                          </div>
-                        </div>
-                        {selectedVendorForReassign === null && (
-                          <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
-                            <div className="w-2 h-2 bg-white rounded-full"></div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {getAvailableVendorsForReassign().map((vendedor: any) => {
-                      const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
-                      const vendedorVentas = vendedorLeads.filter(
-                        (l) => l.estado === "vendido"
-                      ).length;
-                      const conversion =
-                        vendedorLeads.length > 0
-                          ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0)
-                          : "0";
-
-                      return (
-                        <div
-                          key={vendedor.id}
-                          onClick={() => setSelectedVendorForReassign(vendedor.id)}
-                          className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                            selectedVendorForReassign === vendedor.id
-                              ? "border-blue-500 bg-blue-50"
-                              : "border-gray-200 hover:bg-gray-50"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-                                <span className="text-white font-medium text-sm">
-                                  {vendedor.name
-                                    .split(" ")
-                                    .map((n: string) => n[0])
-                                    .join("")
-                                    .toUpperCase()
-                                    .substring(0, 2)}
-                                </span>
-                              </div>
-                              <div>
-                                <p className="font-medium text-gray-900">{vendedor.name}</p>
-                                <p className="text-sm text-gray-500">
-                                  {vendedorLeads.length} leads • {vendedorVentas} ventas •{" "}
-                                  {conversion}% conversión
-                                </p>
-                                <p className="text-xs text-gray-400">
-                                  Equipo de {userById.get(vendedor.reportsTo)?.name || "—"}
-                                </p>
-                                <p className="text-xs text-green-600 font-medium">
-                                  ✓ Activo - Recibe leads nuevos
-                                </p>
-                              </div>
-                            </div>
-                            {selectedVendorForReassign === vendedor.id && (
-                              <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
-                                <div className="w-2 h-2 bg-white rounded-full"></div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {getAvailableVendorsForReassign().length === 0 && (
-                    <div className="text-center py-8 bg-gray-50 rounded-lg border">
-                      <p className="text-gray-500">
-                        No hay vendedores activos disponibles en tu scope para reasignar
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex space-x-3">
-                <button
-                  onClick={handleReassignLead}
-                  disabled={selectedVendorForReassign === leadToReassign.vendedor}
-                  className={`flex-1 px-4 py-2 rounded-lg font-medium ${
-                    selectedVendorForReassign === leadToReassign.vendedor
-                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      : "bg-blue-600 text-white hover:bg-blue-700"
-                  }`}
-                >
-                  {selectedVendorForReassign === leadToReassign.vendedor
-                    ? "Ya está asignado a este vendedor"
-                    : "Reasignar Lead"}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowReassignModal(false);
-                    setLeadToReassign(null);
-                    setSelectedVendorForReassign(null);
-                  }}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Observaciones del Lead */}
-        {showObservacionesModal && editingLeadObservaciones && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">
-                  Observaciones - {editingLeadObservaciones.nombre}
-                </h3>
-                <button
-                  onClick={() => {
-                    setShowObservacionesModal(false);
-                    setEditingLeadObservaciones(null);
-                  }}
-                >
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-
-              <div className="mb-4">
-                <p className="text-sm text-gray-600 mb-2">
-                  <span className="font-medium">Cliente:</span>{" "}
-                  {editingLeadObservaciones.nombre} |{" "}
-                  <span className="font-medium ml-2">Teléfono:</span>{" "}
-                  {editingLeadObservaciones.telefono} |{" "}
-                  <span className="font-medium ml-2">Vehículo:</span>{" "}
-                  {editingLeadObservaciones.modelo}
-                </p>
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium">Estado actual:</span>
-                  <span
-                    className={`ml-2 px-2 py-1 rounded-full text-xs font-medium text-white ${estados[editingLeadObservaciones.estado].color}`}
-                  >
-                    {estados[editingLeadObservaciones.estado].label}
-                  </span>
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Observaciones
-                </label>
-                <textarea
-                  id="observaciones-textarea"
-                  defaultValue={editingLeadObservaciones.notas || ""}
-                  placeholder="Agregar observaciones sobre el cliente, llamadas realizadas, intereses, objeciones, etc..."
-                  className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-
-              <div className="flex space-x-3 pt-6">
-                <button
-                  onClick={() => {
-                    const textarea = document.getElementById(
-                      "observaciones-textarea"
-                    ) as HTMLTextAreaElement;
-                    if (textarea && editingLeadObservaciones) {
-                      handleUpdateObservaciones(
-                        editingLeadObservaciones.id,
-                        textarea.value
-                      );
-                    }
-                  }}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Guardar Observaciones
-                </button>
-                <button
-                  onClick={() => {
-                    setShowObservacionesModal(false);
-                    setEditingLeadObservaciones(null);
-                  }}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Historial del Lead */}
-        {showHistorialModal && viewingLeadHistorial && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">
-                  Historial - {viewingLeadHistorial.nombre}
-                </h3>
-                <button
-                  onClick={() => {
-                    setShowHistorialModal(false);
-                    setViewingLeadHistorial(null);
-                  }}
-                >
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-
-              <div className="mb-4">
-                <p className="text-sm text-gray-600 mb-2">
-                  <span className="font-medium">Cliente:</span>{" "}
-                  {viewingLeadHistorial.nombre} |{" "}
-                  <span className="font-medium ml-2">Teléfono:</span>{" "}
-                  {viewingLeadHistorial.telefono} |{" "}
-                  <span className="font-medium ml-2">Vehículo:</span>{" "}
-                  {viewingLeadHistorial.modelo}
-                </p>
-              </div>
-
-              <div className="max-h-96 overflow-y-auto">
-                {(viewingLeadHistorial.historial || []).length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">
-                    No hay historial disponible para este lead
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {viewingLeadHistorial.historial?.map((entry, index) => (
-                      <div key={index} className="border-l-4 border-blue-500 pl-4 py-2">
-                        <div className="flex items-center justify-between">
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium text-white ${
-                              estados[entry.estado]?.color || "bg-gray-500"
-                            }`}
-                          >
-                            {estados[entry.estado]?.label || entry.estado}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {new Date(entry.timestamp).toLocaleDateString("es-AR")}{" "}
-                            {new Date(entry.timestamp).toLocaleTimeString("es-AR")}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-700 mt-1">
-                          Actualizado por: {entry.usuario}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-end pt-6">
-                <button
-                  onClick={() => {
-                    setShowHistorialModal(false);
-                    setViewingLeadHistorial(null);
-                  }}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cerrar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Nuevo Lead */}
-        {showNewLeadModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-3xl">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">Nuevo Lead</h3>
-                <button onClick={() => setShowNewLeadModal(false)}>
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nombre *
-                  </label>
-                  <input
-                    type="text"
-                    id="new-nombre"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Teléfono *
-                  </label>
-                  <input
-                    type="text"
-                    id="new-telefono"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Modelo *
-                  </label>
-                  <input
-                    type="text"
-                    id="new-modelo"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Forma de Pago
-                  </label>
-                  <select
-                    id="new-formaPago"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    <option value="Contado">Contado</option>
-                    <option value="Financiado">Financiado</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Info Usado
-                  </label>
-                  <input
-                    type="text"
-                    id="new-infoUsado"
-                    placeholder="Marca Modelo Año"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fecha
-                  </label>
-                  <input
-                    type="date"
-                    id="new-fecha"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div className="col-span-2 flex items-center space-x-3">
-                  <input
-                    type="checkbox"
-                    id="new-entrega"
-                    className="rounded border-gray-300 text-blue-600"
-                  />
-                  <span className="text-sm text-gray-700">
-                    Entrega de vehículo usado
-                  </span>
-                </div>
-                <div className="col-span-2 flex items-center space-x-3">
-                  <input
-                    type="checkbox"
-                    id="new-autoassign"
-                    defaultChecked
-                    className="rounded border-gray-300 text-blue-600"
-                  />
-                  <span className="text-sm text-gray-700">
-                    Asignación automática y equitativa (solo vendedores activos en mi equipo)
-                  </span>
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Asignar a vendedor/supervisor (opcional - solo usuarios activos de mi equipo)
-                  </label>
-                  <select
-                    id="new-vendedor"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    <option value="">Sin asignar</option>
-                    {getAssignableUsers().map((u: any) => (
-                      <option key={u.id} value={u.id} disabled={!u.active}>
-                        {u.name} ({roles[u.role]}) {u.active ? "✓ Activo" : "✗ Inactivo"}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="text-xs text-gray-500 mt-2 space-y-1">
-                    <div className="text-blue-600 font-medium">
-                      📝 Lead creado por: {currentUser?.name}
-                    </div>
-                    <div className="text-teal-600">
-                      🏷️ Fuente: "Creado por usuario"
-                    </div>
-                    <div>
-                      Si está tildado "Asignación automática", se ignorará la selección manual.
-                    </div>
-                    <div>
-                      Solo puedes asignar a usuarios activos de tu equipo según tu rol.
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex space-x-3 pt-6">
-                <button
-                  onClick={handleCreateLead}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Crear Lead
-                </button>
-                <button
-                  onClick={() => setShowNewLeadModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Nuevo Evento */}
-        {showNewEventModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-lg">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">Nuevo Evento</h3>
-                <button onClick={() => setShowNewEventModal(false)}>
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Título
-                  </label>
-                  <input
-                    type="text"
-                    id="ev-title"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fecha
-                  </label>
-                  <input
-                    type="date"
-                    id="ev-date"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Hora
-                  </label>
-                  <input
-                    type="time"
-                    id="ev-time"
-                    defaultValue="09:00"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Usuario
-                  </label>
-                  <select
-                    id="ev-user"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    <option value={currentUser?.id}>{currentUser?.name} (Yo)</option>
-                    {visibleUsers
-                      .filter((u: any) => u.id !== currentUser?.id)
-                      .map((u: any) => (
-                        <option key={u.id} value={u.id}>
-                          {u.name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex space-x-3 pt-6">
-                <button
-                  onClick={createEvent}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Crear Evento
-                </button>
-                <button
-                  onClick={() => setShowNewEventModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Usuario */}
-        {showUserModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-lg">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">
-                  {editingUser ? "Editar Usuario" : "Nuevo Usuario"}
-                </h3>
-                <button onClick={() => setShowUserModal(false)}>
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nombre *
-                  </label>
-                  <input
-                    type="text"
-                    id="u-name"
-                    defaultValue={editingUser?.name || ""}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email *
-                  </label>
-                  <input
-                    type="email"
-                    id="u-email"
-                    defaultValue={editingUser?.email || ""}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Contraseña {editingUser ? "(dejar vacío para mantener)" : "*"}
-                  </label>
-                  <input
-                    type="password"
-                    id="u-pass"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    placeholder={
-                      editingUser ? "Nueva contraseña (opcional)" : "Contraseña obligatoria"
-                    }
-                  />
-                  {!editingUser && (
-                    <p className="text-xs text-red-600 mt-1">
-                      * La contraseña es obligatoria para nuevos usuarios
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Rol
-                  </label>
-                  <select
-                    value={modalRole}
-                    onChange={(e) => {
-                      const newRole = e.target.value as typeof modalRole;
-                      setModalRole(newRole);
-                      const validManagers = validManagersByRole(newRole);
-                      setModalReportsTo(validManagers[0]?.id ?? null);
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    {validRolesByUser(currentUser).map((role: string) => (
-                      <option key={role} value={role}>
-                        {roles[role] || role}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {modalRole !== "owner" && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Reporta a
-                    </label>
-                    <select
-                      value={modalReportsTo || ""}
-                      onChange={(e) =>
-                        setModalReportsTo(
-                          e.target.value ? parseInt(e.target.value, 10) : null
-                        )
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    >
-                      {validManagersByRole(modalRole).map((manager: any) => (
-                        <option key={manager.id} value={manager.id}>
-                          {manager.name} ({roles[manager.role] || manager.role})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="u-active"
-                    defaultChecked={editingUser?.active !== false}
-                    className="rounded border-gray-300 text-blue-600"
-                  />
-                  <label htmlFor="u-active" className="text-sm text-gray-700">
-                    Usuario activo
-                  </label>
-                </div>
-                {modalRole === "vendedor" && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <p className="text-sm text-blue-700">
-                      <strong>Nota:</strong> Los vendedores desactivados pueden seguir usando el CRM 
-                      para gestionar sus leads existentes, pero no recibirán leads nuevos automáticamente.
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex space-x-3 pt-6">
-                <button
-                  onClick={saveUser}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  {editingUser ? "Actualizar" : "Crear"} Usuario
-                </button>
-                <button
-                  onClick={() => setShowUserModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
             <button
               onClick={() =>
                 handleLogin(
@@ -2416,9 +1183,10 @@ export default function CRM() {
     );
   }
 
+  // ===== UI autenticada =====
   return (
     <div className="min-h-screen bg-gray-100 flex">
-      {/* ===== SIDEBAR ===== */}
+      {/* Sidebar */}
       <div className="bg-slate-900 text-white w-64 min-h-screen p-4">
         <div className="mb-8">
           <div className="flex items-center mb-4">
@@ -2455,7 +1223,6 @@ export default function CRM() {
             )}
           </div>
         </div>
-
         <nav className="space-y-2">
           {[
             { key: "dashboard", label: "Dashboard", Icon: Home },
@@ -2468,6 +1235,7 @@ export default function CRM() {
             ...(canManageUsers()
               ? [{ key: "users", label: "Usuarios", Icon: Settings }]
               : []),
+            { key: "alerts", label: "Alertas", Icon: Bell },
           ].map(({ key, label, Icon }) => (
             <button
               key={key}
@@ -2485,9 +1253,9 @@ export default function CRM() {
         </nav>
       </div>
 
-      {/* ===== MAIN CONTENT ===== */}
+      {/* Main */}
       <div className="flex-1 p-6">
-        {/* ===== SECCIÓN DASHBOARD ===== */}
+        {/* Dashboard */}
         {activeSection === "dashboard" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -2518,18 +1286,19 @@ export default function CRM() {
                   </div>
                   <div className="ml-3">
                     <p className="text-sm text-orange-700">
-                      <strong>Usuario Desactivado:</strong> No recibirás nuevos leads automáticamente. 
-                      Solo podrás gestionar los leads que ya tienes asignados.
+                      <strong>Usuario Desactivado:</strong> No recibirás nuevos leads automáticamente.
+                      Solo podrás gestionar los leads que ya tenés asignados.
                     </p>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Estadísticas principales */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {(() => {
-                const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
+                const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                  ? selectedTeam
+                  : undefined;
                 const stats = getDashboardStats(teamFilter);
                 return (
                   <>
@@ -2571,73 +1340,79 @@ export default function CRM() {
               })()}
             </div>
 
-            {/* Estados de Leads con cambio de estados */}
+            {/* Estados de Leads */}
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-semibold text-gray-800">Estados de Leads</h3>
-                {["owner", "director"].includes(currentUser?.role) && (
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm text-gray-600">Descargar Excel:</span>
+                <div className="flex items-center gap-3">
+                  {["owner", "director"].includes(currentUser?.role) && (
                     <button
                       onClick={() => {
-                        const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
-                        const filteredLeads = teamFilter && teamFilter !== "todos"
-                          ? getFilteredLeadsByTeam(teamFilter)
-                          : getFilteredLeads();
-                        downloadAllLeadsExcel(filteredLeads, userById, fuentes);
+                        const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                          ? selectedTeam
+                          : undefined;
+                        const filteredLeads =
+                          teamFilter && teamFilter !== "todos"
+                            ? getFilteredLeadsByTeam(teamFilter)
+                            : getFilteredLeads();
+                        downloadAllLeadsExcel(filteredLeads, userById);
                       }}
-                      className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 flex items-center space-x-1"
+                      className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 flex items-center gap-1"
                       title="Descargar Excel completo"
                     >
                       <Download size={12} />
                       <span>Todos</span>
                     </button>
-                  </div>
-                )}
-                {selectedEstado && (
-                  <button
-                    onClick={() => setSelectedEstado(null)}
-                    className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
-                  >
-                    <X size={16} />
-                    <span>Cerrar filtro</span>
-                  </button>
-                )}
+                  )}
+                  {selectedEstado && (
+                    <button
+                      onClick={() => setSelectedEstado(null)}
+                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                    >
+                      <X size={16} />
+                      <span>Cerrar filtro</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {Object.entries(estados).map(([key, estado]) => {
-                  const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
-                  const filteredLeads = teamFilter && teamFilter !== "todos"
-                    ? getFilteredLeadsByTeam(teamFilter)
-                    : getFilteredLeads();
+                  const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                    ? selectedTeam
+                    : undefined;
+                  const filteredLeads =
+                    teamFilter && teamFilter !== "todos"
+                      ? getFilteredLeadsByTeam(teamFilter)
+                      : getFilteredLeads();
                   const count = filteredLeads.filter((l) => l.estado === key).length;
-                  const percentage = filteredLeads.length > 0 
-                    ? ((count / filteredLeads.length) * 100).toFixed(1)
-                    : "0";
-                  
+                  const percentage =
+                    filteredLeads.length > 0 ? ((count / filteredLeads.length) * 100).toFixed(1) : "0";
                   return (
                     <div key={key} className="relative group">
                       <button
                         onClick={() => setSelectedEstado(selectedEstado === key ? null : key)}
                         className={`w-full text-center transition-all duration-200 transform hover:scale-105 ${
-                          selectedEstado === key ? "ring-4 ring-blue-300 ring-opacity-50" : ""
+                          selectedEstado === key ? "ring-4 ring-blue-300 ring-opacity-50 rounded-lg" : ""
                         }`}
                         title={`Ver todos los leads en estado: ${estado.label}`}
                       >
-                        <div className={`${estado.color} text-white rounded-lg p-4 mb-2 relative cursor-pointer hover:opacity-90 transition-opacity`}>
+                        <div
+                          className={`${estado.color} text-white rounded-lg p-4 mb-2 relative cursor-pointer hover:opacity-90 transition-opacity`}
+                        >
                           <div className="text-2xl font-bold">{count}</div>
                           <div className="text-xs opacity-75">{percentage}%</div>
-                          
+
                           {["owner", "director"].includes(currentUser?.role) && count > 0 && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
-                                const filteredLeads = teamFilter && teamFilter !== "todos"
-                                  ? getFilteredLeadsByTeam(teamFilter)
-                                  : getFilteredLeads();
-                                downloadLeadsByStateExcel(filteredLeads, key, userById, fuentes);
+                                const tf = ["owner", "director"].includes(currentUser?.role)
+                                  ? selectedTeam
+                                  : undefined;
+                                const fl =
+                                  tf && tf !== "todos" ? getFilteredLeadsByTeam(tf) : getFilteredLeads();
+                                downloadLeadsByStateExcel(fl, key, userById);
                               }}
                               className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white bg-opacity-20 hover:bg-opacity-40 rounded p-1"
                               title={`Descargar Excel: ${estado.label}`}
@@ -2655,21 +1430,25 @@ export default function CRM() {
                 })}
               </div>
 
-              {/* Lista filtrada de leads por estado */}
+              {/* Tabla de leads del estado seleccionado (con cambio de estado inline) */}
               {selectedEstado && (
                 <div className="mt-6 border-t pt-6">
                   <h4 className="text-lg font-semibold text-gray-800 mb-4">
                     Leads en estado:{" "}
-                    <span className={`px-3 py-1 rounded-full text-white text-sm ${estados[selectedEstado].color}`}>
+                    <span
+                      className={`px-3 py-1 rounded-full text-white text-sm ${estados[selectedEstado].color}`}
+                    >
                       {estados[selectedEstado].label}
                     </span>
                   </h4>
-
                   {(() => {
-                    const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
-                    const filteredLeads = teamFilter && teamFilter !== "todos"
-                      ? getFilteredLeadsByTeam(teamFilter)
-                      : getFilteredLeads();
+                    const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                      ? selectedTeam
+                      : undefined;
+                    const filteredLeads =
+                      teamFilter && teamFilter !== "todos"
+                        ? getFilteredLeadsByTeam(teamFilter)
+                        : getFilteredLeads();
                     const leadsFiltrados = filteredLeads.filter((l) => l.estado === selectedEstado);
 
                     if (leadsFiltrados.length === 0) {
@@ -2685,46 +1464,28 @@ export default function CRM() {
                         <table className="w-full text-sm">
                           <thead className="bg-gray-50">
                             <tr>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                Cliente
-                              </th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                Contacto
-                              </th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                Vehículo
-                              </th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                Estado
-                              </th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                Fuente
-                              </th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                Vendedor
-                              </th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                Fecha
-                              </th>
-                              <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">
-                                Acciones
-                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Contacto</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vehículo</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fuente</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vendedor</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                              <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200">
                             {leadsFiltrados.map((lead) => {
                               const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
-                              const canReassign = canManageUsers() || 
-                                (currentUser?.role === "supervisor" && lead.vendedor &&
-                                 getVisibleUsers().some((u: any) => u.id === lead.vendedor));
-                              
+                              const fuenteLabel = fuenteToLabel(lead.fuente as string, userById);
+
                               return (
                                 <tr key={lead.id} className="hover:bg-gray-50">
                                   <td className="px-4 py-2">
                                     <div className="font-medium text-gray-900">{lead.nombre}</div>
                                   </td>
                                   <td className="px-4 py-2">
-                                    <div className="flex items-center space-x-1">
+                                    <div className="flex items-center gap-1">
                                       <Phone size={12} className="text-gray-400" />
                                       <span className="text-gray-700">{lead.telefono}</span>
                                     </div>
@@ -2734,17 +1495,15 @@ export default function CRM() {
                                       <div className="font-medium text-gray-900">{lead.modelo}</div>
                                       <div className="text-xs text-gray-500">{lead.formaPago}</div>
                                       {lead.infoUsado && (
-                                        <div className="text-xs text-orange-600">
-                                          Usado: {lead.infoUsado}
-                                        </div>
+                                        <div className="text-xs text-orange-600">Usado: {lead.infoUsado}</div>
                                       )}
                                     </div>
                                   </td>
                                   <td className="px-4 py-2">
                                     <select
                                       value={lead.estado}
-                                      onChange={(e) => handleChangeLeadStateFromDashboard(lead.id, e.target.value)}
-                                      className={`text-xs font-medium rounded-full px-2 py-1 border-0 text-white cursor-pointer ${estados[lead.estado].color}`}
+                                      onChange={(e) => handleUpdateLeadStatus(lead.id, e.target.value)}
+                                      className={`text-xs font-medium rounded-full px-2 py-1 border-0 text-white ${estados[lead.estado].color}`}
                                     >
                                       {Object.entries(estados).map(([key, estado]) => (
                                         <option key={key} value={key} className="text-black">
@@ -2754,13 +1513,9 @@ export default function CRM() {
                                     </select>
                                   </td>
                                   <td className="px-4 py-2">
-                                    <div className="flex items-center space-x-1">
-                                      <span className="text-sm">
-                                        {fuentes[lead.fuente as string]?.icon || "❓"}
-                                      </span>
-                                      <span className="text-xs text-gray-600">
-                                        {fuentes[lead.fuente as string]?.label || String(lead.fuente)}
-                                      </span>
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-sm">{fuenteLabel.icon}</span>
+                                      <span className="text-xs text-gray-600">{fuenteLabel.label}</span>
                                     </div>
                                   </td>
                                   <td className="px-4 py-2 text-gray-700">
@@ -2770,7 +1525,7 @@ export default function CRM() {
                                     {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
                                   </td>
                                   <td className="px-4 py-2 text-center">
-                                    <div className="flex items-center justify-center space-x-1">
+                                    <div className="flex items-center justify-center gap-1">
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -2782,27 +1537,15 @@ export default function CRM() {
                                       >
                                         {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
                                       </button>
-                                      {canReassign && (
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            openReassignModal(lead);
-                                          }}
-                                          className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
-                                          title="Reasignar lead"
-                                        >
-                                          Reasignar
-                                        </button>
-                                      )}
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          setActiveSection("leads");
+                                          openReassignModal(lead);
                                         }}
-                                        className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                        title="Ver en tabla completa"
+                                        className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
+                                        title="Reasignar lead"
                                       >
-                                        Ver
+                                        Reasignar
                                       </button>
                                     </div>
                                   </td>
@@ -2818,17 +1561,17 @@ export default function CRM() {
               )}
             </div>
 
-            {/* Métricas por fuente */}
+            {/* Performance por fuente */}
             <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4">
-                Performance por Fuente
-              </h3>
+              <h3 className="text-xl font-semibold text-gray-800 mb-4">Performance por Fuente</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {(() => {
-                  const teamFilter = ["owner", "director"].includes(currentUser?.role) ? selectedTeam : undefined;
+                  const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                    ? selectedTeam
+                    : undefined;
                   return getSourceMetrics(teamFilter).map((item) => (
                     <div key={item.source} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-center space-x-2 mb-2">
+                      <div className="flex items-center gap-2 mb-2">
                         <span className="text-lg">{item.icon}</span>
                         <span className="font-medium text-gray-900">{item.label}</span>
                       </div>
@@ -2854,15 +1597,15 @@ export default function CRM() {
           </div>
         )}
 
-        {/* ===== SECCIÓN LEADS ===== */}
+        {/* Leads */}
         {activeSection === "leads" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-3xl font-bold text-gray-800">Gestión de Leads</h2>
-              {canCreateLeads() && (
+              {canCreateLeads && (
                 <button
                   onClick={() => setShowNewLeadModal(true)}
-                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   <Plus size={20} />
                   <span>Nuevo Lead</span>
@@ -2870,12 +1613,12 @@ export default function CRM() {
               )}
             </div>
 
-            {/* Barra de búsqueda y filtros */}
+            {/* Búsqueda y filtros */}
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex flex-col lg:flex-row gap-4">
                 <div className="flex-1">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
                     <input
                       type="text"
                       placeholder="Buscar por cliente, teléfono, modelo, vendedor, observaciones..."
@@ -2886,10 +1629,10 @@ export default function CRM() {
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center gap-3">
                   <button
                     onClick={() => setShowFilters(!showFilters)}
-                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg border transition-colors ${
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
                       showFilters || getActiveFiltersCount() > 0
                         ? "bg-blue-100 border-blue-300 text-blue-700"
                         : "bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100"
@@ -2907,7 +1650,7 @@ export default function CRM() {
                   {getActiveFiltersCount() > 0 && (
                     <button
                       onClick={clearFilters}
-                      className="flex items-center space-x-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+                      className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
                     >
                       <X size={16} />
                       <span>Limpiar</span>
@@ -2915,12 +1658,12 @@ export default function CRM() {
                   )}
 
                   <div className="text-sm text-gray-600">
-                    <span className="font-medium">{getFilteredAndSearchedLeads().length}</span> leads encontrados
+                    <span className="font-medium">{getFilteredAndSearchedLeads().length}</span>{" "}
+                    leads encontrados
                   </div>
                 </div>
               </div>
 
-              {/* Panel de filtros expandible */}
               {showFilters && (
                 <div className="mt-4 pt-4 border-t border-gray-200">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -2930,8 +1673,10 @@ export default function CRM() {
                         Vendedor
                       </label>
                       <select
-                        value={selectedVendedorFilter || ""}
-                        onChange={(e) => setSelectedVendedorFilter(e.target.value ? parseInt(e.target.value, 10) : null)}
+                        value={selectedVendedorFilter ?? ""}
+                        onChange={(e) =>
+                          setSelectedVendedorFilter(e.target.value ? parseInt(e.target.value, 10) : null)
+                        }
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="">Todos los vendedores</option>
@@ -2939,7 +1684,7 @@ export default function CRM() {
                         {getVisibleUsers()
                           .filter((u: any) => u.role === "vendedor")
                           .map((vendedor: any) => {
-                            const leadsCount = leads.filter(l => l.vendedor === vendedor.id).length;
+                            const leadsCount = leads.filter((l) => l.vendedor === vendedor.id).length;
                             return (
                               <option key={vendedor.id} value={vendedor.id}>
                                 {vendedor.name} ({leadsCount} leads) {!vendedor.active ? " - Inactivo" : ""}
@@ -3005,7 +1750,10 @@ export default function CRM() {
                     {getFilteredAndSearchedLeads().length === 0 ? (
                       <tr>
                         <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                          {searchText.trim() || selectedVendedorFilter || selectedEstadoFilter || selectedFuenteFilter
+                          {searchText.trim() ||
+                          selectedVendedorFilter !== null ||
+                          selectedEstadoFilter ||
+                          selectedFuenteFilter
                             ? "No se encontraron leads que coincidan con los filtros aplicados"
                             : "No hay leads para mostrar"}
                         </td>
@@ -3013,9 +1761,12 @@ export default function CRM() {
                     ) : (
                       getFilteredAndSearchedLeads().map((lead) => {
                         const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
-                        const canReassign = canManageUsers() || 
-                          (currentUser?.role === "supervisor" && lead.vendedor &&
-                           getVisibleUsers().some((u: any) => u.id === lead.vendedor));
+                        const fuenteLabel = fuenteToLabel(lead.fuente as string, userById);
+                        const canReassign =
+                          canManageUsers() ||
+                          (currentUser?.role === "supervisor" &&
+                            lead.vendedor &&
+                            getVisibleUsers().some((u: any) => u.id === lead.vendedor));
 
                         return (
                           <tr key={lead.id} className="hover:bg-gray-50">
@@ -3023,7 +1774,7 @@ export default function CRM() {
                               <div className="font-medium text-gray-900">{lead.nombre}</div>
                             </td>
                             <td className="px-4 py-4">
-                              <div className="flex items-center space-x-1">
+                              <div className="flex items-center gap-1">
                                 <Phone size={12} className="text-gray-400" />
                                 <span className="text-gray-700">{lead.telefono}</span>
                               </div>
@@ -3033,9 +1784,7 @@ export default function CRM() {
                                 <div className="font-medium text-gray-900">{lead.modelo}</div>
                                 <div className="text-xs text-gray-500">{lead.formaPago}</div>
                                 {lead.infoUsado && (
-                                  <div className="text-xs text-orange-600">
-                                    Usado: {lead.infoUsado}
-                                  </div>
+                                  <div className="text-xs text-orange-600">Usado: {lead.infoUsado}</div>
                                 )}
                               </div>
                             </td>
@@ -3053,13 +1802,9 @@ export default function CRM() {
                               </select>
                             </td>
                             <td className="px-4 py-4">
-                              <div className="flex items-center space-x-1">
-                                <span className="text-sm">
-                                  {fuentes[lead.fuente as string]?.icon || "❓"}
-                                </span>
-                                <span className="text-xs text-gray-600">
-                                  {fuentes[lead.fuente as string]?.label || String(lead.fuente)}
-                                </span>
+                              <div className="flex items-center gap-1">
+                                <span className="text-sm">{fuenteLabel.icon}</span>
+                                <span className="text-xs text-gray-600">{fuenteLabel.label}</span>
                               </div>
                             </td>
                             <td className="px-4 py-4 text-gray-700">
@@ -3074,7 +1819,7 @@ export default function CRM() {
                               {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
                             </td>
                             <td className="px-4 py-4 text-center">
-                              <div className="flex items-center justify-center space-x-1">
+                              <div className="flex items-center justify-center gap-1">
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -3122,20 +1867,16 @@ export default function CRM() {
           </div>
         )}
 
-        {/* ===== RESTO DE SECCIONES ===== */}
-        
-        {/* SECCIÓN CALENDARIO */}
+        {/* Sección Calendario */}
         {activeSection === "calendar" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-3xl font-bold text-gray-800">Calendario</h2>
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center gap-3">
                 <select
                   value={selectedCalendarUserId ?? ""}
                   onChange={(e) =>
-                    setSelectedCalendarUserId(
-                      e.target.value ? parseInt(e.target.value, 10) : null
-                    )
+                    setSelectedCalendarUserId(e.target.value ? parseInt(e.target.value, 10) : null)
                   }
                   className="px-3 py-2 border border-gray-300 rounded-lg"
                 >
@@ -3150,7 +1891,7 @@ export default function CRM() {
                 </select>
                 <button
                   onClick={() => setShowNewEventModal(true)}
-                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   <Plus size={20} />
                   <span>Nuevo Evento</span>
@@ -3161,15 +1902,11 @@ export default function CRM() {
             <div className="bg-white rounded-xl shadow-lg p-6">
               <h3 className="text-xl font-semibold text-gray-800 mb-4">
                 Próximos eventos -{" "}
-                {selectedCalendarUserId
-                  ? userById.get(selectedCalendarUserId)?.name
-                  : "Mi calendario"}
+                {selectedCalendarUserId ? userById.get(selectedCalendarUserId)?.name : "Mi calendario"}
               </h3>
 
               {eventsForSelectedUser.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">
-                  No hay eventos programados
-                </p>
+                <p className="text-gray-500 text-center py-8">No hay eventos programados</p>
               ) : (
                 <div className="space-y-3">
                   {eventsForSelectedUser.map((event: any) => (
@@ -3186,7 +1923,7 @@ export default function CRM() {
                           {userById.get(event.userId)?.name || "Usuario desconocido"}
                         </p>
                       </div>
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center gap-2">
                         <button
                           onClick={() => deleteEvent(event.id)}
                           className="p-2 text-red-600 hover:text-red-800"
@@ -3200,27 +1937,94 @@ export default function CRM() {
                 </div>
               )}
             </div>
+
+            {/* Modal: Nuevo Evento */}
+            {showNewEventModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-xl p-6 w-full max-w-lg">
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-semibold text-gray-800">Nuevo Evento</h3>
+                    <button onClick={() => setShowNewEventModal(false)}>
+                      <X size={24} className="text-gray-600" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
+                      <input
+                        type="text"
+                        id="ev-title"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
+                      <input
+                        type="date"
+                        id="ev-date"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Hora</label>
+                      <input
+                        type="time"
+                        id="ev-time"
+                        defaultValue="09:00"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Usuario</label>
+                      <select id="ev-user" className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                        <option value={currentUser?.id}>{currentUser?.name} (Yo)</option>
+                        {visibleUsers
+                          .filter((u: any) => u.id !== currentUser?.id)
+                          .map((u: any) => (
+                            <option key={u.id} value={u.id}>
+                              {u.name}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-6">
+                    <button
+                      onClick={createEvent}
+                      className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      Crear Evento
+                    </button>
+                    <button
+                      onClick={() => setShowNewEventModal(false)}
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* SECCIÓN RANKING */}
+        {/* Sección Ranking */}
         {activeSection === "ranking" && (
           <div className="space-y-6">
             <h2 className="text-3xl font-bold text-gray-800">Ranking de Vendedores</h2>
-
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {isOwner() && (
                 <div className="bg-white rounded-xl shadow-lg p-6">
-                  <h3 className="text-xl font-semibold text-gray-800 mb-4">
-                    Ranking General
-                  </h3>
+                  <h3 className="text-xl font-semibold text-gray-800 mb-4">Ranking General</h3>
                   <div className="space-y-3">
                     {getRanking().map((vendedor, index) => (
                       <div
                         key={vendedor.id}
                         className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
                       >
-                        <div className="flex items-center space-x-3">
+                        <div className="flex items-center gap-3">
                           <div
                             className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
                               index === 0
@@ -3235,51 +2039,299 @@ export default function CRM() {
                             {index + 1}
                           </div>
                           <div>
-                            <p className="font-medium text-gray-900">
-                              {vendedor.nombre}
-                            </p>
+                            <p className="font-medium text-gray-900">{vendedor.nombre}</p>
                             <p className="text-xs text-gray-500">{vendedor.team}</p>
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="font-bold text-green-600">
-                            {vendedor.ventas} ventas
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {vendedor.leadsAsignados} leads asignados
-                          </p>
+                          <p className="font-bold text-green-600">{vendedor.ventas} ventas</p>
+                          <p className="text-xs text-gray-500">{vendedor.leadsAsignados} leads asignados</p>
                         </div>
                       </div>
                     ))}
                   </div>
                   {getRanking().length === 0 && (
-                    <p className="text-gray-500 text-center py-8">
-                      No hay vendedores registrados
-                    </p>
+                    <p className="text-gray-500 text-center py-8">No hay vendedores registrados</p>
                   )}
                 </div>
               )}
 
               <div className="bg-white rounded-xl shadow-lg p-6">
                 <h3 className="text-xl font-semibold text-gray-800 mb-4">
-                  {currentUser?.role === "vendedor" 
-                    ? "Ranking Vendedores" 
-                    : isOwner() 
-                    ? "Mi Scope" 
+                  {currentUser?.role === "vendedor"
+                    ? "Ranking Vendedores"
+                    : isOwner()
+                    ? "Mi Scope"
                     : "Ranking"}
                 </h3>
                 <div className="space-y-3">
-                  {(currentUser?.role === "vendedor" 
-                    ? getRankingByManagerialTeam() 
-                    : getRankingInScope()
-                  ).map((vendedor, index) => (
+                  {(currentUser?.role === "vendedor" ? getRankingByManagerialTeam() : getRankingInScope()).map(
+                    (vendedor, index) => (
+                      <div
+                        key={vendedor.id}
+                        className={`flex items-center justify-between p-4 border border-gray-200 rounded-lg ${
+                          vendedor.id === currentUser?.id ? "bg-blue-50 border-blue-300" : ""
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
+                              index === 0
+                                ? "bg-yellow-500"
+                                : index === 1
+                                ? "bg-gray-400"
+                                : index === 2
+                                ? "bg-orange-600"
+                                : "bg-gray-300"
+                            }`}
+                          >
+                            {index + 1}
+                          </div>
+                          <div>
+                            <p
+                              className={`font-medium ${
+                                vendedor.id === currentUser?.id ? "text-blue-900" : "text-gray-900"
+                              }`}
+                            >
+                              {vendedor.nombre}
+                              {vendedor.id === currentUser?.id && (
+                                <span className="ml-2 text-xs text-blue-600 font-normal">(Tú)</span>
+                              )}
+                            </p>
+                            <p className="text-xs text-gray-500">{vendedor.team}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-green-600">{vendedor.ventas} ventas</p>
+                          <p className="text-xs text-gray-500">
+                            {vendedor.leadsAsignados} leads •{" "}
+                            {vendedor.leadsAsignados > 0
+                              ? ((vendedor.ventas / vendedor.leadsAsignados) * 100).toFixed(0)
+                              : 0}
+                            %
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  )}
+                </div>
+                {(currentUser?.role === "vendedor" ? getRankingByManagerialTeam() : getRankingInScope()).length === 0 && (
+                  <p className="text-gray-500 text-center py-8">
+                    {currentUser?.role === "vendedor" ? "No hay otros vendedores en tu gerencia" : "No hay vendedores en tu scope"}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Sección Mi Equipo */}
+        {activeSection === "team" &&
+          ["supervisor", "gerente", "director", "owner"].includes(currentUser?.role) && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-3xl font-bold text-gray-800">Mi Equipo</h2>
+                {["owner", "director"].includes(currentUser?.role) && (
+                  <select
+                    value={selectedTeam}
+                    onChange={(e) => setSelectedTeam(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                  >
+                    <option value="todos">Todos los equipos</option>
+                    {users
+                      .filter((u: any) => u.role === "gerente")
+                      .map((gerente: any) => (
+                        <option key={gerente.id} value={gerente.id.toString()}>
+                          Equipo {gerente.name}
+                        </option>
+                      ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Estados por equipo */}
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-semibold text-gray-800">Estados de Leads - Mi Equipo</h3>
+                  {selectedEstado && (
+                    <button
+                      onClick={() => setSelectedEstado(null)}
+                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                    >
+                      <X size={16} />
+                      <span>Cerrar filtro</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  {Object.entries(estados).map(([key, estado]) => {
+                    const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                      ? selectedTeam
+                      : undefined;
+                    const filteredLeads =
+                      teamFilter && teamFilter !== "todos"
+                        ? getFilteredLeadsByTeam(teamFilter)
+                        : getFilteredLeads();
+                    const count = filteredLeads.filter((l) => l.estado === key).length;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => setSelectedEstado(selectedEstado === key ? null : key)}
+                        className={`text-center transition-all duration-200 transform hover:scale-105 ${
+                          selectedEstado === key ? "ring-4 ring-blue-300 ring-opacity-50 rounded-lg" : ""
+                        }`}
+                        title={`Ver todos los leads en estado: ${estado.label}`}
+                      >
+                        <div className={`${estado.color} text-white rounded-lg p-4 mb-2 hover:opacity-90`}>
+                          <div className="text-2xl font-bold">{count}</div>
+                        </div>
+                        <div className="text-sm text-gray-600">{estado.label}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Tabla filtrada de mi equipo (con cambio de estado inline) */}
+                {selectedEstado && (
+                  <div className="mt-6 border-t pt-6">
+                    <h4 className="text-lg font-semibold text-gray-800 mb-4">
+                      Leads de mi equipo en estado:{" "}
+                      <span
+                        className={`px-3 py-1 rounded-full text-white text-sm ${estados[selectedEstado].color}`}
+                      >
+                        {estados[selectedEstado].label}
+                      </span>
+                    </h4>
+                    {(() => {
+                      const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                        ? selectedTeam
+                        : undefined;
+                      const filteredLeads =
+                        teamFilter && teamFilter !== "todos"
+                          ? getFilteredLeadsByTeam(teamFilter)
+                          : getFilteredLeads();
+                      const leadsFiltrados = filteredLeads.filter((l) => l.estado === selectedEstado);
+
+                      if (leadsFiltrados.length === 0) {
+                        return (
+                          <p className="text-gray-500 text-center py-8">
+                            No hay leads de tu equipo en estado "{estados[selectedEstado].label}"
+                          </p>
+                        );
+                      }
+
+                      return (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Contacto</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vehículo</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fuente</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vendedor</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                                <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {leadsFiltrados.map((lead) => {
+                                const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
+                                const fuenteLabel = fuenteToLabel(lead.fuente as string, userById);
+                                return (
+                                  <tr key={lead.id} className="hover:bg-gray-50">
+                                    <td className="px-4 py-2">
+                                      <div className="font-medium text-gray-900">{lead.nombre}</div>
+                                    </td>
+                                    <td className="px-4 py-2">
+                                      <div className="flex items-center gap-1">
+                                        <Phone size={12} className="text-gray-400" />
+                                        <span className="text-gray-700">{lead.telefono}</span>
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-2">
+                                      <div>
+                                        <div className="font-medium text-gray-900">{lead.modelo}</div>
+                                        <div className="text-xs text-gray-500">{lead.formaPago}</div>
+                                        {lead.infoUsado && (
+                                          <div className="text-xs text-orange-600">Usado: {lead.infoUsado}</div>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-2">
+                                      <select
+                                        value={lead.estado}
+                                        onChange={(e) => handleUpdateLeadStatus(lead.id, e.target.value)}
+                                        className={`text-xs font-medium rounded-full px-2 py-1 border-0 text-white ${estados[lead.estado].color}`}
+                                      >
+                                        {Object.entries(estados).map(([key, estado]) => (
+                                          <option key={key} value={key} className="text-black">
+                                            {estado.label}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </td>
+                                    <td className="px-4 py-2">
+                                      <div className="flex items-center gap-1">
+                                        <span className="text-sm">{fuenteLabel.icon}</span>
+                                        <span className="text-xs text-gray-600">{fuenteLabel.label}</span>
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-2 text-gray-700">
+                                      {vendedor?.name || "Sin asignar"}
+                                    </td>
+                                    <td className="px-4 py-2 text-gray-500 text-xs">
+                                      {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
+                                    </td>
+                                    <td className="px-4 py-2 text-center">
+                                      <div className="flex items-center justify-center gap-1">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setEditingLeadObservaciones(lead);
+                                            setShowObservacionesModal(true);
+                                          }}
+                                          className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                          title="Ver/Editar observaciones"
+                                        >
+                                          {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
+                                        </button>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            openReassignModal(lead);
+                                          }}
+                                          className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
+                                          title="Reasignar lead"
+                                        >
+                                          Reasignar
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+
+              {/* Top vendedores en mi organización */}
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <h3 className="text-xl font-semibold text-gray-800 mb-4">Top Vendedores en Mi Organización</h3>
+                <div className="space-y-3">
+                  {getRankingInScope().map((vendedor, index) => (
                     <div
                       key={vendedor.id}
-                      className={`flex items-center justify-between p-4 border border-gray-200 rounded-lg ${
-                        vendedor.id === currentUser?.id ? "bg-blue-50 border-blue-300" : ""
-                      }`}
+                      className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
                     >
-                      <div className="flex items-center space-x-3">
+                      <div className="flex items-center gap-3">
                         <div
                           className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
                             index === 0
@@ -3294,21 +2346,12 @@ export default function CRM() {
                           {index + 1}
                         </div>
                         <div>
-                          <p className={`font-medium ${
-                            vendedor.id === currentUser?.id ? "text-blue-900" : "text-gray-900"
-                          }`}>
-                            {vendedor.nombre}
-                            {vendedor.id === currentUser?.id && (
-                              <span className="ml-2 text-xs text-blue-600 font-normal">(Tú)</span>
-                            )}
-                          </p>
+                          <p className="font-medium text-gray-900">{vendedor.nombre}</p>
                           <p className="text-xs text-gray-500">{vendedor.team}</p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-green-600">
-                          {vendedor.ventas} ventas
-                        </p>
+                        <p className="font-bold text-green-600">{vendedor.ventas} ventas</p>
                         <p className="text-xs text-gray-500">
                           {vendedor.leadsAsignados} leads •{" "}
                           {vendedor.leadsAsignados > 0
@@ -3320,17 +2363,419 @@ export default function CRM() {
                     </div>
                   ))}
                 </div>
-                {(currentUser?.role === "vendedor" 
-                  ? getRankingByManagerialTeam() 
-                  : getRankingInScope()
-                ).length === 0 && (
-                  <p className="text-gray-500 text-center py-8">
-                    {currentUser?.role === "vendedor" 
-                      ? "No hay otros vendedores en tu gerencia"
-                      : "No hay vendedores en tu scope"}
-                  </p>
+                {getRankingInScope().length === 0 && (
+                  <p className="text-gray-500 text-center py-8">No hay vendedores en tu equipo</p>
                 )}
               </div>
             </div>
+          )}
+
+        {/* Sección Usuarios */}
+        {activeSection === "users" && canManageUsers() && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-bold text-gray-800">Gestión de Usuarios</h2>
+              {/* Sólo Dueño/Director/Gerente ven el botón */}
+              <button
+                onClick={openCreateUser}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                <Plus size={20} />
+                <span>Nuevo Usuario</span>
+              </button>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuario</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rol</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reporta a</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Performance</th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {getVisibleUsers().map((user: any) => {
+                      const userLeads = leads.filter((l) => l.vendedor === user.id);
+                      const userSales = userLeads.filter((l) => l.estado === "vendido").length;
+                      const manager = user.reportsTo ? userById.get(user.reportsTo) : null;
+
+                      return (
+                        <tr key={user.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-4">
+                            <div>
+                              <div className="font-medium text-gray-900">{user.name}</div>
+                              <div className="text-sm text-gray-500">{user.email}</div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                              {roles[user.role] || user.role}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 text-sm text-gray-700">
+                            {manager?.name || "—"}
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                  user.active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                                }`}
+                              >
+                                {user.active ? "Activo" : "Inactivo"}
+                              </span>
+                              {user.role === "vendedor" && (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      const updated = await apiUpdateUser(user.id, {
+                                        ...user,
+                                        active: user.active ? 0 : 1,
+                                      });
+                                      setUsers((prev) =>
+                                        prev.map((u: any) => (u.id === user.id ? updated : u))
+                                      );
+                                    } catch (e) {
+                                      console.error("No pude cambiar estado del usuario", e);
+                                    }
+                                  }}
+                                  className={`px-2 py-1 text-xs rounded ${
+                                    user.active
+                                      ? "bg-red-100 text-red-700 hover:bg-red-200"
+                                      : "bg-green-100 text-green-700 hover:bg-green-200"
+                                  }`}
+                                  title={user.active ? "Desactivar vendedor" : "Activar vendedor"}
+                                >
+                                  {user.active ? "Desactivar" : "Activar"}
+                                </button>
+                              )}
+                            </div>
+                            {user.role === "vendedor" && !user.active && (
+                              <div className="text-xs text-orange-600 mt-1">No recibe leads nuevos</div>
+                            )}
+                          </td>
+                          <td className="px-4 py-4">
+                            {user.role === "vendedor" ? (
+                              <div className="text-sm">
+                                <div>{userLeads.length} leads</div>
+                                <div className="text-green-600 font-medium">{userSales} ventas</div>
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => openEditUser(user)}
+                                className="p-1 text-blue-600 hover:text-blue-800"
+                                title="Editar usuario"
+                              >
+                                <Edit3 size={16} />
+                              </button>
+                              {isOwner() && user.id !== currentUser?.id && (
+                                <button
+                                  onClick={() => openDeleteConfirm(user)}
+                                  className="p-1 text-red-600 hover:text-red-800"
+                                  title="Eliminar usuario"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Modal: Usuario */}
+            {showUserModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-xl p-6 w-full max-w-lg">
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-semibold text-gray-800">
+                      {editingUser ? "Editar Usuario" : "Nuevo Usuario"}
+                    </h3>
+                    <button onClick={() => setShowUserModal(false)}>
+                      <X size={24} className="text-gray-600" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                      <input
+                        type="text"
+                        id="u-name"
+                        defaultValue={editingUser?.name || ""}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                      <input
+                        type="email"
+                        id="u-email"
+                        defaultValue={editingUser?.email || ""}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Contraseña {editingUser && "(dejar vacío para mantener)"}
+                      </label>
+                      <input
+                        type="password"
+                        value={password1}
+                        onChange={(e) => setPassword1(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                        placeholder={editingUser ? "Nueva contraseña (opcional)" : "Contraseña"}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Confirmar contraseña
+                      </label>
+                      <input
+                        type="password"
+                        value={password2}
+                        onChange={(e) => setPassword2(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                        placeholder="Repetí la contraseña"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
+                      <select
+                        value={modalRole}
+                        onChange={(e) => {
+                          const newRole = e.target.value as typeof modalRole;
+                          setModalRole(newRole);
+                          const validManagers = validManagersByRole(newRole);
+                          setModalReportsTo(validManagers[0]?.id ?? null);
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      >
+                        {validRolesByUser(currentUser).map((role: string) => (
+                          <option key={role} value={role}>
+                            {roles[role] || role}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {modalRole !== "owner" && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Reporta a</label>
+                        <select
+                          value={modalReportsTo || ""}
+                          onChange={(e) =>
+                            setModalReportsTo(e.target.value ? parseInt(e.target.value, 10) : null)
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                        >
+                          {validManagersByRole(modalRole).map((manager: any) => (
+                            <option key={manager.id} value={manager.id}>
+                              {manager.name} ({roles[manager.role] || manager.role})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="u-active"
+                        defaultChecked={editingUser?.active !== false}
+                        className="rounded border-gray-300 text-blue-600"
+                      />
+                      <label htmlFor="u-active" className="text-sm text-gray-700">
+                        Usuario activo
+                      </label>
+                    </div>
+                    {modalRole === "vendedor" && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <p className="text-sm text-blue-700">
+                          <strong>Nota:</strong> Los vendedores desactivados pueden seguir usando el CRM,
+                          pero no recibirán leads nuevos automáticamente.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-3 pt-6">
+                    <button
+                      onClick={saveUser}
+                      className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      {editingUser ? "Actualizar" : "Crear"} Usuario
+                    </button>
+                    <button
+                      onClick={() => setShowUserModal(false)}
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Modal confirmación eliminar usuario */}
+            {showDeleteConfirmModal && userToDelete && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-xl p-6 w-full max-w-md">
+                  <div className="flex items-center mb-6">
+                    <div className="bg-red-100 p-3 rounded-full mr-4">
+                      <Trash2 className="h-6 w-6 text-red-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800">Confirmar Eliminación</h3>
+                      <p className="text-sm text-gray-600">Esta acción no se puede deshacer</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                    <h4 className="font-medium text-gray-800 mb-2">Usuario a eliminar:</h4>
+                    <div className="text-sm space-y-1">
+                      <div>
+                        <strong>Nombre:</strong> {userToDelete.name}
+                      </div>
+                      <div>
+                        <strong>Email:</strong> {userToDelete.email}
+                      </div>
+                      <div>
+                        <strong>Rol:</strong> {roles[userToDelete.role] || userToDelete.role}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                    <div className="flex">
+                      <div className="flex-shrink-0">
+                        <Bell className="h-5 w-5 text-red-400" />
+                      </div>
+                      <div className="ml-3">
+                        <h4 className="text-sm font-medium text-red-800">Atención - Eliminación Permanente</h4>
+                        <div className="mt-2 text-sm text-red-700">
+                          <ul className="list-disc pl-5 space-y-1">
+                            <li>Se eliminará permanentemente del sistema</li>
+                            <li>Se perderá acceso a todas las funcionalidades</li>
+                            <li>No podrá recuperar su cuenta</li>
+                            <li>Los datos históricos se mantienen para auditoría</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={confirmDeleteUser}
+                      className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
+                    >
+                      Sí, Eliminar Usuario
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowDeleteConfirmModal(false);
+                        setUserToDelete(null);
+                      }}
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
+
+        {/* Sección Alertas */}
+        {activeSection === "alerts" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-bold text-gray-800">Alertas y Notificaciones</h2>
+              <button
+                onClick={() => {
+                  setAlerts((prev) =>
+                    prev.map((a) => (a.userId === currentUser?.id ? { ...a, read: true } : a))
+                  );
+                }}
+                className="px-4 py-2 text-sm text-blue-600 hover:text-blue-800"
+              >
+                Marcar todas como leídas
+              </button>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              {alerts.filter((a) => a.userId === currentUser?.id).length === 0 ? (
+                <div className="text-center py-12">
+                  <Bell size={48} className="mx-auto text-gray-300 mb-4" />
+                  <p className="text-gray-500">No tenés alertas pendientes</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {alerts
+                    .filter((a) => a.userId === currentUser?.id)
+                    .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
+                    .map((alert) => (
+                      <div
+                        key={alert.id}
+                        className={`p-4 border rounded-lg ${
+                          alert.read ? "border-gray-200 bg-gray-50" : "border-blue-200 bg-blue-50"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start gap-3">
+                            <div
+                              className={`mt-1 w-2 h-2 rounded-full ${
+                                alert.read ? "bg-gray-400" : "bg-blue-500"
+                              }`}
+                            />
+                            <div>
+                              <p className={`font-medium ${alert.read ? "text-gray-700" : "text-gray-900"}`}>
+                                {alert.type === "lead_assigned" ? "Nuevo Lead Asignado" : "Cambio en Ranking"}
+                              </p>
+                              <p className={`${alert.read ? "text-gray-500" : "text-gray-700"} text-sm`}>
+                                {alert.message}
+                              </p>
+                              <p className="text-xs text-gray-400 mt-1">
+                                {new Date(alert.ts).toLocaleDateString("es-AR")}{" "}
+                                {new Date(alert.ts).toLocaleTimeString("es-AR")}
+                              </p>
+                            </div>
+                          </div>
+                          {!alert.read && (
+                            <button
+                              onClick={() => {
+                                setAlerts((prev) =>
+                                  prev.map((a) => (a.id === alert.id ? { ...a, read: true } : a))
+                                );
+                              }}
+                              className="text-blue-600 hover:text-blue-800 text-sm"
+                            >
+                              Marcar como leída
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
