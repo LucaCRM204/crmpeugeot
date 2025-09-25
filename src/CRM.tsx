@@ -67,12 +67,6 @@ const fuentes: Record<string, { label: string; color: string; icon: string }> = 
   creado_por_usuario: { label: "Creado por usuario", color: "bg-teal-500", icon: "👨‍💼" },
 };
 
-const botConfig: Record<string, { targetTeam: string | null; label: string }> = {
-  whatsapp_bot_cm1: { targetTeam: "sauer", label: "Bot CM 1" },
-  whatsapp_bot_cm2: { targetTeam: "daniel", label: "Bot CM 2" },
-  whatsapp_100: { targetTeam: null, label: "Bot 100" },
-};
-
 // ===== TYPES =====
 type LeadRow = {
   id: number;
@@ -517,26 +511,6 @@ export default function CRM() {
       .filter((item) => item.total > 0)
       .sort((a, b) => b.total - a.total);
     return sourceData;
-  };
-
-  // ===== FUNCIONES DE ASIGNACIÓN =====
-  const getActiveVendorIdsInScope = (scopeUser?: any) => {
-    if (!scopeUser) return [] as number[];
-    const scope = getAccessibleUserIds(scopeUser);
-    return users
-      .filter((u: any) => u.role === "vendedor" && u.active && scope.includes(u.id))
-      .map((u: any) => u.id);
-  };
-
-  const getVendorsByTeam = (teamName: string) => {
-    const manager = users.find((u: any) =>
-      u.role === "gerente" && u.name.toLowerCase().includes(teamName.toLowerCase())
-    );
-    if (!manager) return [];
-    const descendants = getDescendantUserIds(manager.id, childrenIndex);
-    return users
-      .filter((u: any) => u.role === "vendedor" && u.active && descendants.includes(u.id))
-      .map((u: any) => u.id);
   };
 
   // ===== FUNCIONES DE ALERTAS =====
