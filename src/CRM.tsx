@@ -1500,672 +1500,7 @@ export default function CRM() {
                     <div key={item.source} className="border border-gray-200 rounded-lg p-4">
                       <div className="flex items-center space-x-2 mb-2">
                         <span className="text-lg">{item.icon}</span>
-                        <span className="font-medium text-gray-600">Fuente:</span>
-                      <span className="ml-2">
-                        {fuentes[leadToReassign.fuente as string]?.icon || "❓"}{" "}
-                        {fuentes[leadToReassign.fuente as string]?.label ||
-                          String(leadToReassign.fuente)}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Vendedor actual:</span>{" "}
-                      {leadToReassign.vendedor
-                        ? userById.get(leadToReassign.vendedor)?.name
-                        : "Sin asignar"}
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
-                    Seleccionar nuevo vendedor (solo vendedores activos)
-                  </label>
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    <div
-                      onClick={() => setSelectedVendorForReassign(null)}
-                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                        selectedVendorForReassign === null
-                          ? "border-blue-500 bg-blue-50"
-                          : "border-gray-200 hover:bg-gray-50"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-gray-400 rounded-full flex items-center justify-center">
-                            <span className="text-white font-medium text-sm">--</span>
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900">Sin asignar</p>
-                            <p className="text-sm text-gray-500">
-                              Dejar el lead sin vendedor asignado
-                            </p>
-                          </div>
-                        </div>
-                        {selectedVendorForReassign === null && (
-                          <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
-                            <div className="w-2 h-2 bg-white rounded-full"></div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {getAvailableVendorsForReassign().map((vendedor: any) => {
-                      const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
-                      const vendedorVentas = vendedorLeads.filter(
-                        (l) => l.estado === "vendido"
-                      ).length;
-                      const conversion =
-                        vendedorLeads.length > 0
-                          ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0)
-                          : "0";
-
-                      return (
-                        <div
-                          key={vendedor.id}
-                          onClick={() => setSelectedVendorForReassign(vendedor.id)}
-                          className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                            selectedVendorForReassign === vendedor.id
-                              ? "border-blue-500 bg-blue-50"
-                              : "border-gray-200 hover:bg-gray-50"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-                                <span className="text-white font-medium text-sm">
-                                  {vendedor.name
-                                    .split(" ")
-                                    .map((n: string) => n[0])
-                                    .join("")
-                                    .toUpperCase()
-                                    .substring(0, 2)}
-                                </span>
-                              </div>
-                              <div>
-                                <p className="font-medium text-gray-900">{vendedor.name}</p>
-                                <p className="text-sm text-gray-500">
-                                  {vendedorLeads.length} leads • {vendedorVentas} ventas •{" "}
-                                  {conversion}% conversión
-                                </p>
-                                <p className="text-xs text-gray-400">
-                                  Equipo de {userById.get(vendedor.reportsTo)?.name || "—"}
-                                </p>
-                                <p className="text-xs text-green-600 font-medium">
-                                  ✓ Activo - Recibe leads nuevos
-                                </p>
-                              </div>
-                            </div>
-                            {selectedVendorForReassign === vendedor.id && (
-                              <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
-                                <div className="w-2 h-2 bg-white rounded-full"></div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {getAvailableVendorsForReassign().length === 0 && (
-                    <div className="text-center py-8 bg-gray-50 rounded-lg border">
-                      <p className="text-gray-500">
-                        No hay vendedores activos disponibles en tu scope para reasignar
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex space-x-3">
-                <button
-                  onClick={handleReassignLead}
-                  disabled={selectedVendorForReassign === leadToReassign.vendedor}
-                  className={`flex-1 px-4 py-2 rounded-lg font-medium ${
-                    selectedVendorForReassign === leadToReassign.vendedor
-                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      : "bg-blue-600 text-white hover:bg-blue-700"
-                  }`}
-                >
-                  {selectedVendorForReassign === leadToReassign.vendedor
-                    ? "Ya está asignado a este vendedor"
-                    : "Reasignar Lead"}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowReassignModal(false);
-                    setLeadToReassign(null);
-                    setSelectedVendorForReassign(null);
-                  }}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Observaciones del Lead */}
-        {showObservacionesModal && editingLeadObservaciones && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">
-                  Observaciones - {editingLeadObservaciones.nombre}
-                </h3>
-                <button
-                  onClick={() => {
-                    setShowObservacionesModal(false);
-                    setEditingLeadObservaciones(null);
-                  }}
-                >
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-
-              <div className="mb-4">
-                <p className="text-sm text-gray-600 mb-2">
-                  <span className="font-medium">Cliente:</span>{" "}
-                  {editingLeadObservaciones.nombre} |{" "}
-                  <span className="font-medium ml-2">Teléfono:</span>{" "}
-                  {editingLeadObservaciones.telefono} |{" "}
-                  <span className="font-medium ml-2">Vehículo:</span>{" "}
-                  {editingLeadObservaciones.modelo}
-                </p>
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium">Estado actual:</span>
-                  <span
-                    className={`ml-2 px-2 py-1 rounded-full text-xs font-medium text-white ${estados[editingLeadObservaciones.estado].color}`}
-                  >
-                    {estados[editingLeadObservaciones.estado].label}
-                  </span>
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Observaciones
-                </label>
-                <textarea
-                  id="observaciones-textarea"
-                  defaultValue={editingLeadObservaciones.notas || ""}
-                  placeholder="Agregar observaciones sobre el cliente, llamadas realizadas, intereses, objeciones, etc..."
-                  className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-
-              <div className="flex space-x-3 pt-6">
-                <button
-                  onClick={() => {
-                    const textarea = document.getElementById(
-                      "observaciones-textarea"
-                    ) as HTMLTextAreaElement;
-                    if (textarea && editingLeadObservaciones) {
-                      handleUpdateObservaciones(
-                        editingLeadObservaciones.id,
-                        textarea.value
-                      );
-                    }
-                  }}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Guardar Observaciones
-                </button>
-                <button
-                  onClick={() => {
-                    setShowObservacionesModal(false);
-                    setEditingLeadObservaciones(null);
-                  }}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Historial del Lead */}
-        {showHistorialModal && viewingLeadHistorial && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">
-                  Historial - {viewingLeadHistorial.nombre}
-                </h3>
-                <button
-                  onClick={() => {
-                    setShowHistorialModal(false);
-                    setViewingLeadHistorial(null);
-                  }}
-                >
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-
-              <div className="mb-4">
-                <p className="text-sm text-gray-600 mb-2">
-                  <span className="font-medium">Cliente:</span>{" "}
-                  {viewingLeadHistorial.nombre} |{" "}
-                  <span className="font-medium ml-2">Teléfono:</span>{" "}
-                  {viewingLeadHistorial.telefono} |{" "}
-                  <span className="font-medium ml-2">Vehículo:</span>{" "}
-                  {viewingLeadHistorial.modelo}
-                </p>
-              </div>
-
-              <div className="max-h-96 overflow-y-auto">
-                {(viewingLeadHistorial.historial || []).length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">
-                    No hay historial disponible para este lead
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {viewingLeadHistorial.historial?.map((entry, index) => (
-                      <div key={index} className="border-l-4 border-blue-500 pl-4 py-2">
-                        <div className="flex items-center justify-between">
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium text-white ${
-                              estados[entry.estado]?.color || "bg-gray-500"
-                            }`}
-                          >
-                            {estados[entry.estado]?.label || entry.estado}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {new Date(entry.timestamp).toLocaleDateString("es-AR")}{" "}
-                            {new Date(entry.timestamp).toLocaleTimeString("es-AR")}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-700 mt-1">
-                          Actualizado por: {entry.usuario}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-end pt-6">
-                <button
-                  onClick={() => {
-                    setShowHistorialModal(false);
-                    setViewingLeadHistorial(null);
-                  }}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cerrar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Nuevo Lead */}
-        {showNewLeadModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-3xl">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">Nuevo Lead</h3>
-                <button onClick={() => setShowNewLeadModal(false)}>
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nombre *
-                  </label>
-                  <input
-                    type="text"
-                    id="new-nombre"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Teléfono *
-                  </label>
-                  <input
-                    type="text"
-                    id="new-telefono"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Modelo *
-                  </label>
-                  <input
-                    type="text"
-                    id="new-modelo"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Forma de Pago
-                  </label>
-                  <select
-                    id="new-formaPago"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    <option value="Contado">Contado</option>
-                    <option value="Financiado">Financiado</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Info Usado
-                  </label>
-                  <input
-                    type="text"
-                    id="new-infoUsado"
-                    placeholder="Marca Modelo Año"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fecha
-                  </label>
-                  <input
-                    type="date"
-                    id="new-fecha"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div className="col-span-2 flex items-center space-x-3">
-                  <input
-                    type="checkbox"
-                    id="new-entrega"
-                    className="rounded border-gray-300 text-blue-600"
-                  />
-                  <span className="text-sm text-gray-700">
-                    Entrega de vehículo usado
-                  </span>
-                </div>
-                <div className="col-span-2 flex items-center space-x-3">
-                  <input
-                    type="checkbox"
-                    id="new-autoassign"
-                    defaultChecked
-                    className="rounded border-gray-300 text-blue-600"
-                  />
-                  <span className="text-sm text-gray-700">
-                    Asignación automática y equitativa (solo vendedores activos en mi equipo)
-                  </span>
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Asignar a vendedor/supervisor (opcional - solo usuarios activos de mi equipo)
-                  </label>
-                  <select
-                    id="new-vendedor"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    <option value="">Sin asignar</option>
-                    {getAssignableUsers().map((u: any) => (
-                      <option key={u.id} value={u.id} disabled={!u.active}>
-                        {u.name} ({roles[u.role]}) {u.active ? "✓ Activo" : "✗ Inactivo"}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="text-xs text-gray-500 mt-2 space-y-1">
-                    <div className="text-blue-600 font-medium">
-                      📝 Lead creado por: {currentUser?.name}
-                    </div>
-                    <div className="text-teal-600">
-                      🏷️ Fuente: "Creado por usuario"
-                    </div>
-                    <div>
-                      Si está tildado "Asignación automática", se ignorará la selección manual.
-                    </div>
-                    <div>
-                      Solo puedes asignar a usuarios activos de tu equipo según tu rol.
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex space-x-3 pt-6">
-                <button
-                  onClick={handleCreateLead}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Crear Lead
-                </button>
-                <button
-                  onClick={() => setShowNewLeadModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Nuevo Evento */}
-        {showNewEventModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-lg">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">Nuevo Evento</h3>
-                <button onClick={() => setShowNewEventModal(false)}>
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Título
-                  </label>
-                  <input
-                    type="text"
-                    id="ev-title"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fecha
-                  </label>
-                  <input
-                    type="date"
-                    id="ev-date"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Hora
-                  </label>
-                  <input
-                    type="time"
-                    id="ev-time"
-                    defaultValue="09:00"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Usuario
-                  </label>
-                  <select
-                    id="ev-user"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    <option value={currentUser?.id}>{currentUser?.name} (Yo)</option>
-                    {visibleUsers
-                      .filter((u: any) => u.id !== currentUser?.id)
-                      .map((u: any) => (
-                        <option key={u.id} value={u.id}>
-                          {u.name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex space-x-3 pt-6">
-                <button
-                  onClick={createEvent}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Crear Evento
-                </button>
-                <button
-                  onClick={() => setShowNewEventModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Usuario */}
-        {showUserModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-lg">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">
-                  {editingUser ? "Editar Usuario" : "Nuevo Usuario"}
-                </h3>
-                <button onClick={() => setShowUserModal(false)}>
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nombre *
-                  </label>
-                  <input
-                    type="text"
-                    id="u-name"
-                    defaultValue={editingUser?.name || ""}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email *
-                  </label>
-                  <input
-                    type="email"
-                    id="u-email"
-                    defaultValue={editingUser?.email || ""}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Contraseña {editingUser ? "(dejar vacío para mantener)" : "*"}
-                  </label>
-                  <input
-                    type="password"
-                    id="u-pass"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    placeholder={
-                      editingUser ? "Nueva contraseña (opcional)" : "Contraseña obligatoria"
-                    }
-                  />
-                  {!editingUser && (
-                    <p className="text-xs text-red-600 mt-1">
-                      * La contraseña es obligatoria para nuevos usuarios
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Rol
-                  </label>
-                  <select
-                    value={modalRole}
-                    onChange={(e) => {
-                      const newRole = e.target.value as typeof modalRole;
-                      setModalRole(newRole);
-                      const validManagers = validManagersByRole(newRole);
-                      setModalReportsTo(validManagers[0]?.id ?? null);
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    {validRolesByUser(currentUser).map((role: string) => (
-                      <option key={role} value={role}>
-                        {roles[role] || role}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {modalRole !== "owner" && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Reporta a
-                    </label>
-                    <select
-                      value={modalReportsTo || ""}
-                      onChange={(e) =>
-                        setModalReportsTo(
-                          e.target.value ? parseInt(e.target.value, 10) : null
-                        )
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    >
-                      {validManagersByRole(modalRole).map((manager: any) => (
-                        <option key={manager.id} value={manager.id}>
-                          {manager.name} ({roles[manager.role] || manager.role})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="u-active"
-                    defaultChecked={editingUser?.active !== false}
-                    className="rounded border-gray-300 text-blue-600"
-                  />
-                  <label htmlFor="u-active" className="text-sm text-gray-700">
-                    Usuario activo
-                  </label>
-                </div>
-                {modalRole === "vendedor" && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <p className="text-sm text-blue-700">
-                      <strong>Nota:</strong> Los vendedores desactivados pueden seguir usando el CRM 
-                      para gestionar sus leads existentes, pero no recibirán leads nuevos automáticamente.
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex space-x-3 pt-6">
-                <button
-                  onClick={saveUser}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  {editingUser ? "Actualizar" : "Crear"} Usuario
-                </button>
-                <button
-                  onClick={() => setShowUserModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}medium text-gray-900">{item.label}</span>
+                        <span className="font-medium text-gray-900">{item.label}</span>
                       </div>
                       <div className="space-y-1 text-sm">
                         <div className="flex justify-between">
@@ -2735,190 +2070,6 @@ export default function CRM() {
                     );
                   })}
                 </div>
-
-                {/* Lista filtrada de leads por estado en Mi Equipo */}
-                {selectedEstado && (
-                  <div className="mt-6 border-t pt-6">
-                    <h4 className="text-lg font-semibold text-gray-800 mb-4">
-                      Leads de mi equipo en estado:{" "}
-                      <span
-                        className={`px-3 py-1 rounded-full text-white text-sm ${
-                          estados[selectedEstado].color
-                        }`}
-                      >
-                        {estados[selectedEstado].label}
-                      </span>
-                    </h4>
-
-                    {(() => {
-                      const teamFilter = ["owner", "director"].includes(currentUser?.role)
-                        ? selectedTeam
-                        : undefined;
-                      const filteredLeads =
-                        teamFilter && teamFilter !== "todos"
-                          ? getFilteredLeadsByTeam(teamFilter)
-                          : getFilteredLeads();
-                      const leadsFiltrados = filteredLeads.filter(
-                        (l) => l.estado === selectedEstado
-                      );
-
-                      if (leadsFiltrados.length === 0) {
-                        return (
-                          <p className="text-gray-500 text-center py-8">
-                            No hay leads de tu equipo en estado "
-                            {estados[selectedEstado].label}"
-                          </p>
-                        );
-                      }
-
-                      return (
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead className="bg-gray-50">
-                              <tr>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                  Cliente
-                                </th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                  Contacto
-                                </th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                  Vehículo
-                                </th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                  Estado
-                                </th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                  Fuente
-                                </th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                  Vendedor
-                                </th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                  Fecha
-                                </th>
-                                <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">
-                                  Acciones
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200">
-                              {leadsFiltrados.map((lead) => {
-                                const vendedor = lead.vendedor
-                                  ? userById.get(lead.vendedor)
-                                  : null;
-                                return (
-                                  <tr key={lead.id} className="hover:bg-gray-50">
-                                    <td className="px-4 py-2">
-                                      <div className="font-medium text-gray-900">
-                                        {lead.nombre}
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-2">
-                                      <div className="flex items-center space-x-1">
-                                        <Phone size={12} className="text-gray-400" />
-                                        <span className="text-gray-700">{lead.telefono}</span>
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-2">
-                                      <div>
-                                        <div className="font-medium text-gray-900">
-                                          {lead.modelo}
-                                        </div>
-                                        <div className="text-xs text-gray-500">
-                                          {lead.formaPago}
-                                        </div>
-                                        {lead.infoUsado && (
-                                          <div className="text-xs text-orange-600">
-                                            Usado: {lead.infoUsado}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-2">
-                                      <select
-                                        value={lead.estado}
-                                        onChange={(e) =>
-                                          handleChangeLeadStateFromDashboard(lead.id, e.target.value)
-                                        }
-                                        className={`text-xs font-medium rounded-full px-2 py-1 border-0 text-white cursor-pointer ${estados[lead.estado].color}`}
-                                      >
-                                        {Object.entries(estados).map(([key, estado]) => (
-                                          <option key={key} value={key} className="text-black">
-                                            {estado.label}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </td>
-                                    <td className="px-4 py-2">
-                                      <div className="flex items-center space-x-1">
-                                        <span className="text-sm">
-                                          {fuentes[lead.fuente as string]?.icon || "❓"}
-                                        </span>
-                                        <span className="text-xs text-gray-600">
-                                          {fuentes[lead.fuente as string]?.label ||
-                                            String(lead.fuente)}
-                                        </span>
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-2 text-gray-700">
-                                      {vendedor?.name || "Sin asignar"}
-                                    </td>
-                                    <td className="px-4 py-2 text-gray-500 text-xs">
-                                      {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
-                                    </td>
-                                    <td className="px-4 py-2 text-center">
-                                      <div className="flex items-center justify-center space-x-1">
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setEditingLeadObservaciones(lead);
-                                            setShowObservacionesModal(true);
-                                          }}
-                                          className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                          title="Ver/Editar observaciones"
-                                        >
-                                          {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
-                                        </button>
-                                        {(canManageUsers() ||
-                                          (currentUser?.role === "supervisor" &&
-                                            lead.vendedor &&
-                                            getVisibleUsers().some(
-                                              (u: any) => u.id === lead.vendedor
-                                            ))) && (
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              openReassignModal(lead);
-                                            }}
-                                            className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
-                                            title="Reasignar lead"
-                                          >
-                                            Reasignar
-                                          </button>
-                                        )}
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setActiveSection("leads");
-                                          }}
-                                          className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                          title="Ver en tabla completa"
-                                        >
-                                          Ver
-                                        </button>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
               </div>
 
               {/* Top vendedores en mi organización */}
@@ -3217,8 +2368,715 @@ export default function CRM() {
           </div>
         )}
 
-        {/* ===== MODALES ===== */}
+        {/* ===== TODOS LOS MODALES ===== */}
         
+        {/* Modal: Observaciones del Lead */}
+        {showObservacionesModal && editingLeadObservaciones && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">
+                  Observaciones - {editingLeadObservaciones.nombre}
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowObservacionesModal(false);
+                    setEditingLeadObservaciones(null);
+                  }}
+                >
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-2">
+                  <span className="font-medium">Cliente:</span>{" "}
+                  {editingLeadObservaciones.nombre} |{" "}
+                  <span className="font-medium ml-2">Teléfono:</span>{" "}
+                  {editingLeadObservaciones.telefono} |{" "}
+                  <span className="font-medium ml-2">Vehículo:</span>{" "}
+                  {editingLeadObservaciones.modelo}
+                </p>
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium">Estado actual:</span>
+                  <span
+                    className={`ml-2 px-2 py-1 rounded-full text-xs font-medium text-white ${estados[editingLeadObservaciones.estado].color}`}
+                  >
+                    {estados[editingLeadObservaciones.estado].label}
+                  </span>
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Observaciones
+                </label>
+                <textarea
+                  id="observaciones-textarea"
+                  defaultValue={editingLeadObservaciones.notas || ""}
+                  placeholder="Agregar observaciones sobre el cliente, llamadas realizadas, intereses, objeciones, etc..."
+                  className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex space-x-3 pt-6">
+                <button
+                  onClick={() => {
+                    const textarea = document.getElementById(
+                      "observaciones-textarea"
+                    ) as HTMLTextAreaElement;
+                    if (textarea && editingLeadObservaciones) {
+                      handleUpdateObservaciones(
+                        editingLeadObservaciones.id,
+                        textarea.value
+                      );
+                    }
+                  }}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Guardar Observaciones
+                </button>
+                <button
+                  onClick={() => {
+                    setShowObservacionesModal(false);
+                    setEditingLeadObservaciones(null);
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Historial del Lead */}
+        {showHistorialModal && viewingLeadHistorial && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">
+                  Historial - {viewingLeadHistorial.nombre}
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowHistorialModal(false);
+                    setViewingLeadHistorial(null);
+                  }}
+                >
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-2">
+                  <span className="font-medium">Cliente:</span>{" "}
+                  {viewingLeadHistorial.nombre} |{" "}
+                  <span className="font-medium ml-2">Teléfono:</span>{" "}
+                  {viewingLeadHistorial.telefono} |{" "}
+                  <span className="font-medium ml-2">Vehículo:</span>{" "}
+                  {viewingLeadHistorial.modelo}
+                </p>
+              </div>
+
+              <div className="max-h-96 overflow-y-auto">
+                {(viewingLeadHistorial.historial || []).length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">
+                    No hay historial disponible para este lead
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {viewingLeadHistorial.historial?.map((entry, index) => (
+                      <div key={index} className="border-l-4 border-blue-500 pl-4 py-2">
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-medium text-white ${
+                              estados[entry.estado]?.color || "bg-gray-500"
+                            }`}
+                          >
+                            {estados[entry.estado]?.label || entry.estado}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {new Date(entry.timestamp).toLocaleDateString("es-AR")}{" "}
+                            {new Date(entry.timestamp).toLocaleTimeString("es-AR")}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700 mt-1">
+                          Actualizado por: {entry.usuario}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end pt-6">
+                <button
+                  onClick={() => {
+                    setShowHistorialModal(false);
+                    setViewingLeadHistorial(null);
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Reasignación de Lead */}
+        {showReassignModal && leadToReassign && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">
+                  Reasignar Lead - {leadToReassign.nombre}
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowReassignModal(false);
+                    setLeadToReassign(null);
+                    setSelectedVendorForReassign(null);
+                  }}
+                >
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+
+              <div className="mb-6">
+                <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                  <h4 className="font-medium text-gray-800 mb-2">Información del Lead</h4>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium text-gray-600">Cliente:</span>{" "}
+                      {leadToReassign.nombre}
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Teléfono:</span>{" "}
+                      {leadToReassign.telefono}
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Vehículo:</span>{" "}
+                      {leadToReassign.modelo}
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Estado:</span>
+                      <span
+                        className={`ml-2 px-2 py-1 rounded-full text-xs font-medium text-white ${estados[leadToReassign.estado].color}`}
+                      >
+                        {estados[leadToReassign.estado].label}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Fuente:</span>
+                      <span className="ml-2">
+                        {fuentes[leadToReassign.fuente as string]?.icon || "❓"}{" "}
+                        {fuentes[leadToReassign.fuente as string]?.label ||
+                          String(leadToReassign.fuente)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Vendedor actual:</span>{" "}
+                      {leadToReassign.vendedor
+                        ? userById.get(leadToReassign.vendedor)?.name
+                        : "Sin asignar"}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    Seleccionar nuevo vendedor (solo vendedores activos)
+                  </label>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    <div
+                      onClick={() => setSelectedVendorForReassign(null)}
+                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                        selectedVendorForReassign === null
+                          ? "border-blue-500 bg-blue-50"
+                          : "border-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-gray-400 rounded-full flex items-center justify-center">
+                            <span className="text-white font-medium text-sm">--</span>
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">Sin asignar</p>
+                            <p className="text-sm text-gray-500">
+                              Dejar el lead sin vendedor asignado
+                            </p>
+                          </div>
+                        </div>
+                        {selectedVendorForReassign === null && (
+                          <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                            <div className="w-2 h-2 bg-white rounded-full"></div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {getAvailableVendorsForReassign().map((vendedor: any) => {
+                      const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
+                      const vendedorVentas = vendedorLeads.filter(
+                        (l) => l.estado === "vendido"
+                      ).length;
+                      const conversion =
+                        vendedorLeads.length > 0
+                          ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0)
+                          : "0";
+
+                      return (
+                        <div
+                          key={vendedor.id}
+                          onClick={() => setSelectedVendorForReassign(vendedor.id)}
+                          className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                            selectedVendorForReassign === vendedor.id
+                              ? "border-blue-500 bg-blue-50"
+                              : "border-gray-200 hover:bg-gray-50"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                                <span className="text-white font-medium text-sm">
+                                  {vendedor.name
+                                    .split(" ")
+                                    .map((n: string) => n[0])
+                                    .join("")
+                                    .toUpperCase()
+                                    .substring(0, 2)}
+                                </span>
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900">{vendedor.name}</p>
+                                <p className="text-sm text-gray-500">
+                                  {vendedorLeads.length} leads • {vendedorVentas} ventas •{" "}
+                                  {conversion}% conversión
+                                </p>
+                                <p className="text-xs text-gray-400">
+                                  Equipo de {userById.get(vendedor.reportsTo)?.name || "—"}
+                                </p>
+                                <p className="text-xs text-green-600 font-medium">
+                                  ✓ Activo - Recibe leads nuevos
+                                </p>
+                              </div>
+                            </div>
+                            {selectedVendorForReassign === vendedor.id && (
+                              <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                                <div className="w-2 h-2 bg-white rounded-full"></div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {getAvailableVendorsForReassign().length === 0 && (
+                    <div className="text-center py-8 bg-gray-50 rounded-lg border">
+                      <p className="text-gray-500">
+                        No hay vendedores activos disponibles en tu scope para reasignar
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleReassignLead}
+                  disabled={selectedVendorForReassign === leadToReassign.vendedor}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium ${
+                    selectedVendorForReassign === leadToReassign.vendedor
+                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      : "bg-blue-600 text-white hover:bg-blue-700"
+                  }`}
+                >
+                  {selectedVendorForReassign === leadToReassign.vendedor
+                    ? "Ya está asignado a este vendedor"
+                    : "Reasignar Lead"}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowReassignModal(false);
+                    setLeadToReassign(null);
+                    setSelectedVendorForReassign(null);
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Nuevo Lead */}
+        {showNewLeadModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-3xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">Nuevo Lead</h3>
+                <button onClick={() => setShowNewLeadModal(false)}>
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nombre *
+                  </label>
+                  <input
+                    type="text"
+                    id="new-nombre"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Teléfono *
+                  </label>
+                  <input
+                    type="text"
+                    id="new-telefono"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Modelo *
+                  </label>
+                  <input
+                    type="text"
+                    id="new-modelo"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Forma de Pago
+                  </label>
+                  <select
+                    id="new-formaPago"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  >
+                    <option value="Contado">Contado</option>
+                    <option value="Financiado">Financiado</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Info Usado
+                  </label>
+                  <input
+                    type="text"
+                    id="new-infoUsado"
+                    placeholder="Marca Modelo Año"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Fecha
+                  </label>
+                  <input
+                    type="date"
+                    id="new-fecha"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div className="col-span-2 flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    id="new-entrega"
+                    className="rounded border-gray-300 text-blue-600"
+                  />
+                  <span className="text-sm text-gray-700">
+                    Entrega de vehículo usado
+                  </span>
+                </div>
+                <div className="col-span-2 flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    id="new-autoassign"
+                    defaultChecked
+                    className="rounded border-gray-300 text-blue-600"
+                  />
+                  <span className="text-sm text-gray-700">
+                    Asignación automática y equitativa (solo vendedores activos en mi equipo)
+                  </span>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Asignar a vendedor/supervisor (opcional - solo usuarios activos de mi equipo)
+                  </label>
+                  <select
+                    id="new-vendedor"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  >
+                    <option value="">Sin asignar</option>
+                    {getAssignableUsers().map((u: any) => (
+                      <option key={u.id} value={u.id} disabled={!u.active}>
+                        {u.name} ({roles[u.role]}) {u.active ? "✓ Activo" : "✗ Inactivo"}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="text-xs text-gray-500 mt-2 space-y-1">
+                    <div className="text-blue-600 font-medium">
+                      📝 Lead creado por: {currentUser?.name}
+                    </div>
+                    <div className="text-teal-600">
+                      🏷️ Fuente: "Creado por usuario"
+                    </div>
+                    <div>
+                      Si está tildado "Asignación automática", se ignorará la selección manual.
+                    </div>
+                    <div>
+                      Solo puedes asignar a usuarios activos de tu equipo según tu rol.
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex space-x-3 pt-6">
+                <button
+                  onClick={handleCreateLead}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Crear Lead
+                </button>
+                <button
+                  onClick={() => setShowNewLeadModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Nuevo Evento */}
+        {showNewEventModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-lg">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">Nuevo Evento</h3>
+                <button onClick={() => setShowNewEventModal(false)}>
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Título
+                  </label>
+                  <input
+                    type="text"
+                    id="ev-title"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Fecha
+                  </label>
+                  <input
+                    type="date"
+                    id="ev-date"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Hora
+                  </label>
+                  <input
+                    type="time"
+                    id="ev-time"
+                    defaultValue="09:00"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Usuario
+                  </label>
+                  <select
+                    id="ev-user"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  >
+                    <option value={currentUser?.id}>{currentUser?.name} (Yo)</option>
+                    {visibleUsers
+                      .filter((u: any) => u.id !== currentUser?.id)
+                      .map((u: any) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex space-x-3 pt-6">
+                <button
+                  onClick={createEvent}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Crear Evento
+                </button>
+                <button
+                  onClick={() => setShowNewEventModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Usuario */}
+        {showUserModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-lg">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">
+                  {editingUser ? "Editar Usuario" : "Nuevo Usuario"}
+                </h3>
+                <button onClick={() => setShowUserModal(false)}>
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nombre *
+                  </label>
+                  <input
+                    type="text"
+                    id="u-name"
+                    defaultValue={editingUser?.name || ""}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Email *
+                  </label>
+                  <input
+                    type="email"
+                    id="u-email"
+                    defaultValue={editingUser?.email || ""}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Contraseña {editingUser ? "(dejar vacío para mantener)" : "*"}
+                  </label>
+                  <input
+                    type="password"
+                    id="u-pass"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    placeholder={
+                      editingUser ? "Nueva contraseña (opcional)" : "Contraseña obligatoria"
+                    }
+                  />
+                  {!editingUser && (
+                    <p className="text-xs text-red-600 mt-1">
+                      * La contraseña es obligatoria para nuevos usuarios
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Rol
+                  </label>
+                  <select
+                    value={modalRole}
+                    onChange={(e) => {
+                      const newRole = e.target.value as typeof modalRole;
+                      setModalRole(newRole);
+                      const validManagers = validManagersByRole(newRole);
+                      setModalReportsTo(validManagers[0]?.id ?? null);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  >
+                    {validRolesByUser(currentUser).map((role: string) => (
+                      <option key={role} value={role}>
+                        {roles[role] || role}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {modalRole !== "owner" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Reporta a
+                    </label>
+                    <select
+                      value={modalReportsTo || ""}
+                      onChange={(e) =>
+                        setModalReportsTo(
+                          e.target.value ? parseInt(e.target.value, 10) : null
+                        )
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    >
+                      {validManagersByRole(modalRole).map((manager: any) => (
+                        <option key={manager.id} value={manager.id}>
+                          {manager.name} ({roles[manager.role] || manager.role})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="u-active"
+                    defaultChecked={editingUser?.active !== false}
+                    className="rounded border-gray-300 text-blue-600"
+                  />
+                  <label htmlFor="u-active" className="text-sm text-gray-700">
+                    Usuario activo
+                  </label>
+                </div>
+                {modalRole === "vendedor" && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-sm text-blue-700">
+                      <strong>Nota:</strong> Los vendedores desactivados pueden seguir usando el CRM 
+                      para gestionar sus leads existentes, pero no recibirán leads nuevos automáticamente.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex space-x-3 pt-6">
+                <button
+                  onClick={saveUser}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  {editingUser ? "Actualizar" : "Crear"} Usuario
+                </button>
+                <button
+                  onClick={() => setShowUserModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Modal de Confirmación para Eliminar Usuario */}
         {showDeleteConfirmModal && userToDelete && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -3287,49 +3145,7 @@ export default function CRM() {
             </div>
           </div>
         )}
-
-        {/* Modal: Reasignación de Lead */}
-        {showReassignModal && leadToReassign && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">
-                  Reasignar Lead - {leadToReassign.nombre}
-                </h3>
-                <button
-                  onClick={() => {
-                    setShowReassignModal(false);
-                    setLeadToReassign(null);
-                    setSelectedVendorForReassign(null);
-                  }}
-                >
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-
-              <div className="mb-6">
-                <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                  <h4 className="font-medium text-gray-800 mb-2">Información del Lead</h4>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="font-medium text-gray-600">Cliente:</span>{" "}
-                      {leadToReassign.nombre}
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Teléfono:</span>{" "}
-                      {leadToReassign.telefono}
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Vehículo:</span>{" "}
-                      {leadToReassign.modelo}
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Estado:</span>
-                      <span
-                        className={`ml-2 px-2 py-1 rounded-full text-xs font-medium text-white ${estados[leadToReassign.estado].color}`}
-                      >
-                        {estados[leadToReassign.estado].label}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="font-
+      </div>
+    </div>
+  );
+}
