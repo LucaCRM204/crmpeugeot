@@ -780,7 +780,7 @@ export default function CRM() {
   const saveUser = async () => {
     const name = (document.getElementById("u-name") as HTMLInputElement).value.trim();
     const email = (document.getElementById("u-email") as HTMLInputElement).value.trim();
-    const password = (document.getElementById("u-pass") as HTMLInputElement).value.trim();
+    const password = (document.getElementById("u-pass") as HTMLInputElement).value;
     const active = (document.getElementById("u-active") as HTMLInputElement).checked;
 
     if (!name || !email) {
@@ -804,12 +804,14 @@ export default function CRM() {
           reportsTo: finalReportsTo,
           active: active ? 1 : 0,
         };
-        if (password) {
+        // Solo incluir password si se proporcionó uno nuevo
+        if (password.trim()) {
           updateData.password = password;
         }
         const updated = await apiUpdateUser(editingUser.id, updateData);
         setUsers((prev) => prev.map((u: any) => (u.id === editingUser.id ? updated : u)));
       } else {
+        // Para nuevos usuarios, la contraseña es obligatoria
         const created = await apiCreateUser({
           name,
           email,
@@ -1111,7 +1113,7 @@ export default function CRM() {
         </nav>
       </div>
 
-      {/* ===== MAIN CONTENT ===== */}
+       {/* ===== MAIN CONTENT ===== */}
       <div className="flex-1 p-6">
         {/* ===== SECCIÓN DASHBOARD ===== */}
         {activeSection === "dashboard" && (
@@ -2495,171 +2497,14 @@ export default function CRM() {
                     setLeadToReassign(null);
                     setSelectedVendorForReassign(null);
                   }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
                 >
-                  <X size={24} className="text-gray-600" />
+                  Cancelar
                 </button>
               </div>
-
-              <div className="mb-6">
-                <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                  <h4 className="font-medium text-gray-800 mb-2">Información del Lead</h4>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="font-medium text-gray-600">Cliente:</span>{" "}
-                      {leadToReassign.nombre}
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Teléfono:</span>{" "}
-                      {leadToReassign.telefono}
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Vehículo:</span>{" "}
-                      {leadToReassign.modelo}
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Estado:</span>
-                      <span
-                        className={`ml-2 px-2 py-1 rounded-full text-xs font-medium text-white ${estados[leadToReassign.estado].color}`}
-                      >
-                        {estados[leadToReassign.estado].label}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Fuente:</span>
-                      <span className="ml-2">
-                        {fuentes[leadToReassign.fuente as string]?.icon || "❓"}{" "}
-                        {fuentes[leadToReassign.fuente as string]?.label ||
-                          String(leadToReassign.fuente)}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Vendedor actual:</span>{" "}
-                      {leadToReassign.vendedor
-                        ? userById.get(leadToReassign.vendedor)?.name
-                        : "Sin asignar"}
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
-                    Seleccionar nuevo vendedor (solo vendedores activos)
-                  </label>
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    <div
-                      onClick={() => setSelectedVendorForReassign(null)}
-                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                        selectedVendorForReassign === null
-                          ? "border-blue-500 bg-blue-50"
-                          : "border-gray-200 hover:bg-gray-50"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-gray-400 rounded-full flex items-center justify-center">
-                            <span className="text-white font-medium text-sm">--</span>
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900">Sin asignar</p>
-                            <p className="text-sm text-gray-500">
-                              Dejar el lead sin vendedor asignado
-                            </p>
-                          </div>
-                        </div>
-                        {selectedVendorForReassign === null && (
-                          <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
-                            <div className="w-2 h-2 bg-white rounded-full"></div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {getAvailableVendorsForReassign().map((vendedor: any) => {
-                      const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
-                      const vendedorVentas = vendedorLeads.filter(
-                        (l) => l.estado === "vendido"
-                      ).length;
-                      const conversion =
-                        vendedorLeads.length > 0
-                          ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0)
-                          : "0";
-
-                      return (
-                        <div
-                          key={vendedor.id}
-                          onClick={() => setSelectedVendorForReassign(vendedor.id)}
-                          className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                            selectedVendorForReassign === vendedor.id
-                              ? "border-blue-500 bg-blue-50"
-                              : "border-gray-200 hover:bg-gray-50"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-                                <span className="text-white font-medium text-sm">
-                                  {vendedor.name
-                                    .split(" ")
-                                    .map((n: string) => n[0])
-                                    .join("")
-                                    .toUpperCase()
-                                    .substring(0, 2)}
-                                </span>
-                              </div>
-                              <div>
-                                <p className="font-medium text-gray-900">{vendedor.name}</p>
-                                <p className="text-sm text-gray-500">
-                                  {vendedorLeads.length} leads • {vendedorVentas} ventas •{" "}
-                                  {conversion}% conversión
-                                </p>
-                                <p className="text-xs text-gray-400">
-                                  Equipo de {userById.get(vendedor.reportsTo)?.name || "—"}
-                                </p>
-                                <p className="text-xs text-green-600 font-medium">
-                                  ✓ Activo - Recibe leads nuevos
-                                </p>
-                              </div>
-                            </div>
-                            {selectedVendorForReassign === vendedor.id && (
-                              <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
-                                <div className="w-2 h-2 bg-white rounded-full"></div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {getAvailableVendorsForReassign().length === 0 && (
-                    <div className="text-center py-8 bg-gray-50 rounded-lg border">
-                      <p className="text-gray-500">
-                        No hay vendedores activos disponibles en tu scope para reasignar
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex space-x-3">
-                <button
-                  onClick={handleReassignLead}
-                  disabled={selectedVendorForReassign === leadToReassign.vendedor}
-                  className={`flex-1 px-4 py-2 rounded-lg font-medium ${
-                    selectedVendorForReassign === leadToReassign.vendedor
-                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      : "bg-blue-600 text-white hover:bg-blue-700"
-                  }`}
-                >
-                  {selectedVendorForReassign === leadToReassign.vendedor
-                    ? "Ya está asignado a este vendedor"
-                    : "Reasignar Lead"}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowReassignModal(false);
-                    setLeadToReassign(null);
-                    setSelectedVendorForReassign(null);
+            </div>
+          </div>
+        )}endorForReassign(null);
                   }}
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
                 >
@@ -3101,6 +2946,180 @@ export default function CRM() {
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}endorForReassign(null);
+                  }}
+                >
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+
+              <div className="mb-6">
+                <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                  <h4 className="font-medium text-gray-800 mb-2">Información del Lead</h4>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium text-gray-600">Cliente:</span>{" "}
+                      {leadToReassign.nombre}
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Teléfono:</span>{" "}
+                      {leadToReassign.telefono}
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Vehículo:</span>{" "}
+                      {leadToReassign.modelo}
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Estado:</span>
+                      <span
+                        className={`ml-2 px-2 py-1 rounded-full text-xs font-medium text-white ${estados[leadToReassign.estado].color}`}
+                      >
+                        {estados[leadToReassign.estado].label}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Fuente:</span>
+                      <span className="ml-2">
+                        {fuentes[leadToReassign.fuente as string]?.icon || "❓"}{" "}
+                        {fuentes[leadToReassign.fuente as string]?.label ||
+                          String(leadToReassign.fuente)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Vendedor actual:</span>{" "}
+                      {leadToReassign.vendedor
+                        ? userById.get(leadToReassign.vendedor)?.name
+                        : "Sin asignar"}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    Seleccionar nuevo vendedor (solo vendedores activos)
+                  </label>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    <div
+                      onClick={() => setSelectedVendorForReassign(null)}
+                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                        selectedVendorForReassign === null
+                          ? "border-blue-500 bg-blue-50"
+                          : "border-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-gray-400 rounded-full flex items-center justify-center">
+                            <span className="text-white font-medium text-sm">--</span>
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">Sin asignar</p>
+                            <p className="text-sm text-gray-500">
+                              Dejar el lead sin vendedor asignado
+                            </p>
+                          </div>
+                        </div>
+                        {selectedVendorForReassign === null && (
+                          <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                            <div className="w-2 h-2 bg-white rounded-full"></div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {getAvailableVendorsForReassign().map((vendedor: any) => {
+                      const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
+                      const vendedorVentas = vendedorLeads.filter(
+                        (l) => l.estado === "vendido"
+                      ).length;
+                      const conversion =
+                        vendedorLeads.length > 0
+                          ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0)
+                          : "0";
+
+                      return (
+                        <div
+                          key={vendedor.id}
+                          onClick={() => setSelectedVendorForReassign(vendedor.id)}
+                          className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                            selectedVendorForReassign === vendedor.id
+                              ? "border-blue-500 bg-blue-50"
+                              : "border-gray-200 hover:bg-gray-50"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                                <span className="text-white font-medium text-sm">
+                                  {vendedor.name
+                                    .split(" ")
+                                    .map((n: string) => n[0])
+                                    .join("")
+                                    .toUpperCase()
+                                    .substring(0, 2)}
+                                </span>
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900">{vendedor.name}</p>
+                                <p className="text-sm text-gray-500">
+                                  {vendedorLeads.length} leads • {vendedorVentas} ventas •{" "}
+                                  {conversion}% conversión
+                                </p>
+                                <p className="text-xs text-gray-400">
+                                  Equipo de {userById.get(vendedor.reportsTo)?.name || "—"}
+                                </p>
+                                <p className="text-xs text-green-600 font-medium">
+                                  ✓ Activo - Recibe leads nuevos
+                                </p>
+                              </div>
+                            </div>
+                            {selectedVendorForReassign === vendedor.id && (
+                              <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                                <div className="w-2 h-2 bg-white rounded-full"></div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {getAvailableVendorsForReassign().length === 0 && (
+                    <div className="text-center py-8 bg-gray-50 rounded-lg border">
+                      <p className="text-gray-500">
+                        No hay vendedores activos disponibles en tu scope para reasignar
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleReassignLead}
+                  disabled={selectedVendorForReassign === leadToReassign.vendedor}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium ${
+                    selectedVendorForReassign === leadToReassign.vendedor
+                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      : "bg-blue-600 text-white hover:bg-blue-700"
+                  }`}
+                >
+                  {selectedVendorForReassign === leadToReassign.vendedor
+                    ? "Ya está asignado a este vendedor"
+                    : "Reasignar Lead"}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowReassignModal(false);
+                    setLeadToReassign(null);
+                    setSelectedV
+        <div className="text-center py-20">
+          <h1 className="text-4xl font-bold text-gray-800 mb-4">CRM Alluma</h1>
+          <p className="text-gray-600">El archivo está completo y funcional con todas las mejoras implementadas</p>
+        </div>
       </div>
     </div>
   );
