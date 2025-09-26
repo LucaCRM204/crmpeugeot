@@ -284,9 +284,6 @@ export default function CRM() {
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState<any>(null);
 
-  // NUEVO: Estados para edición de leads en dashboard
-  const [editingDashboardLead, setEditingDashboardLead] = useState<LeadRow | null>(null);
-
   // ===== Login contra backend =====
   const handleLogin = async (email: string, password: string) => {
     try {
