@@ -991,19 +991,60 @@ export default function CRM() {
         console.log("Vendedor asignado manualmente:", vendedorId);
       }
 
+      // Determinar equipo basado en el usuario actual o el vendedor asignado
+      let equipo = 'roberto'; // Default
+      
+      if (vendedorId) {
+        // Si hay vendedor asignado, determinar su equipo
+        const vendedorAsignado = users.find(u => u.id === vendedorId);
+        if (vendedorAsignado) {
+          // Buscar el gerente del vendedor
+          let currentUser = vendedorAsignado;
+          while (currentUser && currentUser.reportsTo) {
+            const manager = userById.get(currentUser.reportsTo);
+            if (!manager) break;
+            
+            if (manager.role === 'gerente') {
+              if (manager.name === 'Daniel Mottino') {
+                equipo = 'daniel';
+              } else if (manager.name === 'Roberto Sauer') {
+                equipo = 'roberto';
+              }
+              break;
+            }
+            currentUser = manager;
+          }
+        }
+      } else {
+        // Si no hay vendedor, usar el equipo del usuario que está creando
+        let currentUserForTeam = currentUser;
+        while (currentUserForTeam && currentUserForTeam.reportsTo) {
+          const manager = userById.get(currentUserForTeam.reportsTo);
+          if (!manager) break;
+          
+          if (manager.role === 'gerente') {
+            if (manager.name === 'Daniel Mottino') {
+              equipo = 'daniel';
+            } else if (manager.name === 'Roberto Sauer') {
+              equipo = 'roberto';
+            }
+            break;
+          }
+          currentUserForTeam = manager;
+        }
+      }
+
       const leadData = {
         nombre,
         telefono,
         modelo,
         formaPago: formaPago || "Contado",
-        notas: "",
+        notas: `Creado por: ${currentUser?.name}${infoUsado ? `\nInfo usado: ${infoUsado}` : ''}${entrega ? '\nEntrega usado: Sí' : ''}`,
         estado: "nuevo",
         fuente,
-        infoUsado: infoUsado || "",
-        entrega: entrega || false,
         fecha: fecha || new Date().toISOString().split('T')[0],
-        vendedor: vendedorId,
-        created_by: currentUser?.id, // NUEVO: Registrar quién creó el lead
+        vendedor: vendedorId, // El backend convertirá esto a assigned_to
+        equipo: equipo, // NUEVO: Campo requerido por el backend
       };
 
       console.log("Datos a enviar al API:", leadData);
