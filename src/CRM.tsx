@@ -921,89 +921,126 @@ export default function CRM() {
 
   // MODIFICADO: Función para crear lead con "creado por" y asignación inteligente
   const handleCreateLead = async () => {
-    const nombre = (document.getElementById("new-nombre") as HTMLInputElement)
-      .value
-      .trim();
-    const telefono = (
-      document.getElementById("new-telefono") as HTMLInputElement
-    ).value.trim();
-    const modelo = (document.getElementById("new-modelo") as HTMLInputElement)
-      .value
-      .trim();
-    const formaPago = (document.getElementById("new-formaPago") as HTMLSelectElement).value;
-    const infoUsado = (
-      document.getElementById("new-infoUsado") as HTMLInputElement
-    ).value.trim();
-    const entrega = (document.getElementById("new-entrega") as HTMLInputElement)
-      .checked;
-    const fecha = (document.getElementById("new-fecha") as HTMLInputElement)
-      .value;
-    const autoAssign = (
-      document.getElementById("new-autoassign") as HTMLInputElement
-    )?.checked;
-    const vendedorSelVal = (document.getElementById("new-vendedor") as HTMLSelectElement)
-      .value;
+    try {
+      console.log("Iniciando creación de lead...");
+      
+      const nombre = (document.getElementById("new-nombre") as HTMLInputElement)
+        ?.value
+        ?.trim();
+      const telefono = (
+        document.getElementById("new-telefono") as HTMLInputElement
+      )?.value?.trim();
+      const modelo = (document.getElementById("new-modelo") as HTMLInputElement)
+        ?.value
+        ?.trim();
+      const formaPago = (document.getElementById("new-formaPago") as HTMLSelectElement)?.value;
+      const infoUsado = (
+        document.getElementById("new-infoUsado") as HTMLInputElement
+      )?.value?.trim();
+      const entrega = (document.getElementById("new-entrega") as HTMLInputElement)
+        ?.checked;
+      const fecha = (document.getElementById("new-fecha") as HTMLInputElement)
+        ?.value;
+      const autoAssign = (
+        document.getElementById("new-autoassign") as HTMLInputElement
+      )?.checked;
+      const vendedorSelVal = (document.getElementById("new-vendedor") as HTMLSelectElement)
+        ?.value;
 
-    const vendedorIdSelRaw = parseInt(vendedorSelVal, 10);
-    const vendedorIdSel = Number.isNaN(vendedorIdSelRaw)
-      ? null
-      : vendedorIdSelRaw;
+      console.log("Datos del formulario:", { nombre, telefono, modelo, formaPago, infoUsado, entrega, fecha, autoAssign, vendedorSelVal });
 
-    // MODIFICADO: Usar fuente "creado_por" para leads creados manualmente
-    const fuente = "creado_por";
+      // Validaciones básicas
+      if (!nombre || !telefono || !modelo) {
+        alert("Por favor completa los campos obligatorios: Nombre, Teléfono y Modelo");
+        return;
+      }
 
-    // Asignación de vendedor
-    let vendedorId: number | null = null;
-    if (autoAssign) {
-      // MODIFICADO: Solo asignar automáticamente entre vendedores del scope del usuario actual
-      vendedorId = pickNextVendorId(currentUser) ?? null;
-    } else {
-      // Verificar que el vendedor seleccionado esté activo y en el scope
-      if (vendedorIdSel) {
-        const selectedVendor = users.find(u => u.id === vendedorIdSel);
-        const availableVendors = getAvailableVendorsForAssignment();
-        if (selectedVendor && selectedVendor.active && availableVendors.some(v => v.id === vendedorIdSel)) {
-          vendedorId = vendedorIdSel;
-        } else {
-          alert("El vendedor seleccionado no está disponible. Por favor selecciona otro vendedor o usa la asignación automática.");
-          return;
-        }
+      const vendedorIdSelRaw = parseInt(vendedorSelVal, 10);
+      const vendedorIdSel = Number.isNaN(vendedorIdSelRaw)
+        ? null
+        : vendedorIdSelRaw;
+
+      // MODIFICADO: Usar fuente "creado_por" para leads creados manualmente
+      const fuente = "creado_por";
+
+      // Asignación de vendedor
+      let vendedorId: number | null = null;
+      if (autoAssign) {
+        console.log("Asignación automática activada");
+        // MODIFICADO: Solo asignar automáticamente entre vendedores del scope del usuario actual
+        vendedorId = pickNextVendorId(currentUser) ?? null;
+        console.log("Vendedor asignado automáticamente:", vendedorId);
       } else {
-        vendedorId = null;
+        console.log("Asignación manual");
+        // Verificar que el vendedor seleccionado esté activo y en el scope
+        if (vendedorIdSel) {
+          const selectedVendor = users.find(u => u.id === vendedorIdSel);
+          const availableVendors = getAvailableVendorsForAssignment();
+          console.log("Vendedor seleccionado:", selectedVendor);
+          console.log("Vendedores disponibles:", availableVendors);
+          
+          if (selectedVendor && selectedVendor.active && availableVendors.some(v => v.id === vendedorIdSel)) {
+            vendedorId = vendedorIdSel;
+          } else {
+            alert("El vendedor seleccionado no está disponible. Por favor selecciona otro vendedor o usa la asignación automática.");
+            return;
+          }
+        } else {
+          vendedorId = null;
+        }
+        console.log("Vendedor asignado manualmente:", vendedorId);
       }
-    }
 
-    if (nombre && telefono && modelo) {
-      try {
-        const created = await apiCreateLead({
-          nombre,
-          telefono,
-          modelo,
-          formaPago,
-          notas: "",
-          estado: "nuevo",
-          fuente,
-          infoUsado,
-          entrega,
-          fecha,
-          vendedor: vendedorId,
-          created_by: currentUser.id, // NUEVO: Registrar quién creó el lead
-        } as any);
-        
-        const mapped = mapLeadFromApi(created);
-        if (mapped.vendedor)
-          pushAlert(
-            mapped.vendedor,
-            "lead_assigned",
-            `Nuevo lead asignado: ${mapped.nombre} (creado por ${currentUser.name})`
-          );
-        setLeads((prev) => [mapped, ...prev]);
-        setShowNewLeadModal(false);
+      const leadData = {
+        nombre,
+        telefono,
+        modelo,
+        formaPago: formaPago || "Contado",
+        notas: "",
+        estado: "nuevo",
+        fuente,
+        infoUsado: infoUsado || "",
+        entrega: entrega || false,
+        fecha: fecha || new Date().toISOString().split('T')[0],
+        vendedor: vendedorId,
+        created_by: currentUser?.id, // NUEVO: Registrar quién creó el lead
+      };
 
-        addHistorialEntry(mapped.id, `Creado por ${currentUser.name}`);
-      } catch (e) {
-        console.error("No pude crear el lead", e);
+      console.log("Datos a enviar al API:", leadData);
+
+      const created = await apiCreateLead(leadData as any);
+      console.log("Lead creado exitosamente:", created);
+      
+      const mapped = mapLeadFromApi(created);
+      console.log("Lead mapeado:", mapped);
+      
+      if (mapped.vendedor) {
+        pushAlert(
+          mapped.vendedor,
+          "lead_assigned",
+          `Nuevo lead asignado: ${mapped.nombre} (creado por ${currentUser?.name})`
+        );
       }
+      
+      setLeads((prev) => [mapped, ...prev]);
+      setShowNewLeadModal(false);
+
+      // Limpiar formulario
+      (document.getElementById("new-nombre") as HTMLInputElement).value = "";
+      (document.getElementById("new-telefono") as HTMLInputElement).value = "";
+      (document.getElementById("new-modelo") as HTMLInputElement).value = "";
+      (document.getElementById("new-infoUsado") as HTMLInputElement).value = "";
+      (document.getElementById("new-fecha") as HTMLInputElement).value = "";
+      (document.getElementById("new-entrega") as HTMLInputElement).checked = false;
+
+      addHistorialEntry(mapped.id, `Creado por ${currentUser?.name}`);
+      
+      alert("Lead creado exitosamente");
+      
+    } catch (e: any) {
+      console.error("Error completo al crear el lead:", e);
+      console.error("Respuesta del error:", e?.response?.data);
+      alert(`Error al crear el lead: ${e?.response?.data?.error || e?.message || 'Error desconocido'}`);
     }
   };
 
