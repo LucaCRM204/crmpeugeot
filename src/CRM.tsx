@@ -14,6 +14,9 @@ import {
   Bell,
   UserCheck,
   Download,
+  Search,
+  Filter,
+  User,
 } from "lucide-react";
 import { api } from "./api";
 import {
@@ -89,6 +92,7 @@ const fuentes: Record<
   google: { label: "Google Ads", color: "bg-red-500", icon: "🎯" },
   instagram: { label: "Instagram", color: "bg-pink-500", icon: "📸" },
   otro: { label: "Otro", color: "bg-gray-400", icon: "❓" },
+  creado_por: { label: "Creado por", color: "bg-teal-500", icon: "👤" }, // NUEVA FUENTE
 };
 
 // Configuración de bots
@@ -117,6 +121,7 @@ type LeadRow = {
     timestamp: string;
     usuario: string;
   }>;
+  created_by?: number; // NUEVO: ID del usuario que creó el lead
 };
 
 type Alert = {
@@ -140,6 +145,7 @@ const downloadAllLeadsExcel = (leads: LeadRow[], userById: Map<number, any>, fue
   const excelData = leads.map(lead => {
     const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
     const fuente = fuentes[lead.fuente] || { label: lead.fuente };
+    const creadoPor = lead.created_by ? userById.get(lead.created_by) : null;
     
     return {
       'ID': lead.id,
@@ -154,6 +160,7 @@ const downloadAllLeadsExcel = (leads: LeadRow[], userById: Map<number, any>, fue
       'Vendedor': vendedor?.name || 'Sin asignar',
       'Equipo': vendedor && vendedor.reportsTo ? `Equipo de ${userById.get(vendedor.reportsTo)?.name || '—'}` : '',
       'Fecha': formatDate(lead.fecha || ''),
+      'Creado Por': creadoPor?.name || 'Sistema',
       'Observaciones': lead.notas || ''
     };
   });
@@ -195,6 +202,7 @@ const downloadLeadsByStateExcel = (leads: LeadRow[], estado: string, userById: M
   const excelData = leadsByState.map(lead => {
     const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
     const fuente = fuentes[lead.fuente] || { label: lead.fuente };
+    const creadoPor = lead.created_by ? userById.get(lead.created_by) : null;
     
     return {
       'ID': lead.id,
@@ -208,6 +216,7 @@ const downloadLeadsByStateExcel = (leads: LeadRow[], estado: string, userById: M
       'Vendedor': vendedor?.name || 'Sin asignar',
       'Equipo': vendedor && vendedor.reportsTo ? `Equipo de ${userById.get(vendedor.reportsTo)?.name || '—'}` : '',
       'Fecha': formatDate(lead.fecha || ''),
+      'Creado Por': creadoPor?.name || 'Sistema',
       'Observaciones': lead.notas || '',
       'Historial': lead.historial?.map(h => 
         `${formatDate(h.timestamp)}: ${h.estado} (${h.usuario})`
@@ -258,6 +267,13 @@ export default function CRM() {
   const [selectedEstado, setSelectedEstado] = useState<string | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<string>("todos");
 
+  // Estados para búsqueda y filtrado de leads
+  const [searchText, setSearchText] = useState("");
+  const [selectedVendedorFilter, setSelectedVendedorFilter] = useState<number | null>(null);
+  const [selectedEstadoFilter, setSelectedEstadoFilter] = useState<string>("");
+  const [selectedFuenteFilter, setSelectedFuenteFilter] = useState<string>("");
+  const [showFilters, setShowFilters] = useState(false);
+
   // Estados para reasignación
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [leadToReassign, setLeadToReassign] = useState<LeadRow | null>(null);
@@ -268,10 +284,18 @@ export default function CRM() {
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState<any>(null);
 
+  // NUEVO: Estados para edición de leads en dashboard
+  const [editingDashboardLead, setEditingDashboardLead] = useState<LeadRow | null>(null);
+
   // ===== Login contra backend =====
   const handleLogin = async (email: string, password: string) => {
     try {
-      const r = await api.post("/auth/login", { email, password });
+      // MODIFICADO: Enviar parámetro para permitir login de usuarios desactivados
+      const r = await api.post("/auth/login", { 
+        email, 
+        password, 
+        allowInactiveUsers: true // Permitir acceso a usuarios desactivados
+      });
 
       // Verificar respuesta exitosa
       if (r.data?.ok && r.data?.token) {
@@ -289,7 +313,7 @@ export default function CRM() {
             email,
             role: r.data?.user?.role || "owner",
             reportsTo: null,
-            active: true,
+            active: r.data?.user?.active ?? true, // IMPORTANTE: Mantener el estado real del usuario
           };
 
         setCurrentUser(u);
@@ -312,6 +336,7 @@ export default function CRM() {
           notas: L.notas || "",
           fuente: (L.fuente || "otro") as LeadRow["fuente"],
           historial: L.historial || [],
+          created_by: L.created_by || null, // NUEVO
         }));
         setUsers(uu || []);
         setLeads(mappedLeads);
@@ -332,9 +357,18 @@ export default function CRM() {
     const ids = [user.id, ...getDescendantUserIds(user.id, childrenIndex)];
     return ids;
   };
+  
+  // MODIFICADO: Función para verificar quién puede crear usuarios
+  const canCreateUsers = () =>
+    currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
+
   const canManageUsers = () =>
     currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
   const isOwner = () => currentUser?.role === "owner";
+
+  // NUEVO: Función para verificar quién puede crear leads
+  const canCreateLeads = () =>
+    currentUser && ["owner", "director", "gerente", "supervisor", "vendedor"].includes(currentUser.role);
 
   // ===== Funciones de filtro por equipo =====
   const getTeamManagerById = (teamId: string) => {
@@ -375,6 +409,24 @@ export default function CRM() {
     );
   };
 
+  // ===== NUEVO: Función para obtener vendedores disponibles según el rol del usuario para asignación =====
+  const getAvailableVendorsForAssignment = () => {
+    if (!currentUser) return [];
+
+    // Obtener usuarios visibles según el rol
+    const visibleUserIds = getAccessibleUserIds(currentUser);
+    
+    return users.filter((u: any) => {
+      // Solo vendedores activos
+      if (u.role !== "vendedor" || !u.active) return false;
+      
+      // Verificar que esté en el scope del usuario actual
+      if (!visibleUserIds.includes(u.id)) return false;
+      
+      return true;
+    });
+  };
+
   // ===== Nueva función para filtrar usuarios visibles según rol =====
   const getVisibleUsers = () => {
     if (!currentUser) return [];
@@ -408,8 +460,78 @@ export default function CRM() {
         return u.reportsTo === currentUser.id;
       }
 
+      // Vendedor solo se ve a sí mismo
+      if (currentUser.role === "vendedor") {
+        return u.id === currentUser.id;
+      }
+
       return false;
     });
+  };
+
+  // ===== Función para obtener leads filtrados y buscados =====
+  const getFilteredAndSearchedLeads = () => {
+    if (!currentUser) return [] as LeadRow[];
+
+    // Comenzar con leads base según scope
+    const visibleUserIds = getAccessibleUserIds(currentUser);
+    let filteredLeads = leads.filter((l) =>
+      l.vendedor ? visibleUserIds.includes(l.vendedor) : true
+    );
+
+    // Aplicar filtro por vendedor específico
+    if (selectedVendedorFilter) {
+      filteredLeads = filteredLeads.filter((l) => l.vendedor === selectedVendedorFilter);
+    }
+
+    // Aplicar filtro por estado
+    if (selectedEstadoFilter) {
+      filteredLeads = filteredLeads.filter((l) => l.estado === selectedEstadoFilter);
+    }
+
+    // Aplicar filtro por fuente
+    if (selectedFuenteFilter) {
+      filteredLeads = filteredLeads.filter((l) => l.fuente === selectedFuenteFilter);
+    }
+
+    // Aplicar búsqueda de texto
+    if (searchText.trim()) {
+      const searchLower = searchText.toLowerCase().trim();
+      filteredLeads = filteredLeads.filter((l) => {
+        const vendedor = l.vendedor ? userById.get(l.vendedor) : null;
+        const creadoPor = l.created_by ? userById.get(l.created_by) : null;
+        return (
+          l.nombre.toLowerCase().includes(searchLower) ||
+          l.telefono.includes(searchText.trim()) ||
+          l.modelo.toLowerCase().includes(searchLower) ||
+          (l.notas && l.notas.toLowerCase().includes(searchLower)) ||
+          (vendedor && vendedor.name.toLowerCase().includes(searchLower)) ||
+          (creadoPor && creadoPor.name.toLowerCase().includes(searchLower)) ||
+          (l.formaPago && l.formaPago.toLowerCase().includes(searchLower)) ||
+          (l.infoUsado && l.infoUsado.toLowerCase().includes(searchLower))
+        );
+      });
+    }
+
+    return filteredLeads;
+  };
+
+  // ===== Función para limpiar filtros =====
+  const clearFilters = () => {
+    setSearchText("");
+    setSelectedVendedorFilter(null);
+    setSelectedEstadoFilter("");
+    setSelectedFuenteFilter("");
+  };
+
+  // ===== Función para contar leads activos por filtros =====
+  const getActiveFiltersCount = () => {
+    let count = 0;
+    if (searchText.trim()) count++;
+    if (selectedVendedorFilter) count++;
+    if (selectedEstadoFilter) count++;
+    if (selectedFuenteFilter) count++;
+    return count;
   };
 
   // ===== Función para obtener vendedores disponibles según el rol del usuario =====
@@ -435,7 +557,6 @@ export default function CRM() {
     if (!leadToReassign) return;
 
     try {
-      // ⚠️ Si tu API espera otra clave (p.ej. assigned_to), cambiala aquí.
       await apiUpdateLead(
         leadToReassign.id,
         { vendedor: selectedVendorForReassign } as any
@@ -737,6 +858,7 @@ export default function CRM() {
     notas: L.notas || "",
     fuente: (L.fuente || "otro") as LeadRow["fuente"],
     historial: L.historial || [],
+    created_by: L.created_by || null, // NUEVO
   });
 
   const addHistorialEntry = (leadId: number, estado: string) => {
@@ -760,6 +882,7 @@ export default function CRM() {
     );
   };
 
+  // MODIFICADO: Función para actualizar estado de lead desde dashboard
   const handleUpdateLeadStatus = async (leadId: number, newStatus: string) => {
     try {
       const updated = await apiUpdateLead(leadId, { estado: newStatus } as any);
@@ -799,6 +922,7 @@ export default function CRM() {
     }
   };
 
+  // MODIFICADO: Función para crear lead con "creado por" y asignación inteligente
   const handleCreateLead = async () => {
     const nombre = (document.getElementById("new-nombre") as HTMLInputElement)
       .value
@@ -817,8 +941,6 @@ export default function CRM() {
       .checked;
     const fecha = (document.getElementById("new-fecha") as HTMLInputElement)
       .value;
-    const fuente = (document.getElementById("new-fuente") as HTMLSelectElement)
-      .value;
     const autoAssign = (
       document.getElementById("new-autoassign") as HTMLInputElement
     )?.checked;
@@ -830,18 +952,23 @@ export default function CRM() {
       ? null
       : vendedorIdSelRaw;
 
-    // Detectar si es un bot y asignar según configuración - SOLO A ACTIVOS
+    // MODIFICADO: Usar fuente "creado_por" para leads creados manualmente
+    const fuente = "creado_por";
+
+    // Asignación de vendedor
     let vendedorId: number | null = null;
     if (autoAssign) {
-      vendedorId = pickNextVendorId(currentUser, fuente) ?? vendedorIdSel ?? null;
+      // MODIFICADO: Solo asignar automáticamente entre vendedores del scope del usuario actual
+      vendedorId = pickNextVendorId(currentUser) ?? null;
     } else {
-      // Verificar que el vendedor seleccionado esté activo si se asigna manualmente
+      // Verificar que el vendedor seleccionado esté activo y en el scope
       if (vendedorIdSel) {
         const selectedVendor = users.find(u => u.id === vendedorIdSel);
-        if (selectedVendor && selectedVendor.active) {
+        const availableVendors = getAvailableVendorsForAssignment();
+        if (selectedVendor && selectedVendor.active && availableVendors.some(v => v.id === vendedorIdSel)) {
           vendedorId = vendedorIdSel;
         } else {
-          alert("El vendedor seleccionado está desactivado. Por favor selecciona otro vendedor o usa la asignación automática.");
+          alert("El vendedor seleccionado no está disponible. Por favor selecciona otro vendedor o usa la asignación automática.");
           return;
         }
       } else {
@@ -849,7 +976,7 @@ export default function CRM() {
       }
     }
 
-    if (nombre && telefono && modelo && fuente) {
+    if (nombre && telefono && modelo) {
       try {
         const created = await apiCreateLead({
           nombre,
@@ -863,18 +990,20 @@ export default function CRM() {
           entrega,
           fecha,
           vendedor: vendedorId,
+          created_by: currentUser.id, // NUEVO: Registrar quién creó el lead
         } as any);
+        
         const mapped = mapLeadFromApi(created);
         if (mapped.vendedor)
           pushAlert(
             mapped.vendedor,
             "lead_assigned",
-            `Nuevo lead asignado: ${mapped.nombre}`
+            `Nuevo lead asignado: ${mapped.nombre} (creado por ${currentUser.name})`
           );
         setLeads((prev) => [mapped, ...prev]);
         setShowNewLeadModal(false);
 
-        addHistorialEntry(mapped.id, "nuevo");
+        addHistorialEntry(mapped.id, `Creado por ${currentUser.name}`);
       } catch (e) {
         console.error("No pude crear el lead", e);
       }
@@ -986,44 +1115,64 @@ export default function CRM() {
     setShowUserModal(true);
   };
 
+  // MODIFICADO: Asegurar que la contraseña se envíe correctamente al backend
   const saveUser = async () => {
     const name = (document.getElementById("u-name") as HTMLInputElement).value.trim();
     const email = (document.getElementById("u-email") as HTMLInputElement).value.trim();
     const password = (document.getElementById("u-pass") as HTMLInputElement).value;
     const active = (document.getElementById("u-active") as HTMLInputElement).checked;
 
-    if (!name || !email) return;
+    if (!name || !email) {
+      alert("Nombre y email son obligatorios");
+      return;
+    }
+    
+    // NUEVO: Validar contraseña para usuarios nuevos
+    if (!editingUser && !password) {
+      alert("La contraseña es obligatoria para usuarios nuevos");
+      return;
+    }
+
     const finalReportsTo = modalRole === "owner" ? null : modalReportsTo ?? null;
 
     try {
       if (editingUser) {
-        const updated = await apiUpdateUser(editingUser.id, {
+        const updateData: any = {
           name,
           email,
-          password: password || undefined,
           role: modalRole,
           reportsTo: finalReportsTo,
           active: active ? 1 : 0,
-        });
+        };
+        
+        // Solo incluir password si se proporcionó
+        if (password && password.trim()) {
+          updateData.password = password.trim();
+        }
+
+        const updated = await apiUpdateUser(editingUser.id, updateData);
         setUsers((prev) => prev.map((u: any) => (u.id === editingUser.id ? updated : u)));
       } else {
-        const created = await apiCreateUser({
+        const createData = {
           name,
           email,
-          password: password || "123456",
+          password: password.trim(), // MODIFICADO: Asegurar que se envíe la contraseña
           role: modalRole,
           reportsTo: finalReportsTo,
           active: active ? 1 : 0,
-        } as any);
+        };
+        
+        const created = await apiCreateUser(createData as any);
         setUsers((prev) => [...prev, created]);
       }
       setShowUserModal(false);
-    } catch (e) {
+    } catch (e: any) {
       console.error("No pude guardar usuario", e);
+      alert(`Error al ${editingUser ? 'actualizar' : 'crear'} usuario: ${e?.response?.data?.error || e.message}`);
     }
   };
 
-  // ===== NUEVA: Función para abrir modal de confirmación de eliminación =====
+  // ===== Función para abrir modal de confirmación de eliminación =====
   const openDeleteConfirm = (user: any) => {
     if (user.role === "owner") {
       alert("No podés eliminar al Dueño.");
@@ -1046,7 +1195,7 @@ export default function CRM() {
     setShowDeleteConfirmModal(true);
   };
 
-  // ===== NUEVA: Función para confirmar eliminación =====
+  // ===== Función para confirmar eliminación =====
   const confirmDeleteUser = async () => {
     if (!userToDelete) return;
 
@@ -1112,6 +1261,7 @@ export default function CRM() {
                 <p className="text-red-700 text-sm">{loginError}</p>
               </div>
             )}
+
             <button
               onClick={() =>
                 handleLogin(
@@ -1164,7 +1314,6 @@ export default function CRM() {
             <p className="text-blue-300">
               {roles[currentUser?.role] || currentUser?.role}
             </p>
-            {/* NUEVO: Indicador si el usuario está desactivado */}
             {!currentUser?.active && (
               <p className="text-red-300 text-xs mt-1">
                 ⚠️ Usuario desactivado - No recibe leads nuevos
@@ -1208,25 +1357,37 @@ export default function CRM() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-3xl font-bold text-gray-800">Dashboard</h2>
-              {["owner", "director"].includes(currentUser?.role) && (
-                <select
-                  value={selectedTeam}
-                  onChange={(e) => setSelectedTeam(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
-                >
-                  <option value="todos">Todos los equipos</option>
-                  {users
-                    .filter((u: any) => u.role === "gerente")
-                    .map((gerente: any) => (
-                      <option key={gerente.id} value={gerente.id.toString()}>
-                        Equipo {gerente.name}
-                      </option>
-                    ))}
-                </select>
-              )}
+              <div className="flex items-center space-x-3">
+                {["owner", "director"].includes(currentUser?.role) && (
+                  <select
+                    value={selectedTeam}
+                    onChange={(e) => setSelectedTeam(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                  >
+                    <option value="todos">Todos los equipos</option>
+                    {users
+                      .filter((u: any) => u.role === "gerente")
+                      .map((gerente: any) => (
+                        <option key={gerente.id} value={gerente.id.toString()}>
+                          Equipo {gerente.name}
+                        </option>
+                      ))}
+                  </select>
+                )}
+                {/* NUEVO: Botón para crear lead si tiene permisos */}
+                {canCreateLeads() && (
+                  <button
+                    onClick={() => setShowNewLeadModal(true)}
+                    className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  >
+                    <Plus size={20} />
+                    <span>Nuevo Lead</span>
+                  </button>
+                )}
+              </div>
             </div>
 
-            {/* NUEVO: Alerta si el usuario está desactivado */}
+            {/* Alerta si el usuario está desactivado */}
             {!currentUser?.active && (
               <div className="bg-orange-50 border-l-4 border-orange-400 p-4">
                 <div className="flex">
@@ -1298,40 +1459,42 @@ export default function CRM() {
               })()}
             </div>
 
-            {/* Estados de Leads - NUEVA SECCIÓN EN DASHBOARD */}
+            {/* MODIFICADO: Estados de Leads con posibilidad de editar estados */}
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-semibold text-gray-800">Estados de Leads</h3>
-                {["owner", "director"].includes(currentUser?.role) && (
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm text-gray-600">Descargar Excel:</span>
+                <div className="flex items-center space-x-2">
+                  {["owner", "director"].includes(currentUser?.role) && (
+                    <>
+                      <span className="text-sm text-gray-600">Descargar Excel:</span>
+                      <button
+                        onClick={() => {
+                          const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                            ? selectedTeam
+                            : undefined;
+                          const filteredLeads = teamFilter && teamFilter !== "todos"
+                            ? getFilteredLeadsByTeam(teamFilter)
+                            : getFilteredLeads();
+                          downloadAllLeadsExcel(filteredLeads, userById, fuentes);
+                        }}
+                        className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 flex items-center space-x-1"
+                        title="Descargar Excel completo"
+                      >
+                        <Download size={12} />
+                        <span>Todos</span>
+                      </button>
+                    </>
+                  )}
+                  {selectedEstado && (
                     <button
-                      onClick={() => {
-                        const teamFilter = ["owner", "director"].includes(currentUser?.role)
-                          ? selectedTeam
-                          : undefined;
-                        const filteredLeads = teamFilter && teamFilter !== "todos"
-                          ? getFilteredLeadsByTeam(teamFilter)
-                          : getFilteredLeads();
-                        downloadAllLeadsExcel(filteredLeads, userById, fuentes);
-                      }}
-                      className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 flex items-center space-x-1"
-                      title="Descargar Excel completo"
+                      onClick={() => setSelectedEstado(null)}
+                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
                     >
-                      <Download size={12} />
-                      <span>Todos</span>
+                      <X size={16} />
+                      <span>Cerrar filtro</span>
                     </button>
-                  </div>
-                )}
-                {selectedEstado && (
-                  <button
-                    onClick={() => setSelectedEstado(null)}
-                    className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
-                  >
-                    <X size={16} />
-                    <span>Cerrar filtro</span>
-                  </button>
-                )}
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {Object.entries(estados).map(([key, estado]) => {
@@ -1388,7 +1551,7 @@ export default function CRM() {
                 })}
               </div>
 
-              {/* Lista filtrada de leads por estado en Dashboard */}
+              {/* MODIFICADO: Lista filtrada con edición de estados */}
               {selectedEstado && (
                 <div className="mt-6 border-t pt-6">
                   <h4 className="text-lg font-semibold text-gray-800 mb-4">
@@ -1434,6 +1597,9 @@ export default function CRM() {
                               </th>
                               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                                 Vehículo
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Estado
                               </th>
                               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                                 Fuente
@@ -1489,6 +1655,22 @@ export default function CRM() {
                                     </div>
                                   </td>
                                   <td className="px-4 py-2">
+                                    {/* NUEVO: Select editable para cambiar estado */}
+                                    <select
+                                      value={lead.estado}
+                                      onChange={(e) =>
+                                        handleUpdateLeadStatus(lead.id, e.target.value)
+                                      }
+                                      className={`text-xs font-medium rounded-full px-2 py-1 border-0 text-white ${estados[lead.estado].color}`}
+                                    >
+                                      {Object.entries(estados).map(([key, estado]) => (
+                                        <option key={key} value={key} className="text-black">
+                                          {estado.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                  <td className="px-4 py-2">
                                     <div className="flex items-center space-x-1">
                                       <span className="text-sm">
                                         {fuentes[lead.fuente as string]?.icon || "❓"}
@@ -1500,7 +1682,14 @@ export default function CRM() {
                                     </div>
                                   </td>
                                   <td className="px-4 py-2 text-gray-700">
-                                    {vendedor?.name || "Sin asignar"}
+                                    <div>
+                                      {vendedor?.name || "Sin asignar"}
+                                      {vendedor && !vendedor.active && (
+                                        <div className="text-xs text-red-600">
+                                          (Desactivado)
+                                        </div>
+                                      )}
+                                    </div>
                                   </td>
                                   <td className="px-4 py-2 text-gray-500 text-xs">
                                     {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
@@ -1599,16 +1788,143 @@ export default function CRM() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-3xl font-bold text-gray-800">Gestión de Leads</h2>
-              <button
-                onClick={() => setShowNewLeadModal(true)}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <Plus size={20} />
-                <span>Nuevo Lead</span>
-              </button>
+              {/* MODIFICADO: Mostrar botón solo si puede crear leads */}
+              {canCreateLeads() && (
+                <button
+                  onClick={() => setShowNewLeadModal(true)}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <Plus size={20} />
+                  <span>Nuevo Lead</span>
+                </button>
+              )}
             </div>
 
-            {/* Tabla de leads */}
+            {/* Barra de búsqueda y filtros */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="flex flex-col lg:flex-row gap-4">
+                {/* Búsqueda de texto */}
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                    <input
+                      type="text"
+                      placeholder="Buscar por cliente, teléfono, modelo, vendedor, observaciones..."
+                      value={searchText}
+                      onChange={(e) => setSearchText(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Botón para mostrar/ocultar filtros */}
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={() => setShowFilters(!showFilters)}
+                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg border transition-colors ${
+                      showFilters || getActiveFiltersCount() > 0
+                        ? "bg-blue-100 border-blue-300 text-blue-700"
+                        : "bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100"
+                    }`}
+                  >
+                    <Filter size={20} />
+                    <span>Filtros</span>
+                    {getActiveFiltersCount() > 0 && (
+                      <span className="bg-blue-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
+                        {getActiveFiltersCount()}
+                      </span>
+                    )}
+                  </button>
+
+                  {getActiveFiltersCount() > 0 && (
+                    <button
+                      onClick={clearFilters}
+                      className="flex items-center space-x-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+                    >
+                      <X size={16} />
+                      <span>Limpiar</span>
+                    </button>
+                  )}
+
+                  <div className="text-sm text-gray-600">
+                    <span className="font-medium">{getFilteredAndSearchedLeads().length}</span> leads encontrados
+                  </div>
+                </div>
+              </div>
+
+              {/* Panel de filtros expandible */}
+              {showFilters && (
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Filtro por vendedor */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <User size={16} className="inline mr-1" />
+                        Vendedor
+                      </label>
+                      <select
+                        value={selectedVendedorFilter || ""}
+                        onChange={(e) => setSelectedVendedorFilter(e.target.value ? parseInt(e.target.value, 10) : null)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Todos los vendedores</option>
+                        <option value="0">Sin asignar</option>
+                        {getVisibleUsers()
+                          .filter((u: any) => u.role === "vendedor")
+                          .map((vendedor: any) => {
+                            const leadsCount = leads.filter(l => l.vendedor === vendedor.id).length;
+                            return (
+                              <option key={vendedor.id} value={vendedor.id}>
+                                {vendedor.name} ({leadsCount} leads) {!vendedor.active ? " - Inactivo" : ""}
+                              </option>
+                            );
+                          })}
+                      </select>
+                    </div>
+
+                    {/* Filtro por estado */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Estado
+                      </label>
+                      <select
+                        value={selectedEstadoFilter}
+                        onChange={(e) => setSelectedEstadoFilter(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Todos los estados</option>
+                        {Object.entries(estados).map(([key, estado]) => (
+                          <option key={key} value={key}>
+                            {estado.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Filtro por fuente */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Fuente
+                      </label>
+                      <select
+                        value={selectedFuenteFilter}
+                        onChange={(e) => setSelectedFuenteFilter(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Todas las fuentes</option>
+                        {Object.entries(fuentes).map(([key, fuente]) => (
+                          <option key={key} value={key}>
+                            {fuente.icon} {fuente.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Tabla de leads con búsqueda y filtros aplicados */}
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -1641,116 +1957,131 @@ export default function CRM() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {getFilteredLeads().map((lead) => {
-                      const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
-                      const canReassign =
-                        canManageUsers() ||
-                        (currentUser?.role === "supervisor" &&
-                          lead.vendedor &&
-                          getVisibleUsers().some((u: any) => u.id === lead.vendedor));
+                    {getFilteredAndSearchedLeads().length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                          {searchText.trim() || selectedVendedorFilter || selectedEstadoFilter || selectedFuenteFilter
+                            ? "No se encontraron leads que coincidan con los filtros aplicados"
+                            : "No hay leads para mostrar"}
+                        </td>
+                      </tr>
+                    ) : (
+                      getFilteredAndSearchedLeads().map((lead) => {
+                        const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
+                        const canReassign =
+                          canManageUsers() ||
+                          (currentUser?.role === "supervisor" &&
+                            lead.vendedor &&
+                            getVisibleUsers().some((u: any) => u.id === lead.vendedor));
 
-                      return (
-                        <tr key={lead.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-4">
-                            <div className="font-medium text-gray-900">{lead.nombre}</div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="flex items-center space-x-1">
-                              <Phone size={12} className="text-gray-400" />
-                              <span className="text-gray-700">{lead.telefono}</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div>
-                              <div className="font-medium text-gray-900">{lead.modelo}</div>
-                              <div className="text-xs text-gray-500">{lead.formaPago}</div>
-                              {lead.infoUsado && (
-                                <div className="text-xs text-orange-600">
-                                  Usado: {lead.infoUsado}
+                        return (
+                          <tr key={lead.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-4">
+                              <div className="font-medium text-gray-900">{lead.nombre}</div>
+                              {/* NUEVO: Mostrar quién creó el lead */}
+                              {lead.created_by && (
+                                <div className="text-xs text-gray-500">
+                                  Creado por: {userById.get(lead.created_by)?.name || 'Usuario eliminado'}
                                 </div>
                               )}
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <select
-                              value={lead.estado}
-                              onChange={(e) =>
-                                handleUpdateLeadStatus(lead.id, e.target.value)
-                              }
-                              className={`text-xs font-medium rounded-full px-2 py-1 border-0 text-white ${estados[lead.estado].color}`}
-                            >
-                              {Object.entries(estados).map(([key, estado]) => (
-                                <option key={key} value={key} className="text-black">
-                                  {estado.label}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="flex items-center space-x-1">
-                              <span className="text-sm">
-                                {fuentes[lead.fuente as string]?.icon || "❓"}
-                              </span>
-                              <span className="text-xs text-gray-600">
-                                {fuentes[lead.fuente as string]?.label || String(lead.fuente)}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-4 text-gray-700">
-                            <div>
-                              {vendedor?.name || "Sin asignar"}
-                              {/* NUEVO: Indicador de vendedor desactivado */}
-                              {vendedor && !vendedor.active && (
-                                <div className="text-xs text-red-600">
-                                  (Desactivado)
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-4 py-4 text-gray-500 text-xs">
-                            {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
-                          </td>
-                          <td className="px-4 py-4 text-center">
-                            <div className="flex items-center justify-center space-x-1">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingLeadObservaciones(lead);
-                                  setShowObservacionesModal(true);
-                                }}
-                                className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                title="Ver/Editar observaciones"
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center space-x-1">
+                                <Phone size={12} className="text-gray-400" />
+                                <span className="text-gray-700">{lead.telefono}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <div>
+                                <div className="font-medium text-gray-900">{lead.modelo}</div>
+                                <div className="text-xs text-gray-500">{lead.formaPago}</div>
+                                {lead.infoUsado && (
+                                  <div className="text-xs text-orange-600">
+                                    Usado: {lead.infoUsado}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <select
+                                value={lead.estado}
+                                onChange={(e) =>
+                                  handleUpdateLeadStatus(lead.id, e.target.value)
+                                }
+                                className={`text-xs font-medium rounded-full px-2 py-1 border-0 text-white ${estados[lead.estado].color}`}
                               >
-                                {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
-                              </button>
-                              {canReassign && (
+                                {Object.entries(estados).map(([key, estado]) => (
+                                  <option key={key} value={key} className="text-black">
+                                    {estado.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center space-x-1">
+                                <span className="text-sm">
+                                  {fuentes[lead.fuente as string]?.icon || "❓"}
+                                </span>
+                                <span className="text-xs text-gray-600">
+                                  {fuentes[lead.fuente as string]?.label || String(lead.fuente)}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4 text-gray-700">
+                              <div>
+                                {vendedor?.name || "Sin asignar"}
+                                {vendedor && !vendedor.active && (
+                                  <div className="text-xs text-red-600">
+                                    (Desactivado)
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-4 text-gray-500 text-xs">
+                              {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
+                            </td>
+                            <td className="px-4 py-4 text-center">
+                              <div className="flex items-center justify-center space-x-1">
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    openReassignModal(lead);
+                                    setEditingLeadObservaciones(lead);
+                                    setShowObservacionesModal(true);
                                   }}
-                                  className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
-                                  title="Reasignar lead"
+                                  className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                  title="Ver/Editar observaciones"
                                 >
-                                  Reasignar
+                                  {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
                                 </button>
-                              )}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setViewingLeadHistorial(lead);
-                                  setShowHistorialModal(true);
-                                }}
-                                className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                title="Ver historial"
-                              >
-                                Historial
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                                {canReassign && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openReassignModal(lead);
+                                    }}
+                                    className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
+                                    title="Reasignar lead"
+                                  >
+                                    Reasignar
+                                  </button>
+                                )}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setViewingLeadHistorial(lead);
+                                    setShowHistorialModal(true);
+                                  }}
+                                  className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                  title="Ver historial"
+                                >
+                                  Historial
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -2089,6 +2420,9 @@ export default function CRM() {
                                   Vehículo
                                 </th>
                                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                  Estado
+                                </th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                                   Fuente
                                 </th>
                                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
@@ -2134,6 +2468,22 @@ export default function CRM() {
                                           </div>
                                         )}
                                       </div>
+                                    </td>
+                                    <td className="px-4 py-2">
+                                      {/* NUEVO: Select editable en equipo también */}
+                                      <select
+                                        value={lead.estado}
+                                        onChange={(e) =>
+                                          handleUpdateLeadStatus(lead.id, e.target.value)
+                                        }
+                                        className={`text-xs font-medium rounded-full px-2 py-1 border-0 text-white ${estados[lead.estado].color}`}
+                                      >
+                                        {Object.entries(estados).map(([key, estado]) => (
+                                          <option key={key} value={key} className="text-black">
+                                            {estado.label}
+                                          </option>
+                                        ))}
+                                      </select>
                                     </td>
                                     <td className="px-4 py-2">
                                       <div className="flex items-center space-x-1">
@@ -2267,13 +2617,16 @@ export default function CRM() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-3xl font-bold text-gray-800">Gestión de Usuarios</h2>
-              <button
-                onClick={openCreateUser}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <Plus size={20} />
-                <span>Nuevo Usuario</span>
-              </button>
+              {/* MODIFICADO: Solo mostrar botón si puede crear usuarios */}
+              {canCreateUsers() && (
+                <button
+                  onClick={openCreateUser}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <Plus size={20} />
+                  <span>Nuevo Usuario</span>
+                </button>
+              )}
             </div>
 
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
@@ -2360,7 +2713,6 @@ export default function CRM() {
                                 </button>
                               )}
                             </div>
-                            {/* NUEVO: Mensaje explicativo para vendedores desactivados */}
                             {user.role === "vendedor" && !user.active && (
                               <div className="text-xs text-orange-600 mt-1">
                                 No recibe leads nuevos
@@ -2388,7 +2740,6 @@ export default function CRM() {
                               >
                                 <Edit3 size={16} />
                               </button>
-                              {/* MODIFICADO: Solo el owner puede eliminar usuarios */}
                               {isOwner() && user.id !== currentUser?.id && (
                                 <button
                                   onClick={() => openDeleteConfirm(user)}
@@ -2505,7 +2856,9 @@ export default function CRM() {
           </div>
         )}
 
-        {/* NUEVO: Modal de Confirmación para Eliminar Usuario */}
+        {/* MODALES */}
+        
+        {/* Modal de Confirmación para Eliminar Usuario */}
         {showDeleteConfirmModal && userToDelete && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-xl p-6 w-full max-w-md">
@@ -2920,7 +3273,7 @@ export default function CRM() {
           </div>
         )}
 
-        {/* Modal: Nuevo Lead */}
+        {/* MODIFICADO: Modal: Nuevo Lead - Con restricciones por rol */}
         {showNewLeadModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-xl p-6 w-full max-w-3xl">
@@ -2933,32 +3286,32 @@ export default function CRM() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nombre
+                    Nombre *
                   </label>
                   <input
                     type="text"
                     id="new-nombre"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Teléfono
+                    Teléfono *
                   </label>
                   <input
                     type="text"
                     id="new-telefono"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Modelo
+                    Modelo *
                   </label>
                   <input
                     type="text"
                     id="new-modelo"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
@@ -2967,66 +3320,11 @@ export default function CRM() {
                   </label>
                   <select
                     id="new-formaPago"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="Contado">Contado</option>
                     <option value="Financiado">Financiado</option>
                   </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fuente del Lead
-                  </label>
-                  <select
-                    id="new-fuente"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    defaultValue="sitio_web"
-                  >
-                    {Object.entries(fuentes).map(([key, fuente]) => (
-                      <option key={key} value={key}>
-                        {fuente.icon} {fuente.label}
-                      </option>
-                    ))}
-                    {/* Opciones específicas para bots */}
-                    <option value="whatsapp_bot_cm1">💬 Bot CM 1 (Equipo Sauer)</option>
-                    <option value="whatsapp_bot_cm2">💬 Bot CM 2 (Equipo Daniel)</option>
-                    <option value="whatsapp_100">💬 Bot 100 (Distribución general)</option>
-                  </select>
-                  <div className="mt-2 text-xs space-y-1">
-                    {(() => {
-                      const robertoManager = users.find(
-                        (u: any) =>
-                          u.role === "gerente" &&
-                          u.name.toLowerCase().includes("roberto")
-                      );
-                      const danielManager = users.find(
-                        (u: any) =>
-                          u.role === "gerente" &&
-                          u.name.toLowerCase().includes("daniel")
-                      );
-
-                      return (
-                        <>
-                          {robertoManager && (
-                            <div className="text-green-600">
-                              💬 Bot CM 1 → Equipo {robertoManager.name} automáticamente (solo activos)
-                            </div>
-                          )}
-                          {danielManager && (
-                            <div className="text-green-600">
-                              💬 Bot CM 2 → Equipo {danielManager.name} automáticamente (solo activos)
-                            </div>
-                          )}
-                          <div className="text-green-600">
-                            💬 Bot 100 → Distribución general (solo activos)
-                          </div>
-                          <div className="text-gray-500">
-                            Otras fuentes → Asignación manual o scope actual (solo activos)
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -3036,7 +3334,7 @@ export default function CRM() {
                     type="text"
                     id="new-infoUsado"
                     placeholder="Marca Modelo Año"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
@@ -3046,14 +3344,14 @@ export default function CRM() {
                   <input
                     type="date"
                     id="new-fecha"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div className="col-span-2 flex items-center space-x-3">
                   <input
                     type="checkbox"
                     id="new-entrega"
-                    className="rounded border-gray-300 text-blue-600"
+                    className="rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
                   />
                   <span className="text-sm text-gray-700">
                     Entrega de vehículo usado
@@ -3064,40 +3362,63 @@ export default function CRM() {
                     type="checkbox"
                     id="new-autoassign"
                     defaultChecked
-                    className="rounded border-gray-300 text-blue-600"
+                    className="rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
                   />
                   <span className="text-sm text-gray-700">
-                    Asignación automática y equitativa a vendedores activos
+                    Asignación automática y equitativa a vendedores activos de mi equipo
                   </span>
                 </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Asignar a vendedor (opcional - solo vendedores activos)
+                    Asignar a vendedor específico (opcional)
                   </label>
                   <select
                     id="new-vendedor"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Sin asignar</option>
-                    {getVisibleUsers()
-                      .filter((u: any) => u.role === "vendedor")
-                      .map((u: any) => (
-                        <option key={u.id} value={u.id} disabled={!u.active}>
-                          {u.name} {u.active ? "✓ Activo" : "✗ Inactivo"}
-                        </option>
-                      ))}
+                    {/* MODIFICADO: Solo mostrar vendedores disponibles según el scope */}
+                    {getAvailableVendorsForAssignment().map((u: any) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} - {userById.get(u.reportsTo)?.name ? `Equipo ${userById.get(u.reportsTo)?.name}` : 'Sin equipo'} ✓ Activo
+                      </option>
+                    ))}
                   </select>
                   <p className="text-xs text-gray-500 mt-1">
-                    Si está tildado "Asignación automática", se ignorará esta selección.
-                    Solo se puede asignar a vendedores activos.
+                    Si está activada la "Asignación automática", se ignorará esta selección.
+                    Solo puedes asignar a vendedores activos de tu equipo.
                   </p>
+                </div>
+
+                {/* NUEVO: Información sobre qué vendedores están disponibles */}
+                {getAvailableVendorsForAssignment().length === 0 && (
+                  <div className="col-span-2 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                    <p className="text-sm text-yellow-700">
+                      <strong>Atención:</strong> No hay vendedores activos disponibles en tu equipo. 
+                      El lead se creará sin asignar.
+                    </p>
+                  </div>
+                )}
+
+                <div className="col-span-2 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <h4 className="text-sm font-medium text-blue-800 mb-2">
+                    Información sobre la creación de leads:
+                  </h4>
+                  <ul className="text-xs text-blue-700 space-y-1">
+                    <li>• Este lead aparecerá marcado como "Creado por {currentUser?.name}"</li>
+                    <li>• La fuente se establecerá automáticamente como "Creado por"</li>
+                    <li>• Solo puedes asignar a vendedores activos de tu scope/equipo</li>
+                    {currentUser?.role === "vendedor" && (
+                      <li>• Como vendedor, puedes crear leads pero solo asignártelos a ti mismo</li>
+                    )}
+                  </ul>
                 </div>
               </div>
 
               <div className="flex space-x-3 pt-6">
                 <button
                   onClick={handleCreateLead}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
                 >
                   Crear Lead
                 </button>
@@ -3126,22 +3447,22 @@ export default function CRM() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Título
+                    Título *
                   </label>
                   <input
                     type="text"
                     id="ev-title"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fecha
+                    Fecha *
                   </label>
                   <input
                     type="date"
                     id="ev-date"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
@@ -3152,7 +3473,7 @@ export default function CRM() {
                     type="time"
                     id="ev-time"
                     defaultValue="09:00"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
@@ -3161,7 +3482,8 @@ export default function CRM() {
                   </label>
                   <select
                     id="ev-user"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    defaultValue={currentUser?.id}
                   >
                     <option value={currentUser?.id}>{currentUser?.name} (Yo)</option>
                     {visibleUsers
@@ -3193,7 +3515,7 @@ export default function CRM() {
           </div>
         )}
 
-        {/* Modal: Usuario */}
+        {/* MODIFICADO: Modal: Usuario - Con validación de contraseña mejorada */}
         {showUserModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-xl p-6 w-full max-w-lg">
@@ -3209,38 +3531,43 @@ export default function CRM() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nombre
+                    Nombre *
                   </label>
                   <input
                     type="text"
                     id="u-name"
                     defaultValue={editingUser?.name || ""}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email
+                    Email *
                   </label>
                   <input
                     type="email"
                     id="u-email"
                     defaultValue={editingUser?.email || ""}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Contraseña {editingUser && "(dejar vacío para mantener)"}
+                    Contraseña {editingUser ? "(dejar vacío para mantener actual)" : "*"}
                   </label>
                   <input
                     type="password"
                     id="u-pass"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     placeholder={
-                      editingUser ? "Nueva contraseña (opcional)" : "Contraseña"
+                      editingUser ? "Nueva contraseña (opcional)" : "Contraseña obligatoria"
                     }
                   />
+                  {!editingUser && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      La contraseña es obligatoria para usuarios nuevos
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -3254,7 +3581,7 @@ export default function CRM() {
                       const validManagers = validManagersByRole(newRole);
                       setModalReportsTo(validManagers[0]?.id ?? null);
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     {validRolesByUser(currentUser).map((role: string) => (
                       <option key={role} value={role}>
@@ -3266,7 +3593,7 @@ export default function CRM() {
                 {modalRole !== "owner" && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Reporta a
+                      Reporta a *
                     </label>
                     <select
                       value={modalReportsTo || ""}
@@ -3275,7 +3602,7 @@ export default function CRM() {
                           e.target.value ? parseInt(e.target.value, 10) : null
                         )
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
                       {validManagersByRole(modalRole).map((manager: any) => (
                         <option key={manager.id} value={manager.id}>
@@ -3290,7 +3617,7 @@ export default function CRM() {
                     type="checkbox"
                     id="u-active"
                     defaultChecked={editingUser?.active !== false}
-                    className="rounded border-gray-300 text-blue-600"
+                    className="rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
                   />
                   <label htmlFor="u-active" className="text-sm text-gray-700">
                     Usuario activo
@@ -3304,12 +3631,56 @@ export default function CRM() {
                     </p>
                   </div>
                 )}
+
+                {/* NUEVO: Información sobre permisos según el rol */}
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                  <h4 className="text-sm font-medium text-gray-800 mb-2">
+                    Permisos del rol {roles[modalRole] || modalRole}:
+                  </h4>
+                  <ul className="text-xs text-gray-600 space-y-1">
+                    {modalRole === "owner" && (
+                      <>
+                        <li>• Acceso completo al sistema</li>
+                        <li>• Gestión total de usuarios y equipos</li>
+                        <li>• Visualización de todos los datos</li>
+                      </>
+                    )}
+                    {modalRole === "director" && (
+                      <>
+                        <li>• Gestión de gerentes, supervisores y vendedores</li>
+                        <li>• Visualización de todos los equipos</li>
+                        <li>• Creación y asignación de leads</li>
+                      </>
+                    )}
+                    {modalRole === "gerente" && (
+                      <>
+                        <li>• Gestión de supervisores y vendedores de su equipo</li>
+                        <li>• Visualización de su equipo completo</li>
+                        <li>• Creación y asignación de leads a su equipo</li>
+                      </>
+                    )}
+                    {modalRole === "supervisor" && (
+                      <>
+                        <li>• Gestión de vendedores directos</li>
+                        <li>• Visualización de su equipo directo</li>
+                        <li>• Creación y asignación de leads a su equipo</li>
+                      </>
+                    )}
+                    {modalRole === "vendedor" && (
+                      <>
+                        <li>• Gestión de sus propios leads</li>
+                        <li>• Creación de leads (autoasignados)</li>
+                        <li>• Visualización de su propio ranking</li>
+                      </>
+                    )}
+                  </ul>
+                </div>
               </div>
 
               <div className="flex space-x-3 pt-6">
                 <button
                   onClick={saveUser}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
                 >
                   {editingUser ? "Actualizar" : "Crear"} Usuario
                 </button>
