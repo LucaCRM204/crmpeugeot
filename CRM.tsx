@@ -14,6 +14,9 @@ import {
   Bell,
   UserCheck,
   Download,
+  Search,
+  Filter,
+  User,
 } from "lucide-react";
 import { api } from "./api";
 import {
@@ -26,6 +29,7 @@ import {
   listLeads,
   createLead as apiCreateLead,
   updateLead as apiUpdateLead,
+  deleteLead as apiDeleteLead, // NUEVO: Importar función para eliminar leads
 } from "./services/leads";
 
 // ===== Utilidades de jerarquía =====
@@ -89,6 +93,7 @@ const fuentes: Record<
   google: { label: "Google Ads", color: "bg-red-500", icon: "🎯" },
   instagram: { label: "Instagram", color: "bg-pink-500", icon: "📸" },
   otro: { label: "Otro", color: "bg-gray-400", icon: "❓" },
+  creado_por: { label: "Creado por", color: "bg-teal-500", icon: "👤" }, // NUEVA FUENTE
 };
 
 // Configuración de bots
@@ -117,6 +122,7 @@ type LeadRow = {
     timestamp: string;
     usuario: string;
   }>;
+  created_by?: number; // NUEVO: ID del usuario que creó el lead
 };
 
 type Alert = {
@@ -140,6 +146,7 @@ const downloadAllLeadsExcel = (leads: LeadRow[], userById: Map<number, any>, fue
   const excelData = leads.map(lead => {
     const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
     const fuente = fuentes[lead.fuente] || { label: lead.fuente };
+    const creadoPor = lead.created_by ? userById.get(lead.created_by) : null;
     
     return {
       'ID': lead.id,
@@ -154,6 +161,7 @@ const downloadAllLeadsExcel = (leads: LeadRow[], userById: Map<number, any>, fue
       'Vendedor': vendedor?.name || 'Sin asignar',
       'Equipo': vendedor && vendedor.reportsTo ? `Equipo de ${userById.get(vendedor.reportsTo)?.name || '—'}` : '',
       'Fecha': formatDate(lead.fecha || ''),
+      'Creado Por': creadoPor?.name || 'Sistema',
       'Observaciones': lead.notas || ''
     };
   });
@@ -195,6 +203,7 @@ const downloadLeadsByStateExcel = (leads: LeadRow[], estado: string, userById: M
   const excelData = leadsByState.map(lead => {
     const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
     const fuente = fuentes[lead.fuente] || { label: lead.fuente };
+    const creadoPor = lead.created_by ? userById.get(lead.created_by) : null;
     
     return {
       'ID': lead.id,
@@ -208,6 +217,7 @@ const downloadLeadsByStateExcel = (leads: LeadRow[], estado: string, userById: M
       'Vendedor': vendedor?.name || 'Sin asignar',
       'Equipo': vendedor && vendedor.reportsTo ? `Equipo de ${userById.get(vendedor.reportsTo)?.name || '—'}` : '',
       'Fecha': formatDate(lead.fecha || ''),
+      'Creado Por': creadoPor?.name || 'Sistema',
       'Observaciones': lead.notas || '',
       'Historial': lead.historial?.map(h => 
         `${formatDate(h.timestamp)}: ${h.estado} (${h.usuario})`
@@ -258,16 +268,36 @@ export default function CRM() {
   const [selectedEstado, setSelectedEstado] = useState<string | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<string>("todos");
 
+  // Estados para búsqueda y filtrado de leads
+  const [searchText, setSearchText] = useState("");
+  const [selectedVendedorFilter, setSelectedVendedorFilter] = useState<number | null>(null);
+  const [selectedEstadoFilter, setSelectedEstadoFilter] = useState<string>("");
+  const [selectedFuenteFilter, setSelectedFuenteFilter] = useState<string>("");
+  const [showFilters, setShowFilters] = useState(false);
+
   // Estados para reasignación
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [leadToReassign, setLeadToReassign] = useState<LeadRow | null>(null);
   const [selectedVendorForReassign, setSelectedVendorForReassign] =
     useState<number | null>(null);
 
+  // Estados para confirmación de eliminación
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<any>(null);
+
+  // NUEVO: Estados para confirmación de eliminación de leads
+  const [showDeleteLeadConfirmModal, setShowDeleteLeadConfirmModal] = useState(false);
+  const [leadToDelete, setLeadToDelete] = useState<LeadRow | null>(null);
+
   // ===== Login contra backend =====
   const handleLogin = async (email: string, password: string) => {
     try {
-      const r = await api.post("/auth/login", { email, password });
+      // MODIFICADO: Enviar parámetro para permitir login de usuarios desactivados
+      const r = await api.post("/auth/login", { 
+        email, 
+        password, 
+        allowInactiveUsers: true // Permitir acceso a usuarios desactivados
+      });
 
       // Verificar respuesta exitosa
       if (r.data?.ok && r.data?.token) {
@@ -285,7 +315,7 @@ export default function CRM() {
             email,
             role: r.data?.user?.role || "owner",
             reportsTo: null,
-            active: true,
+            active: r.data?.user?.active ?? true, // IMPORTANTE: Mantener el estado real del usuario
           };
 
         setCurrentUser(u);
@@ -308,6 +338,7 @@ export default function CRM() {
           notas: L.notas || "",
           fuente: (L.fuente || "otro") as LeadRow["fuente"],
           historial: L.historial || [],
+          created_by: L.created_by || null, // NUEVO
         }));
         setUsers(uu || []);
         setLeads(mappedLeads);
@@ -328,9 +359,22 @@ export default function CRM() {
     const ids = [user.id, ...getDescendantUserIds(user.id, childrenIndex)];
     return ids;
   };
+  
+  // MODIFICADO: Función para verificar quién puede crear usuarios
+  const canCreateUsers = () =>
+    currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
+
   const canManageUsers = () =>
     currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
   const isOwner = () => currentUser?.role === "owner";
+
+  // NUEVO: Función para verificar quién puede crear leads
+  const canCreateLeads = () =>
+    currentUser && ["owner", "director", "gerente", "supervisor", "vendedor"].includes(currentUser.role);
+
+  // NUEVO: Función para verificar quién puede eliminar leads
+  const canDeleteLeads = () =>
+    currentUser && ["owner", "director"].includes(currentUser.role);
 
   // ===== Funciones de filtro por equipo =====
   const getTeamManagerById = (teamId: string) => {
@@ -371,6 +415,24 @@ export default function CRM() {
     );
   };
 
+  // ===== NUEVO: Función para obtener vendedores disponibles según el rol del usuario para asignación =====
+  const getAvailableVendorsForAssignment = () => {
+    if (!currentUser) return [];
+
+    // Obtener usuarios visibles según el rol
+    const visibleUserIds = getAccessibleUserIds(currentUser);
+    
+    return users.filter((u: any) => {
+      // Solo vendedores activos
+      if (u.role !== "vendedor" || !u.active) return false;
+      
+      // Verificar que esté en el scope del usuario actual
+      if (!visibleUserIds.includes(u.id)) return false;
+      
+      return true;
+    });
+  };
+
   // ===== Nueva función para filtrar usuarios visibles según rol =====
   const getVisibleUsers = () => {
     if (!currentUser) return [];
@@ -404,8 +466,78 @@ export default function CRM() {
         return u.reportsTo === currentUser.id;
       }
 
+      // Vendedor solo se ve a sí mismo
+      if (currentUser.role === "vendedor") {
+        return u.id === currentUser.id;
+      }
+
       return false;
     });
+  };
+
+  // ===== Función para obtener leads filtrados y buscados =====
+  const getFilteredAndSearchedLeads = () => {
+    if (!currentUser) return [] as LeadRow[];
+
+    // Comenzar con leads base según scope
+    const visibleUserIds = getAccessibleUserIds(currentUser);
+    let filteredLeads = leads.filter((l) =>
+      l.vendedor ? visibleUserIds.includes(l.vendedor) : true
+    );
+
+    // Aplicar filtro por vendedor específico
+    if (selectedVendedorFilter) {
+      filteredLeads = filteredLeads.filter((l) => l.vendedor === selectedVendedorFilter);
+    }
+
+    // Aplicar filtro por estado
+    if (selectedEstadoFilter) {
+      filteredLeads = filteredLeads.filter((l) => l.estado === selectedEstadoFilter);
+    }
+
+    // Aplicar filtro por fuente
+    if (selectedFuenteFilter) {
+      filteredLeads = filteredLeads.filter((l) => l.fuente === selectedFuenteFilter);
+    }
+
+    // Aplicar búsqueda de texto
+    if (searchText.trim()) {
+      const searchLower = searchText.toLowerCase().trim();
+      filteredLeads = filteredLeads.filter((l) => {
+        const vendedor = l.vendedor ? userById.get(l.vendedor) : null;
+        const creadoPor = l.created_by ? userById.get(l.created_by) : null;
+        return (
+          l.nombre.toLowerCase().includes(searchLower) ||
+          l.telefono.includes(searchText.trim()) ||
+          l.modelo.toLowerCase().includes(searchLower) ||
+          (l.notas && l.notas.toLowerCase().includes(searchLower)) ||
+          (vendedor && vendedor.name.toLowerCase().includes(searchLower)) ||
+          (creadoPor && creadoPor.name.toLowerCase().includes(searchLower)) ||
+          (l.formaPago && l.formaPago.toLowerCase().includes(searchLower)) ||
+          (l.infoUsado && l.infoUsado.toLowerCase().includes(searchLower))
+        );
+      });
+    }
+
+    return filteredLeads;
+  };
+
+  // ===== Función para limpiar filtros =====
+  const clearFilters = () => {
+    setSearchText("");
+    setSelectedVendedorFilter(null);
+    setSelectedEstadoFilter("");
+    setSelectedFuenteFilter("");
+  };
+
+  // ===== Función para contar leads activos por filtros =====
+  const getActiveFiltersCount = () => {
+    let count = 0;
+    if (searchText.trim()) count++;
+    if (selectedVendedorFilter) count++;
+    if (selectedEstadoFilter) count++;
+    if (selectedFuenteFilter) count++;
+    return count;
   };
 
   // ===== Función para obtener vendedores disponibles según el rol del usuario =====
@@ -431,7 +563,6 @@ export default function CRM() {
     if (!leadToReassign) return;
 
     try {
-      // ⚠️ Si tu API espera otra clave (p.ej. assigned_to), cambiala aquí.
       await apiUpdateLead(
         leadToReassign.id,
         { vendedor: selectedVendorForReassign } as any
@@ -473,9 +604,32 @@ export default function CRM() {
     }
   };
 
-  // ===== Round-robin con soporte para bots específicos =====
+  // NUEVO: Función para abrir modal de confirmación de eliminación de lead
+  const openDeleteLeadConfirm = (lead: LeadRow) => {
+    setLeadToDelete(lead);
+    setShowDeleteLeadConfirmModal(true);
+  };
+
+  // NUEVO: Función para confirmar eliminación de lead
+  const confirmDeleteLead = async () => {
+    if (!leadToDelete) return;
+
+    try {
+      await apiDeleteLead(leadToDelete.id);
+      setLeads((prev) => prev.filter((l) => l.id !== leadToDelete.id));
+      setShowDeleteLeadConfirmModal(false);
+      setLeadToDelete(null);
+      alert("Lead eliminado exitosamente");
+    } catch (e: any) {
+      console.error("No pude eliminar el lead", e);
+      alert(`Error al eliminar el lead: ${e?.response?.data?.error || e.message}`);
+    }
+  };
+
+  // ===== Round-robin con soporte para bots específicos - MODIFICADO =====
   const [rrIndex, setRrIndex] = useState(0);
 
+  // MODIFICADO: Solo obtener vendedores ACTIVOS
   const getActiveVendorIdsInScope = (scopeUser?: any) => {
     if (!scopeUser) return [] as number[];
     const scope = getAccessibleUserIds(scopeUser);
@@ -486,6 +640,7 @@ export default function CRM() {
       .map((u: any) => u.id);
   };
 
+  // MODIFICADO: Solo obtener vendedores ACTIVOS del equipo
   const getVendorsByTeam = (teamName: string) => {
     // Buscar el gerente del equipo por nombre
     const manager = users.find(
@@ -512,14 +667,14 @@ export default function CRM() {
     if (botSource && botConfig[botSource]) {
       const botConf = botConfig[botSource];
       if (botConf.targetTeam) {
-        // Bot específico para un equipo
+        // Bot específico para un equipo - SOLO ACTIVOS
         pool = getVendorsByTeam(botConf.targetTeam);
       } else {
-        // Bot 100 - distribución general
+        // Bot 100 - distribución general - SOLO ACTIVOS
         pool = getActiveVendorIdsInScope(scopeUser || currentUser);
       }
     } else {
-      // Asignación manual normal
+      // Asignación manual normal - SOLO ACTIVOS
       pool = getActiveVendorIdsInScope(scopeUser || currentUser);
     }
 
@@ -610,6 +765,47 @@ export default function CRM() {
       .sort((a, b) => b.ventas - a.ventas);
   };
 
+  // ===== Nueva función para obtener ranking del equipo gerencial =====
+  const getRankingByManagerialTeam = () => {
+    if (!currentUser) return [];
+    
+    // Si es vendedor, buscar su gerente
+    if (currentUser.role === "vendedor") {
+      // Encontrar su supervisor
+      const supervisor = userById.get(currentUser.reportsTo);
+      if (!supervisor) return getRankingInScope(); // fallback
+      
+      // Encontrar el gerente del supervisor
+      const gerente = userById.get(supervisor.reportsTo);
+      if (!gerente) return getRankingInScope(); // fallback
+      
+      // Obtener todos los vendedores bajo este gerente
+      const teamUserIds = getDescendantUserIds(gerente.id, childrenIndex);
+      const vendedores = users.filter(
+        (u: any) => u.role === "vendedor" && teamUserIds.includes(u.id)
+      );
+      
+      return vendedores
+        .map((v: any) => {
+          const ventas = leads.filter(
+            (l) => l.vendedor === v.id && l.estado === "vendido"
+          ).length;
+          const leadsAsignados = leads.filter((l) => l.vendedor === v.id).length;
+          return {
+            id: v.id,
+            nombre: v.name,
+            ventas,
+            leadsAsignados,
+            team: `Equipo de ${gerente.name}`,
+          };
+        })
+        .sort((a, b) => b.ventas - a.ventas);
+    }
+    
+    // Para otros roles, usar el ranking normal en scope
+    return getRankingInScope();
+  };
+
   const prevRankingRef = useRef(new Map<number, number>());
   useEffect(() => {
     const r = getRanking();
@@ -690,6 +886,7 @@ export default function CRM() {
     notas: L.notas || "",
     fuente: (L.fuente || "otro") as LeadRow["fuente"],
     historial: L.historial || [],
+    created_by: L.created_by || null, // NUEVO
   });
 
   const addHistorialEntry = (leadId: number, estado: string) => {
@@ -713,6 +910,7 @@ export default function CRM() {
     );
   };
 
+  // MODIFICADO: Función para actualizar estado de lead desde dashboard
   const handleUpdateLeadStatus = async (leadId: number, newStatus: string) => {
     try {
       const updated = await apiUpdateLead(leadId, { estado: newStatus } as any);
@@ -752,74 +950,169 @@ export default function CRM() {
     }
   };
 
+  // MODIFICADO: Función para crear lead con "creado por" y asignación inteligente
   const handleCreateLead = async () => {
-    const nombre = (document.getElementById("new-nombre") as HTMLInputElement)
-      .value
-      .trim();
-    const telefono = (
-      document.getElementById("new-telefono") as HTMLInputElement
-    ).value.trim();
-    const modelo = (document.getElementById("new-modelo") as HTMLInputElement)
-      .value
-      .trim();
-    const formaPago = (document.getElementById("new-formaPago") as HTMLSelectElement).value;
-    const infoUsado = (
-      document.getElementById("new-infoUsado") as HTMLInputElement
-    ).value.trim();
-    const entrega = (document.getElementById("new-entrega") as HTMLInputElement)
-      .checked;
-    const fecha = (document.getElementById("new-fecha") as HTMLInputElement)
-      .value;
-    const fuente = (document.getElementById("new-fuente") as HTMLSelectElement)
-      .value;
-    const autoAssign = (
-      document.getElementById("new-autoassign") as HTMLInputElement
-    )?.checked;
-    const vendedorSelVal = (document.getElementById("new-vendedor") as HTMLSelectElement)
-      .value;
+    try {
+      console.log("Iniciando creación de lead...");
+      
+      const nombre = (document.getElementById("new-nombre") as HTMLInputElement)
+        ?.value
+        ?.trim();
+      const telefono = (
+        document.getElementById("new-telefono") as HTMLInputElement
+      )?.value?.trim();
+      const modelo = (document.getElementById("new-modelo") as HTMLInputElement)
+        ?.value
+        ?.trim();
+      const formaPago = (document.getElementById("new-formaPago") as HTMLSelectElement)?.value;
+      const infoUsado = (
+        document.getElementById("new-infoUsado") as HTMLInputElement
+      )?.value?.trim();
+      const entrega = (document.getElementById("new-entrega") as HTMLInputElement)
+        ?.checked;
+      const fecha = (document.getElementById("new-fecha") as HTMLInputElement)
+        ?.value;
+      const autoAssign = (
+        document.getElementById("new-autoassign") as HTMLInputElement
+      )?.checked;
+      const vendedorSelVal = (document.getElementById("new-vendedor") as HTMLSelectElement)
+        ?.value;
 
-    const vendedorIdSelRaw = parseInt(vendedorSelVal, 10);
-    const vendedorIdSel = Number.isNaN(vendedorIdSelRaw)
-      ? null
-      : vendedorIdSelRaw;
+      console.log("Datos del formulario:", { nombre, telefono, modelo, formaPago, infoUsado, entrega, fecha, autoAssign, vendedorSelVal });
 
-    // Detectar si es un bot y asignar según configuración
-    let vendedorId: number | null = null;
-    if (autoAssign) {
-      vendedorId = pickNextVendorId(currentUser, fuente) ?? vendedorIdSel ?? null;
-    } else {
-      vendedorId = vendedorIdSel ?? null;
-    }
-
-    if (nombre && telefono && modelo && fuente) {
-      try {
-        const created = await apiCreateLead({
-          nombre,
-          telefono,
-          modelo,
-          formaPago,
-          notas: "",
-          estado: "nuevo",
-          fuente,
-          infoUsado,
-          entrega,
-          fecha,
-          vendedor: vendedorId,
-        } as any);
-        const mapped = mapLeadFromApi(created);
-        if (mapped.vendedor)
-          pushAlert(
-            mapped.vendedor,
-            "lead_assigned",
-            `Nuevo lead asignado: ${mapped.nombre}`
-          );
-        setLeads((prev) => [mapped, ...prev]);
-        setShowNewLeadModal(false);
-
-        addHistorialEntry(mapped.id, "nuevo");
-      } catch (e) {
-        console.error("No pude crear el lead", e);
+      // Validaciones básicas
+      if (!nombre || !telefono || !modelo) {
+        alert("Por favor completa los campos obligatorios: Nombre, Teléfono y Modelo");
+        return;
       }
+
+      const vendedorIdSelRaw = parseInt(vendedorSelVal, 10);
+      const vendedorIdSel = Number.isNaN(vendedorIdSelRaw)
+        ? null
+        : vendedorIdSelRaw;
+
+      // MODIFICADO: Usar fuente "creado_por" para leads creados manualmente
+      const fuente = "creado_por";
+
+      // Asignación de vendedor
+      let vendedorId: number | null = null;
+      if (autoAssign) {
+        console.log("Asignación automática activada");
+        // MODIFICADO: Solo asignar automáticamente entre vendedores del scope del usuario actual
+        vendedorId = pickNextVendorId(currentUser) ?? null;
+        console.log("Vendedor asignado automáticamente:", vendedorId);
+      } else {
+        console.log("Asignación manual");
+        // Verificar que el vendedor seleccionado esté activo y en el scope
+        if (vendedorIdSel) {
+          const selectedVendor = users.find(u => u.id === vendedorIdSel);
+          const availableVendors = getAvailableVendorsForAssignment();
+          console.log("Vendedor seleccionado:", selectedVendor);
+          console.log("Vendedores disponibles:", availableVendors);
+          
+          if (selectedVendor && selectedVendor.active && availableVendors.some(v => v.id === vendedorIdSel)) {
+            vendedorId = vendedorIdSel;
+          } else {
+            alert("El vendedor seleccionado no está disponible. Por favor selecciona otro vendedor o usa la asignación automática.");
+            return;
+          }
+        } else {
+          vendedorId = null;
+        }
+        console.log("Vendedor asignado manualmente:", vendedorId);
+      }
+
+      // Determinar equipo basado en el usuario actual o el vendedor asignado
+      let equipo = 'roberto'; // Default
+      
+      if (vendedorId) {
+        // Si hay vendedor asignado, determinar su equipo
+        const vendedorAsignado = users.find(u => u.id === vendedorId);
+        if (vendedorAsignado) {
+          // Buscar el gerente del vendedor
+          let currentUser = vendedorAsignado;
+          while (currentUser && currentUser.reportsTo) {
+            const manager = userById.get(currentUser.reportsTo);
+            if (!manager) break;
+            
+            if (manager.role === 'gerente') {
+              if (manager.name === 'Daniel Mottino') {
+                equipo = 'daniel';
+              } else if (manager.name === 'Roberto Sauer') {
+                equipo = 'roberto';
+              }
+              break;
+            }
+            currentUser = manager;
+          }
+        }
+      } else {
+        // Si no hay vendedor, usar el equipo del usuario que está creando
+        let currentUserForTeam = currentUser;
+        while (currentUserForTeam && currentUserForTeam.reportsTo) {
+          const manager = userById.get(currentUserForTeam.reportsTo);
+          if (!manager) break;
+          
+          if (manager.role === 'gerente') {
+            if (manager.name === 'Daniel Mottino') {
+              equipo = 'daniel';
+            } else if (manager.name === 'Roberto Sauer') {
+              equipo = 'roberto';
+            }
+            break;
+          }
+          currentUserForTeam = manager;
+        }
+      }
+
+      const leadData = {
+        nombre,
+        telefono,
+        modelo,
+        formaPago: formaPago || "Contado",
+        notas: `Creado por: ${currentUser?.name}${infoUsado ? `\nInfo usado: ${infoUsado}` : ''}${entrega ? '\nEntrega usado: Sí' : ''}`,
+        estado: "nuevo",
+        fuente,
+        fecha: fecha || new Date().toISOString().split('T')[0],
+        vendedor: vendedorId, // El backend convertirá esto a assigned_to
+        equipo: equipo, // NUEVO: Campo requerido por el backend
+      };
+
+      console.log("Datos a enviar al API:", leadData);
+
+      const created = await apiCreateLead(leadData as any);
+      console.log("Lead creado exitosamente:", created);
+      
+      const mapped = mapLeadFromApi(created);
+      console.log("Lead mapeado:", mapped);
+      
+      if (mapped.vendedor) {
+        pushAlert(
+          mapped.vendedor,
+          "lead_assigned",
+          `Nuevo lead asignado: ${mapped.nombre} (creado por ${currentUser?.name})`
+        );
+      }
+      
+      setLeads((prev) => [mapped, ...prev]);
+      setShowNewLeadModal(false);
+
+      // Limpiar formulario
+      (document.getElementById("new-nombre") as HTMLInputElement).value = "";
+      (document.getElementById("new-telefono") as HTMLInputElement).value = "";
+      (document.getElementById("new-modelo") as HTMLInputElement).value = "";
+      (document.getElementById("new-infoUsado") as HTMLInputElement).value = "";
+      (document.getElementById("new-fecha") as HTMLInputElement).value = "";
+      (document.getElementById("new-entrega") as HTMLInputElement).checked = false;
+
+      addHistorialEntry(mapped.id, `Creado por ${currentUser?.name}`);
+      
+      alert("Lead creado exitosamente");
+      
+    } catch (e: any) {
+      console.error("Error completo al crear el lead:", e);
+      console.error("Respuesta del error:", e?.response?.data);
+      alert(`Error al crear el lead: ${e?.response?.data?.error || e?.message || 'Error desconocido'}`);
     }
   };
 
@@ -914,7 +1207,7 @@ export default function CRM() {
     setEditingUser(u);
     const roleCurrent = u.role as typeof modalRole;
     const availableRoles: string[] =
-      currentUser.role === "owner" && u.id === currentUser.id
+      currentUser.role === "owner" && u.id === currentUser?.id
         ? ["owner", ...validRolesByUser(currentUser)]
         : validRolesByUser(currentUser);
     const roleToSet = availableRoles.includes(roleCurrent)
@@ -928,60 +1221,98 @@ export default function CRM() {
     setShowUserModal(true);
   };
 
+  // MODIFICADO: Asegurar que la contraseña se envíe correctamente al backend
   const saveUser = async () => {
     const name = (document.getElementById("u-name") as HTMLInputElement).value.trim();
     const email = (document.getElementById("u-email") as HTMLInputElement).value.trim();
     const password = (document.getElementById("u-pass") as HTMLInputElement).value;
     const active = (document.getElementById("u-active") as HTMLInputElement).checked;
 
-    if (!name || !email) return;
+    if (!name || !email) {
+      alert("Nombre y email son obligatorios");
+      return;
+    }
+    
+    // NUEVO: Validar contraseña para usuarios nuevos
+    if (!editingUser && !password) {
+      alert("La contraseña es obligatoria para usuarios nuevos");
+      return;
+    }
+
     const finalReportsTo = modalRole === "owner" ? null : modalReportsTo ?? null;
 
     try {
       if (editingUser) {
-        const updated = await apiUpdateUser(editingUser.id, {
+        const updateData: any = {
           name,
           email,
-          password: password || undefined,
           role: modalRole,
           reportsTo: finalReportsTo,
           active: active ? 1 : 0,
-        });
+        };
+        
+        // Solo incluir password si se proporcionó
+        if (password && password.trim()) {
+          updateData.password = password.trim();
+        }
+
+        const updated = await apiUpdateUser(editingUser.id, updateData);
         setUsers((prev) => prev.map((u: any) => (u.id === editingUser.id ? updated : u)));
       } else {
-        const created = await apiCreateUser({
+        const createData = {
           name,
           email,
-          password: password || "123456",
+          password: password.trim(), // MODIFICADO: Asegurar que se envíe la contraseña
           role: modalRole,
           reportsTo: finalReportsTo,
           active: active ? 1 : 0,
-        } as any);
+        };
+        
+        const created = await apiCreateUser(createData as any);
         setUsers((prev) => [...prev, created]);
       }
       setShowUserModal(false);
-    } catch (e) {
+    } catch (e: any) {
       console.error("No pude guardar usuario", e);
+      alert(`Error al ${editingUser ? 'actualizar' : 'crear'} usuario: ${e?.response?.data?.error || e.message}`);
     }
   };
 
-  const deleteUser = async (id: number) => {
-    const target = users.find((u: any) => u.id === id);
-    if (!target) return;
-    if (target.role === "owner") {
+  // ===== Función para abrir modal de confirmación de eliminación =====
+  const openDeleteConfirm = (user: any) => {
+    if (user.role === "owner") {
       alert("No podés eliminar al Dueño.");
       return;
     }
-    const hasChildren = users.some((u: any) => u.reportsTo === id);
+    
+    const hasChildren = users.some((u: any) => u.reportsTo === user.id);
     if (hasChildren) {
-      alert("No se puede eliminar: el usuario tiene integrantes a cargo.");
+      alert("No se puede eliminar: el usuario tiene integrantes a cargo. Primero reasigne o elimine a sus subordinados.");
       return;
     }
+
+    const hasAssignedLeads = leads.some((l) => l.vendedor === user.id);
+    if (hasAssignedLeads) {
+      alert("No se puede eliminar: el usuario tiene leads asignados. Primero reasigne todos sus leads a otros vendedores.");
+      return;
+    }
+
+    setUserToDelete(user);
+    setShowDeleteConfirmModal(true);
+  };
+
+  // ===== Función para confirmar eliminación =====
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return;
+
     try {
-      await apiDeleteUser(id);
-      setUsers((prev) => prev.filter((u: any) => u.id !== id));
+      await apiDeleteUser(userToDelete.id);
+      setUsers((prev) => prev.filter((u: any) => u.id !== userToDelete.id));
+      setShowDeleteConfirmModal(false);
+      setUserToDelete(null);
     } catch (e) {
       console.error("No pude eliminar usuario", e);
+      alert("Error al eliminar el usuario. Por favor, intenta nuevamente.");
     }
   };
 
@@ -1036,6 +1367,7 @@ export default function CRM() {
                 <p className="text-red-700 text-sm">{loginError}</p>
               </div>
             )}
+
             <button
               onClick={() =>
                 handleLogin(
@@ -1088,6 +1420,11 @@ export default function CRM() {
             <p className="text-blue-300">
               {roles[currentUser?.role] || currentUser?.role}
             </p>
+            {!currentUser?.active && (
+              <p className="text-red-300 text-xs mt-1">
+                ⚠️ Usuario desactivado - No recibe leads nuevos
+              </p>
+            )}
           </div>
         </div>
         <nav className="space-y-2">
@@ -1126,23 +1463,52 @@ export default function CRM() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-3xl font-bold text-gray-800">Dashboard</h2>
-              {["owner", "director"].includes(currentUser?.role) && (
-                <select
-                  value={selectedTeam}
-                  onChange={(e) => setSelectedTeam(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
-                >
-                  <option value="todos">Todos los equipos</option>
-                  {users
-                    .filter((u: any) => u.role === "gerente")
-                    .map((gerente: any) => (
-                      <option key={gerente.id} value={gerente.id.toString()}>
-                        Equipo {gerente.name}
-                      </option>
-                    ))}
-                </select>
-              )}
+              <div className="flex items-center space-x-3">
+                {["owner", "director"].includes(currentUser?.role) && (
+                  <select
+                    value={selectedTeam}
+                    onChange={(e) => setSelectedTeam(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                  >
+                    <option value="todos">Todos los equipos</option>
+                    {users
+                      .filter((u: any) => u.role === "gerente")
+                      .map((gerente: any) => (
+                        <option key={gerente.id} value={gerente.id.toString()}>
+                          Equipo {gerente.name}
+                        </option>
+                      ))}
+                  </select>
+                )}
+                {/* NUEVO: Botón para crear lead si tiene permisos */}
+                {canCreateLeads() && (
+                  <button
+                    onClick={() => setShowNewLeadModal(true)}
+                    className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  >
+                    <Plus size={20} />
+                    <span>Nuevo Lead</span>
+                  </button>
+                )}
+              </div>
             </div>
+
+            {/* Alerta si el usuario está desactivado */}
+            {!currentUser?.active && (
+              <div className="bg-orange-50 border-l-4 border-orange-400 p-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <Bell className="h-5 w-5 text-orange-400" />
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-orange-700">
+                      <strong>Usuario Desactivado:</strong> No recibirás nuevos leads automáticamente. 
+                      Solo podrás gestionar los leads que ya tienes asignados.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Estadísticas principales */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -1199,40 +1565,42 @@ export default function CRM() {
               })()}
             </div>
 
-            {/* Estados de Leads - NUEVA SECCIÓN EN DASHBOARD */}
+            {/* MODIFICADO: Estados de Leads con posibilidad de editar estados */}
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-semibold text-gray-800">Estados de Leads</h3>
-                {["owner", "director"].includes(currentUser?.role) && (
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm text-gray-600">Descargar Excel:</span>
+                <div className="flex items-center space-x-2">
+                  {["owner", "director"].includes(currentUser?.role) && (
+                    <>
+                      <span className="text-sm text-gray-600">Descargar Excel:</span>
+                      <button
+                        onClick={() => {
+                          const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                            ? selectedTeam
+                            : undefined;
+                          const filteredLeads = teamFilter && teamFilter !== "todos"
+                            ? getFilteredLeadsByTeam(teamFilter)
+                            : getFilteredLeads();
+                          downloadAllLeadsExcel(filteredLeads, userById, fuentes);
+                        }}
+                        className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 flex items-center space-x-1"
+                        title="Descargar Excel completo"
+                      >
+                        <Download size={12} />
+                        <span>Todos</span>
+                      </button>
+                    </>
+                  )}
+                  {selectedEstado && (
                     <button
-                      onClick={() => {
-                        const teamFilter = ["owner", "director"].includes(currentUser?.role)
-                          ? selectedTeam
-                          : undefined;
-                        const filteredLeads = teamFilter && teamFilter !== "todos"
-                          ? getFilteredLeadsByTeam(teamFilter)
-                          : getFilteredLeads();
-                        downloadAllLeadsExcel(filteredLeads, userById, fuentes);
-                      }}
-                      className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 flex items-center space-x-1"
-                      title="Descargar Excel completo"
+                      onClick={() => setSelectedEstado(null)}
+                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
                     >
-                      <Download size={12} />
-                      <span>Todos</span>
+                      <X size={16} />
+                      <span>Cerrar filtro</span>
                     </button>
-                  </div>
-                )}
-                {selectedEstado && (
-                  <button
-                    onClick={() => setSelectedEstado(null)}
-                    className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
-                  >
-                    <X size={16} />
-                    <span>Cerrar filtro</span>
-                  </button>
-                )}
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {Object.entries(estados).map(([key, estado]) => {
@@ -1289,7 +1657,7 @@ export default function CRM() {
                 })}
               </div>
 
-              {/* Lista filtrada de leads por estado en Dashboard */}
+              {/* MODIFICADO: Lista filtrada con edición de estados y botón de eliminar */}
               {selectedEstado && (
                 <div className="mt-6 border-t pt-6">
                   <h4 className="text-lg font-semibold text-gray-800 mb-4">
@@ -1335,6 +1703,9 @@ export default function CRM() {
                               </th>
                               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                                 Vehículo
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Estado
                               </th>
                               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                                 Fuente
@@ -1390,6 +1761,22 @@ export default function CRM() {
                                     </div>
                                   </td>
                                   <td className="px-4 py-2">
+                                    {/* NUEVO: Select editable para cambiar estado */}
+                                    <select
+                                      value={lead.estado}
+                                      onChange={(e) =>
+                                        handleUpdateLeadStatus(lead.id, e.target.value)
+                                      }
+                                      className={`text-xs font-medium rounded-full px-2 py-1 border-0 text-white ${estados[lead.estado].color}`}
+                                    >
+                                      {Object.entries(estados).map(([key, estado]) => (
+                                        <option key={key} value={key} className="text-black">
+                                          {estado.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                  <td className="px-4 py-2">
                                     <div className="flex items-center space-x-1">
                                       <span className="text-sm">
                                         {fuentes[lead.fuente as string]?.icon || "❓"}
@@ -1401,13 +1788,38 @@ export default function CRM() {
                                     </div>
                                   </td>
                                   <td className="px-4 py-2 text-gray-700">
-                                    {vendedor?.name || "Sin asignar"}
+                                    <div>
+                                      {vendedor?.name || "Sin asignar"}
+                                      {vendedor && !vendedor.active && (
+                                        <div className="text-xs text-red-600">
+                                          (Desactivado)
+                                        </div>
+                                      )}
+                                    </div>
                                   </td>
                                   <td className="px-4 py-2 text-gray-500 text-xs">
                                     {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
                                   </td>
                                   <td className="px-4 py-2 text-center">
                                     <div className="flex items-center justify-center space-x-1">
+                                      {/* NUEVO: Botón de WhatsApp */}
+                                      <button
+                                        onClick={() => {
+                                          const phoneNumber = lead.telefono.replace(/\D/g, '');
+                                          const message = encodeURIComponent(
+                                            `Hola ${lead.nombre}, me contacto desde GRUPO ALRA por su consulta sobre el vehiculo ${lead.modelo}. ¿Cómo está? ¿Tiene un minuto?`
+                                          );
+                                          const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
+                                          window.open(whatsappUrl, '_blank');
+                                        }}
+                                        className="px-2 py-1 text-xs rounded bg-green-100 text-green-700 hover:bg-green-200 flex items-center space-x-1"
+                                        title="Chatear por WhatsApp"
+                                      >
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.89 3.587"/>
+                                        </svg>
+                                      </button>
+                                      
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -1429,6 +1841,19 @@ export default function CRM() {
                                           title="Reasignar lead"
                                         >
                                           Reasignar
+                                        </button>
+                                      )}
+                                      {/* NUEVO: Botón de eliminar solo para owner y director */}
+                                      {canDeleteLeads() && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            openDeleteLeadConfirm(lead);
+                                          }}
+                                          className="px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200"
+                                          title="Eliminar lead permanentemente"
+                                        >
+                                          <Trash2 size={12} />
                                         </button>
                                       )}
                                       <button
@@ -1472,7 +1897,429 @@ export default function CRM() {
                         <span className="font-medium text-gray-900">{item.label}</span>
                       </div>
                       <div className="space-y-1 text-sm">
-                        <div className="flex justify-between">
+                        <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">Nuevo Lead</h3>
+                <button onClick={() => setShowNewLeadModal(false)}>
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nombre *
+                  </label>
+                  <input
+                    type="text"
+                    id="new-nombre"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Teléfono *
+                  </label>
+                  <input
+                    type="text"
+                    id="new-telefono"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Modelo *
+                  </label>
+                  <input
+                    type="text"
+                    id="new-modelo"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Forma de Pago
+                  </label>
+                  <select
+                    id="new-formaPago"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="Contado">Contado</option>
+                    <option value="Financiado">Financiado</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Info Usado
+                  </label>
+                  <input
+                    type="text"
+                    id="new-infoUsado"
+                    placeholder="Marca Modelo Año"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Fecha
+                  </label>
+                  <input
+                    type="date"
+                    id="new-fecha"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="col-span-2 flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    id="new-entrega"
+                    className="rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">
+                    Entrega de vehículo usado
+                  </span>
+                </div>
+                <div className="col-span-2 flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    id="new-autoassign"
+                    defaultChecked
+                    className="rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">
+                    Asignación automática y equitativa a vendedores activos de mi equipo
+                  </span>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Asignar a vendedor específico (opcional)
+                  </label>
+                  <select
+                    id="new-vendedor"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Sin asignar</option>
+                    {/* MODIFICADO: Solo mostrar vendedores disponibles según el scope */}
+                    {getAvailableVendorsForAssignment().map((u: any) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} - {userById.get(u.reportsTo)?.name ? `Equipo ${userById.get(u.reportsTo)?.name}` : 'Sin equipo'} ✓ Activo
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Si está activada la "Asignación automática", se ignorará esta selección.
+                    Solo puedes asignar a vendedores activos de tu equipo.
+                  </p>
+                </div>
+
+                {/* NUEVO: Información sobre qué vendedores están disponibles */}
+                {getAvailableVendorsForAssignment().length === 0 && (
+                  <div className="col-span-2 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                    <p className="text-sm text-yellow-700">
+                      <strong>Atención:</strong> No hay vendedores activos disponibles en tu equipo. 
+                      El lead se creará sin asignar.
+                    </p>
+                  </div>
+                )}
+
+                <div className="col-span-2 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <h4 className="text-sm font-medium text-blue-800 mb-2">
+                    Información sobre la creación de leads:
+                  </h4>
+                  <ul className="text-xs text-blue-700 space-y-1">
+                    <li>• Este lead aparecerá marcado como "Creado por {currentUser?.name}"</li>
+                    <li>• La fuente se establecerá automáticamente como "Creado por"</li>
+                    <li>• Solo puedes asignar a vendedores activos de tu scope/equipo</li>
+                    {currentUser?.role === "vendedor" && (
+                      <li>• Como vendedor, puedes crear leads pero solo asignártelos a ti mismo</li>
+                    )}
+                  </ul>
+                </div>
+              </div>
+
+              <div className="flex space-x-3 pt-6">
+                <button
+                  onClick={handleCreateLead}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                >
+                  Crear Lead
+                </button>
+                <button
+                  onClick={() => setShowNewLeadModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Nuevo Evento */}
+        {showNewEventModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-lg">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">Nuevo Evento</h3>
+                <button onClick={() => setShowNewEventModal(false)}>
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Título *
+                  </label>
+                  <input
+                    type="text"
+                    id="ev-title"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Fecha *
+                  </label>
+                  <input
+                    type="date"
+                    id="ev-date"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Hora
+                  </label>
+                  <input
+                    type="time"
+                    id="ev-time"
+                    defaultValue="09:00"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Usuario
+                  </label>
+                  <select
+                    id="ev-user"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    defaultValue={currentUser?.id}
+                  >
+                    <option value={currentUser?.id}>{currentUser?.name} (Yo)</option>
+                    {visibleUsers
+                      .filter((u: any) => u.id !== currentUser?.id)
+                      .map((u: any) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex space-x-3 pt-6">
+                <button
+                  onClick={createEvent}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Crear Evento
+                </button>
+                <button
+                  onClick={() => setShowNewEventModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODIFICADO: Modal: Usuario - Con validación de contraseña mejorada */}
+        {showUserModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-lg">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">
+                  {editingUser ? "Editar Usuario" : "Nuevo Usuario"}
+                </h3>
+                <button onClick={() => setShowUserModal(false)}>
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nombre *
+                  </label>
+                  <input
+                    type="text"
+                    id="u-name"
+                    defaultValue={editingUser?.name || ""}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Email *
+                  </label>
+                  <input
+                    type="email"
+                    id="u-email"
+                    defaultValue={editingUser?.email || ""}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Contraseña {editingUser ? "(dejar vacío para mantener actual)" : "*"}
+                  </label>
+                  <input
+                    type="password"
+                    id="u-pass"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder={
+                      editingUser ? "Nueva contraseña (opcional)" : "Contraseña obligatoria"
+                    }
+                  />
+                  {!editingUser && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      La contraseña es obligatoria para usuarios nuevos
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Rol
+                  </label>
+                  <select
+                    value={modalRole}
+                    onChange={(e) => {
+                      const newRole = e.target.value as typeof modalRole;
+                      setModalRole(newRole);
+                      const validManagers = validManagersByRole(newRole);
+                      setModalReportsTo(validManagers[0]?.id ?? null);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    {validRolesByUser(currentUser).map((role: string) => (
+                      <option key={role} value={role}>
+                        {roles[role] || role}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {modalRole !== "owner" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Reporta a *
+                    </label>
+                    <select
+                      value={modalReportsTo || ""}
+                      onChange={(e) =>
+                        setModalReportsTo(
+                          e.target.value ? parseInt(e.target.value, 10) : null
+                        )
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      {validManagersByRole(modalRole).map((manager: any) => (
+                        <option key={manager.id} value={manager.id}>
+                          {manager.name} ({roles[manager.role] || manager.role})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="u-active"
+                    defaultChecked={editingUser?.active !== false}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                  />
+                  <label htmlFor="u-active" className="text-sm text-gray-700">
+                    Usuario activo
+                  </label>
+                </div>
+                {modalRole === "vendedor" && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-sm text-blue-700">
+                      <strong>Nota:</strong> Los vendedores desactivados pueden seguir usando el CRM 
+                      para gestionar sus leads existentes, pero no recibirán leads nuevos automáticamente.
+                    </p>
+                  </div>
+                )}
+
+                {/* NUEVO: Información sobre permisos según el rol */}
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                  <h4 className="text-sm font-medium text-gray-800 mb-2">
+                    Permisos del rol {roles[modalRole] || modalRole}:
+                  </h4>
+                  <ul className="text-xs text-gray-600 space-y-1">
+                    {modalRole === "owner" && (
+                      <>
+                        <li>• Acceso completo al sistema</li>
+                        <li>• Gestión total de usuarios y equipos</li>
+                        <li>• Visualización de todos los datos</li>
+                        <li>• Puede eliminar leads</li>
+                      </>
+                    )}
+                    {modalRole === "director" && (
+                      <>
+                        <li>• Gestión de gerentes, supervisores y vendedores</li>
+                        <li>• Visualización de todos los equipos</li>
+                        <li>• Creación y asignación de leads</li>
+                        <li>• Puede eliminar leads</li>
+                      </>
+                    )}
+                    {modalRole === "gerente" && (
+                      <>
+                        <li>• Gestión de supervisores y vendedores de su equipo</li>
+                        <li>• Visualización de su equipo completo</li>
+                        <li>• Creación y asignación de leads a su equipo</li>
+                      </>
+                    )}
+                    {modalRole === "supervisor" && (
+                      <>
+                        <li>• Gestión de vendedores directos</li>
+                        <li>• Visualización de su equipo directo</li>
+                        <li>• Creación y asignación de leads a su equipo</li>
+                      </>
+                    )}
+                    {modalRole === "vendedor" && (
+                      <>
+                        <li>• Gestión de sus propios leads</li>
+                        <li>• Creación de leads (autoasignados)</li>
+                        <li>• Visualización de su propio ranking</li>
+                      </>
+                    )}
+                  </ul>
+                </div>
+              </div>
+
+              <div className="flex space-x-3 pt-6">
+                <button
+                  onClick={saveUser}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                >
+                  {editingUser ? "Actualizar" : "Crear"} Usuario
+                </button>
+                <button
+                  onClick={() => setShowUserModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}-between">
                           <span>Total:</span>
                           <span className="font-semibold">{item.total}</span>
                         </div>
@@ -1490,162 +2337,6 @@ export default function CRM() {
                     </div>
                   ));
                 })()}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Leads */}
-        {activeSection === "leads" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-bold text-gray-800">Gestión de Leads</h2>
-              <button
-                onClick={() => setShowNewLeadModal(true)}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <Plus size={20} />
-                <span>Nuevo Lead</span>
-              </button>
-            </div>
-
-            {/* Tabla de leads */}
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Cliente
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Contacto
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Vehículo
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Estado
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Fuente
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Vendedor
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Fecha
-                      </th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
-                        Acciones
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {getFilteredLeads().map((lead) => {
-                      const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
-                      const canReassign =
-                        canManageUsers() ||
-                        (currentUser?.role === "supervisor" &&
-                          lead.vendedor &&
-                          getVisibleUsers().some((u: any) => u.id === lead.vendedor));
-
-                      return (
-                        <tr key={lead.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-4">
-                            <div className="font-medium text-gray-900">{lead.nombre}</div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="flex items-center space-x-1">
-                              <Phone size={12} className="text-gray-400" />
-                              <span className="text-gray-700">{lead.telefono}</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div>
-                              <div className="font-medium text-gray-900">{lead.modelo}</div>
-                              <div className="text-xs text-gray-500">{lead.formaPago}</div>
-                              {lead.infoUsado && (
-                                <div className="text-xs text-orange-600">
-                                  Usado: {lead.infoUsado}
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <select
-                              value={lead.estado}
-                              onChange={(e) =>
-                                handleUpdateLeadStatus(lead.id, e.target.value)
-                              }
-                              className={`text-xs font-medium rounded-full px-2 py-1 border-0 text-white ${estados[lead.estado].color}`}
-                            >
-                              {Object.entries(estados).map(([key, estado]) => (
-                                <option key={key} value={key} className="text-black">
-                                  {estado.label}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="flex items-center space-x-1">
-                              <span className="text-sm">
-                                {fuentes[lead.fuente as string]?.icon || "❓"}
-                              </span>
-                              <span className="text-xs text-gray-600">
-                                {fuentes[lead.fuente as string]?.label || String(lead.fuente)}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-4 text-gray-700">
-                            {vendedor?.name || "Sin asignar"}
-                          </td>
-                          <td className="px-4 py-4 text-gray-500 text-xs">
-                            {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
-                          </td>
-                          <td className="px-4 py-4 text-center">
-                            <div className="flex items-center justify-center space-x-1">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingLeadObservaciones(lead);
-                                  setShowObservacionesModal(true);
-                                }}
-                                className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                title="Ver/Editar observaciones"
-                              >
-                                {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
-                              </button>
-                              {canReassign && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openReassignModal(lead);
-                                  }}
-                                  className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
-                                  title="Reasignar lead"
-                                >
-                                  Reasignar
-                                </button>
-                              )}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setViewingLeadHistorial(lead);
-                                  setShowHistorialModal(true);
-                                }}
-                                className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                title="Ver historial"
-                              >
-                                Historial
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
               </div>
             </div>
           </div>
@@ -1736,7 +2427,7 @@ export default function CRM() {
             <h2 className="text-3xl font-bold text-gray-800">Ranking de Vendedores</h2>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Ranking General */}
+              {/* Ranking General - Solo para Owner */}
               {isOwner() && (
                 <div className="bg-white rounded-xl shadow-lg p-6">
                   <h3 className="text-xl font-semibold text-gray-800 mb-4">
@@ -1788,16 +2479,25 @@ export default function CRM() {
                 </div>
               )}
 
-              {/* Ranking en Mi Scope */}
+              {/* Ranking en Mi Scope / Vendedores de la misma gerencia */}
               <div className="bg-white rounded-xl shadow-lg p-6">
                 <h3 className="text-xl font-semibold text-gray-800 mb-4">
-                  {isOwner() ? "Mi Scope" : "Ranking"}
+                  {currentUser?.role === "vendedor" 
+                    ? "Ranking Vendedores" 
+                    : isOwner() 
+                    ? "Mi Scope" 
+                    : "Ranking"}
                 </h3>
                 <div className="space-y-3">
-                  {getRankingInScope().map((vendedor, index) => (
+                  {(currentUser?.role === "vendedor" 
+                    ? getRankingByManagerialTeam() 
+                    : getRankingInScope()
+                  ).map((vendedor, index) => (
                     <div
                       key={vendedor.id}
-                      className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
+                      className={`flex items-center justify-between p-4 border border-gray-200 rounded-lg ${
+                        vendedor.id === currentUser?.id ? "bg-blue-50 border-blue-300" : ""
+                      }`}
                     >
                       <div className="flex items-center space-x-3">
                         <div
@@ -1814,8 +2514,13 @@ export default function CRM() {
                           {index + 1}
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900">
+                          <p className={`font-medium ${
+                            vendedor.id === currentUser?.id ? "text-blue-900" : "text-gray-900"
+                          }`}>
                             {vendedor.nombre}
+                            {vendedor.id === currentUser?.id && (
+                              <span className="ml-2 text-xs text-blue-600 font-normal">(Tú)</span>
+                            )}
                           </p>
                           <p className="text-xs text-gray-500">{vendedor.team}</p>
                         </div>
@@ -1835,9 +2540,14 @@ export default function CRM() {
                     </div>
                   ))}
                 </div>
-                {getRankingInScope().length === 0 && (
+                {(currentUser?.role === "vendedor" 
+                  ? getRankingByManagerialTeam() 
+                  : getRankingInScope()
+                ).length === 0 && (
                   <p className="text-gray-500 text-center py-8">
-                    No hay vendedores en tu scope
+                    {currentUser?.role === "vendedor" 
+                      ? "No hay otros vendedores en tu gerencia"
+                      : "No hay vendedores en tu scope"}
                   </p>
                 )}
               </div>
@@ -1913,7 +2623,7 @@ export default function CRM() {
                   })}
                 </div>
 
-                {/* Lista filtrada de leads por estado en Mi Equipo */}
+                {/* Lista filtrada de leads por estado en Mi Equipo con botón eliminar */}
                 {selectedEstado && (
                   <div className="mt-6 border-t pt-6">
                     <h4 className="text-lg font-semibold text-gray-800 mb-4">
@@ -1963,6 +2673,9 @@ export default function CRM() {
                                   Vehículo
                                 </th>
                                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                  Estado
+                                </th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                                   Fuente
                                 </th>
                                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
@@ -2010,6 +2723,22 @@ export default function CRM() {
                                       </div>
                                     </td>
                                     <td className="px-4 py-2">
+                                      {/* NUEVO: Select editable en equipo también */}
+                                      <select
+                                        value={lead.estado}
+                                        onChange={(e) =>
+                                          handleUpdateLeadStatus(lead.id, e.target.value)
+                                        }
+                                        className={`text-xs font-medium rounded-full px-2 py-1 border-0 text-white ${estados[lead.estado].color}`}
+                                      >
+                                        {Object.entries(estados).map(([key, estado]) => (
+                                          <option key={key} value={key} className="text-black">
+                                            {estado.label}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </td>
+                                    <td className="px-4 py-2">
                                       <div className="flex items-center space-x-1">
                                         <span className="text-sm">
                                           {fuentes[lead.fuente as string]?.icon || "❓"}
@@ -2028,6 +2757,24 @@ export default function CRM() {
                                     </td>
                                     <td className="px-4 py-2 text-center">
                                       <div className="flex items-center justify-center space-x-1">
+                                        {/* NUEVO: Botón de WhatsApp */}
+                                        <button
+                                          onClick={() => {
+                                            const phoneNumber = lead.telefono.replace(/\D/g, '');
+                                            const message = encodeURIComponent(
+                                              `Hola ${lead.nombre}, me contacto desde Alluma por su consulta sobre el ${lead.modelo}. ¿Cómo está?`
+                                            );
+                                            const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
+                                            window.open(whatsappUrl, '_blank');
+                                          }}
+                                          className="px-2 py-1 text-xs rounded bg-green-100 text-green-700 hover:bg-green-200 flex items-center space-x-1"
+                                          title="Chatear por WhatsApp"
+                                        >
+                                          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.89 3.587"/>
+                                          </svg>
+                                        </button>
+                                        
                                         <button
                                           onClick={(e) => {
                                             e.stopPropagation();
@@ -2054,6 +2801,19 @@ export default function CRM() {
                                             title="Reasignar lead"
                                           >
                                             Reasignar
+                                          </button>
+                                        )}
+                                        {/* NUEVO: Botón de eliminar también en Mi Equipo */}
+                                        {canDeleteLeads() && (
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              openDeleteLeadConfirm(lead);
+                                            }}
+                                            className="px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200"
+                                            title="Eliminar lead permanentemente"
+                                          >
+                                            <Trash2 size={12} />
                                           </button>
                                         )}
                                         <button
@@ -2141,13 +2901,16 @@ export default function CRM() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-3xl font-bold text-gray-800">Gestión de Usuarios</h2>
-              <button
-                onClick={openCreateUser}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <Plus size={20} />
-                <span>Nuevo Usuario</span>
-              </button>
+              {/* MODIFICADO: Solo mostrar botón si puede crear usuarios */}
+              {canCreateUsers() && (
+                <button
+                  onClick={openCreateUser}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <Plus size={20} />
+                  <span>Nuevo Usuario</span>
+                </button>
+              )}
             </div>
 
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
@@ -2234,6 +2997,11 @@ export default function CRM() {
                                 </button>
                               )}
                             </div>
+                            {user.role === "vendedor" && !user.active && (
+                              <div className="text-xs text-orange-600 mt-1">
+                                No recibe leads nuevos
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-4">
                             {user.role === "vendedor" ? (
@@ -2256,9 +3024,9 @@ export default function CRM() {
                               >
                                 <Edit3 size={16} />
                               </button>
-                              {user.id !== currentUser?.id && (
+                              {isOwner() && user.id !== currentUser?.id && (
                                 <button
-                                  onClick={() => deleteUser(user.id)}
+                                  onClick={() => openDeleteConfirm(user)}
                                   className="p-1 text-red-600 hover:text-red-800"
                                   title="Eliminar usuario"
                                 >
@@ -2372,6 +3140,151 @@ export default function CRM() {
           </div>
         )}
 
+        {/* MODALES */}
+        
+        {/* NUEVO: Modal de Confirmación para Eliminar Lead */}
+        {showDeleteLeadConfirmModal && leadToDelete && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-md">
+              <div className="flex items-center mb-6">
+                <div className="bg-red-100 p-3 rounded-full mr-4">
+                  <Trash2 className="h-6 w-6 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    Eliminar Lead
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Esta acción no se puede deshacer
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <h4 className="font-medium text-gray-800 mb-2">Lead a eliminar:</h4>
+                <div className="text-sm space-y-1">
+                  <div><strong>Cliente:</strong> {leadToDelete.nombre}</div>
+                  <div><strong>Teléfono:</strong> {leadToDelete.telefono}</div>
+                  <div><strong>Modelo:</strong> {leadToDelete.modelo}</div>
+                  <div><strong>Estado:</strong> {estados[leadToDelete.estado]?.label || leadToDelete.estado}</div>
+                  <div><strong>Vendedor:</strong> {leadToDelete.vendedor ? userById.get(leadToDelete.vendedor)?.name : 'Sin asignar'}</div>
+                  {leadToDelete.created_by && (
+                    <div><strong>Creado por:</strong> {userById.get(leadToDelete.created_by)?.name || 'Usuario eliminado'}</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <Bell className="h-5 w-5 text-red-400" />
+                  </div>
+                  <div className="ml-3">
+                    <h4 className="text-sm font-medium text-red-800">
+                      Atención - Eliminación Permanente
+                    </h4>
+                    <div className="mt-2 text-sm text-red-700">
+                      <ul className="list-disc pl-5 space-y-1">
+                        <li>El lead se eliminará permanentemente del sistema</li>
+                        <li>Se perderán todos los datos y el historial</li>
+                        <li>Esta acción no se puede revertir</li>
+                        <li>El vendedor asignado perderá el acceso al lead</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={confirmDeleteLead}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
+                >
+                  Sí, Eliminar Lead
+                </button>
+                <button
+                  onClick={() => {
+                    setShowDeleteLeadConfirmModal(false);
+                    setLeadToDelete(null);
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de Confirmación para Eliminar Usuario */}
+        {showDeleteConfirmModal && userToDelete && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-md">
+              <div className="flex items-center mb-6">
+                <div className="bg-red-100 p-3 rounded-full mr-4">
+                  <Trash2 className="h-6 w-6 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    Confirmar Eliminación
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Esta acción no se puede deshacer
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <h4 className="font-medium text-gray-800 mb-2">Usuario a eliminar:</h4>
+                <div className="text-sm space-y-1">
+                  <div><strong>Nombre:</strong> {userToDelete.name}</div>
+                  <div><strong>Email:</strong> {userToDelete.email}</div>
+                  <div><strong>Rol:</strong> {roles[userToDelete.role] || userToDelete.role}</div>
+                </div>
+              </div>
+
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <Bell className="h-5 w-5 text-red-400" />
+                  </div>
+                  <div className="ml-3">
+                    <h4 className="text-sm font-medium text-red-800">
+                      Atención - Eliminación Permanente
+                    </h4>
+                    <div className="mt-2 text-sm text-red-700">
+                      <ul className="list-disc pl-5 space-y-1">
+                        <li>Se eliminará permanentemente del sistema</li>
+                        <li>Se perderá acceso a todas las funcionalidades</li>
+                        <li>No podrá recuperar su cuenta</li>
+                        <li>Los datos históricos se mantendrán para auditoría</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={confirmDeleteUser}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
+                >
+                  Sí, Eliminar Usuario
+                </button>
+                <button
+                  onClick={() => {
+                    setShowDeleteConfirmModal(false);
+                    setUserToDelete(null);
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Modal: Reasignación de Lead */}
         {showReassignModal && leadToReassign && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -2434,7 +3347,7 @@ export default function CRM() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">
-                    Seleccionar nuevo vendedor
+                    Seleccionar nuevo vendedor (solo vendedores activos)
                   </label>
                   <div className="space-y-2 max-h-64 overflow-y-auto">
                     {/* Opción para no asignar */}
@@ -2466,7 +3379,7 @@ export default function CRM() {
                       </div>
                     </div>
 
-                    {/* Lista de vendedores disponibles */}
+                    {/* Lista de vendedores disponibles - SOLO ACTIVOS */}
                     {getAvailableVendorsForReassign().map((vendedor: any) => {
                       const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
                       const vendedorVentas = vendedorLeads.filter(
@@ -2508,6 +3421,9 @@ export default function CRM() {
                                 <p className="text-xs text-gray-400">
                                   Equipo de {userById.get(vendedor.reportsTo)?.name || "—"}
                                 </p>
+                                <p className="text-xs text-green-600 font-medium">
+                                  ✓ Activo - Recibe leads nuevos
+                                </p>
                               </div>
                             </div>
                             {selectedVendorForReassign === vendedor.id && (
@@ -2524,7 +3440,7 @@ export default function CRM() {
                   {getAvailableVendorsForReassign().length === 0 && (
                     <div className="text-center py-8 bg-gray-50 rounded-lg border">
                       <p className="text-gray-500">
-                        No hay vendedores disponibles en tu scope para reasignar
+                        No hay vendedores activos disponibles en tu scope para reasignar
                       </p>
                     </div>
                   )}
@@ -2715,401 +3631,345 @@ export default function CRM() {
           </div>
         )}
 
-        {/* Modal: Nuevo Lead */}
+        {/* MODIFICADO: Modal: Nuevo Lead - Con restricciones por rol */}
         {showNewLeadModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-xl p-6 w-full max-w-3xl">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">Nuevo Lead</h3>
-                <button onClick={() => setShowNewLeadModal(false)}>
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nombre
-                  </label>
-                  <input
-                    type="text"
-                    id="new-nombre"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Teléfono
-                  </label>
-                  <input
-                    type="text"
-                    id="new-telefono"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Modelo
-                  </label>
-                  <input
-                    type="text"
-                    id="new-modelo"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Forma de Pago
-                  </label>
-                  <select
-                    id="new-formaPago"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    <option value="Contado">Contado</option>
-                    <option value="Financiado">Financiado</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fuente del Lead
-                  </label>
-                  <select
-                    id="new-fuente"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    defaultValue="sitio_web"
-                  >
-                    {Object.entries(fuentes).map(([key, fuente]) => (
-                      <option key={key} value={key}>
-                        {fuente.icon} {fuente.label}
-                      </option>
-                    ))}
-                    {/* Opciones específicas para bots */}
-                    <option value="whatsapp_bot_cm1">💬 Bot CM 1 (Equipo Sauer)</option>
-                    <option value="whatsapp_bot_cm2">💬 Bot CM 2 (Equipo Daniel)</option>
-                    <option value="whatsapp_100">💬 Bot 100 (Distribución general)</option>
-                  </select>
-                  <div className="mt-2 text-xs space-y-1">
-                    {(() => {
-                      const robertoManager = users.find(
-                        (u: any) =>
-                          u.role === "gerente" &&
-                          u.name.toLowerCase().includes("roberto")
-                      );
-                      const danielManager = users.find(
-                        (u: any) =>
-                          u.role === "gerente" &&
-                          u.name.toLowerCase().includes("daniel")
-                      );
+              <div className="flex justify
 
-                      return (
-                        <>
-                          {robertoManager && (
-                            <div className="text-green-600">
-                              💬 Bot CM 1 → Equipo {robertoManager.name} automáticamente
-                            </div>
-                          )}
-                          {danielManager && (
-                            <div className="text-green-600">
-                              💬 Bot CM 2 → Equipo {danielManager.name} automáticamente
-                            </div>
-                          )}
-                          <div className="text-green-600">
-                            💬 Bot 100 → Distribución general
-                          </div>
-                          <div className="text-gray-500">
-                            Otras fuentes → Asignación manual o scope actual
-                          </div>
-                        </>
-                      );
-                    })()}
+        {/* Leads */}
+        {activeSection === "leads" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-bold text-gray-800">Gestión de Leads</h2>
+              {/* MODIFICADO: Mostrar botón solo si puede crear leads */}
+              {canCreateLeads() && (
+                <button
+                  onClick={() => setShowNewLeadModal(true)}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <Plus size={20} />
+                  <span>Nuevo Lead</span>
+                </button>
+              )}
+            </div>
+
+            {/* Barra de búsqueda y filtros */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="flex flex-col lg:flex-row gap-4">
+                {/* Búsqueda de texto */}
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                    <input
+                      type="text"
+                      placeholder="Buscar por cliente, teléfono, modelo, vendedor, observaciones..."
+                      value={searchText}
+                      onChange={(e) => setSearchText(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
                   </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Info Usado
-                  </label>
-                  <input
-                    type="text"
-                    id="new-infoUsado"
-                    placeholder="Marca Modelo Año"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fecha
-                  </label>
-                  <input
-                    type="date"
-                    id="new-fecha"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div className="col-span-2 flex items-center space-x-3">
-                  <input
-                    type="checkbox"
-                    id="new-entrega"
-                    className="rounded border-gray-300 text-blue-600"
-                  />
-                  <span className="text-sm text-gray-700">
-                    Entrega de vehículo usado
-                  </span>
-                </div>
-                <div className="col-span-2 flex items-center space-x-3">
-                  <input
-                    type="checkbox"
-                    id="new-autoassign"
-                    defaultChecked
-                    className="rounded border-gray-300 text-blue-600"
-                  />
-                  <span className="text-sm text-gray-700">
-                    Asignación automática y equitativa a vendedores activos
-                  </span>
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Asignar a vendedor (opcional)
-                  </label>
-                  <select
-                    id="new-vendedor"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+
+                {/* Botón para mostrar/ocultar filtros */}
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={() => setShowFilters(!showFilters)}
+                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg border transition-colors ${
+                      showFilters || getActiveFiltersCount() > 0
+                        ? "bg-blue-100 border-blue-300 text-blue-700"
+                        : "bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100"
+                    }`}
                   >
-                    <option value="">Sin asignar</option>
-                    {getVisibleUsers()
-                      .filter((u: any) => u.role === "vendedor")
-                      .map((u: any) => (
-                        <option key={u.id} value={u.id}>
-                          {u.name} {u.active ? "" : "(inactivo)"}
-                        </option>
-                      ))}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Si está tildado "Asignación automática", se ignorará esta selección.
-                  </p>
-                </div>
-              </div>
+                    <Filter size={20} />
+                    <span>Filtros</span>
+                    {getActiveFiltersCount() > 0 && (
+                      <span className="bg-blue-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
+                        {getActiveFiltersCount()}
+                      </span>
+                    )}
+                  </button>
 
-              <div className="flex space-x-3 pt-6">
-                <button
-                  onClick={handleCreateLead}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Crear Lead
-                </button>
-                <button
-                  onClick={() => setShowNewLeadModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Nuevo Evento */}
-        {showNewEventModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-lg">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">Nuevo Evento</h3>
-                <button onClick={() => setShowNewEventModal(false)}>
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Título
-                  </label>
-                  <input
-                    type="text"
-                    id="ev-title"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fecha
-                  </label>
-                  <input
-                    type="date"
-                    id="ev-date"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Hora
-                  </label>
-                  <input
-                    type="time"
-                    id="ev-time"
-                    defaultValue="09:00"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Usuario
-                  </label>
-                  <select
-                    id="ev-user"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    <option value={currentUser?.id}>{currentUser?.name} (Yo)</option>
-                    {visibleUsers
-                      .filter((u: any) => u.id !== currentUser?.id)
-                      .map((u: any) => (
-                        <option key={u.id} value={u.id}>
-                          {u.name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex space-x-3 pt-6">
-                <button
-                  onClick={createEvent}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Crear Evento
-                </button>
-                <button
-                  onClick={() => setShowNewEventModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Usuario */}
-        {showUserModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-lg">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">
-                  {editingUser ? "Editar Usuario" : "Nuevo Usuario"}
-                </h3>
-                <button onClick={() => setShowUserModal(false)}>
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nombre
-                  </label>
-                  <input
-                    type="text"
-                    id="u-name"
-                    defaultValue={editingUser?.name || ""}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    id="u-email"
-                    defaultValue={editingUser?.email || ""}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Contraseña {editingUser && "(dejar vacío para mantener)"}
-                  </label>
-                  <input
-                    type="password"
-                    id="u-pass"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    placeholder={
-                      editingUser ? "Nueva contraseña (opcional)" : "Contraseña"
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Rol
-                  </label>
-                  <select
-                    value={modalRole}
-                    onChange={(e) => {
-                      const newRole = e.target.value as typeof modalRole;
-                      setModalRole(newRole);
-                      const validManagers = validManagersByRole(newRole);
-                      setModalReportsTo(validManagers[0]?.id ?? null);
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    {validRolesByUser(currentUser).map((role: string) => (
-                      <option key={role} value={role}>
-                        {roles[role] || role}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {modalRole !== "owner" && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Reporta a
-                    </label>
-                    <select
-                      value={modalReportsTo || ""}
-                      onChange={(e) =>
-                        setModalReportsTo(
-                          e.target.value ? parseInt(e.target.value, 10) : null
-                        )
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  {getActiveFiltersCount() > 0 && (
+                    <button
+                      onClick={clearFilters}
+                      className="flex items-center space-x-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
                     >
-                      {validManagersByRole(modalRole).map((manager: any) => (
-                        <option key={manager.id} value={manager.id}>
-                          {manager.name} ({roles[manager.role] || manager.role})
-                        </option>
-                      ))}
-                    </select>
+                      <X size={16} />
+                      <span>Limpiar</span>
+                    </button>
+                  )}
+
+                  <div className="text-sm text-gray-600">
+                    <span className="font-medium">{getFilteredAndSearchedLeads().length}</span> leads encontrados
                   </div>
-                )}
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="u-active"
-                    defaultChecked={editingUser?.active !== false}
-                    className="rounded border-gray-300 text-blue-600"
-                  />
-                  <label htmlFor="u-active" className="text-sm text-gray-700">
-                    Usuario activo
-                  </label>
                 </div>
               </div>
 
-              <div className="flex space-x-3 pt-6">
-                <button
-                  onClick={saveUser}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  {editingUser ? "Actualizar" : "Crear"} Usuario
-                </button>
-                <button
-                  onClick={() => setShowUserModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
+              {/* Panel de filtros expandible */}
+              {showFilters && (
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Filtro por vendedor */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <User size={16} className="inline mr-1" />
+                        Vendedor
+                      </label>
+                      <select
+                        value={selectedVendedorFilter || ""}
+                        onChange={(e) => setSelectedVendedorFilter(e.target.value ? parseInt(e.target.value, 10) : null)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Todos los vendedores</option>
+                        <option value="0">Sin asignar</option>
+                        {getVisibleUsers()
+                          .filter((u: any) => u.role === "vendedor")
+                          .map((vendedor: any) => {
+                            const leadsCount = leads.filter(l => l.vendedor === vendedor.id).length;
+                            return (
+                              <option key={vendedor.id} value={vendedor.id}>
+                                {vendedor.name} ({leadsCount} leads) {!vendedor.active ? " - Inactivo" : ""}
+                              </option>
+                            );
+                          })}
+                      </select>
+                    </div>
+
+                    {/* Filtro por estado */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Estado
+                      </label>
+                      <select
+                        value={selectedEstadoFilter}
+                        onChange={(e) => setSelectedEstadoFilter(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Todos los estados</option>
+                        {Object.entries(estados).map(([key, estado]) => (
+                          <option key={key} value={key}>
+                            {estado.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Filtro por fuente */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Fuente
+                      </label>
+                      <select
+                        value={selectedFuenteFilter}
+                        onChange={(e) => setSelectedFuenteFilter(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Todas las fuentes</option>
+                        {Object.entries(fuentes).map(([key, fuente]) => (
+                          <option key={key} value={key}>
+                            {fuente.icon} {fuente.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Tabla de leads con búsqueda y filtros aplicados */}
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Cliente
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Contacto
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Vehículo
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Estado
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Fuente
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Vendedor
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Fecha
+                      </th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {getFilteredAndSearchedLeads().length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                          {searchText.trim() || selectedVendedorFilter || selectedEstadoFilter || selectedFuenteFilter
+                            ? "No se encontraron leads que coincidan con los filtros aplicados"
+                            : "No hay leads para mostrar"}
+                        </td>
+                      </tr>
+                    ) : (
+                      getFilteredAndSearchedLeads().map((lead) => {
+                        const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
+                        const canReassign =
+                          canManageUsers() ||
+                          (currentUser?.role === "supervisor" &&
+                            lead.vendedor &&
+                            getVisibleUsers().some((u: any) => u.id === lead.vendedor));
+
+                        return (
+                          <tr key={lead.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-4">
+                              <div className="font-medium text-gray-900">{lead.nombre}</div>
+                              {/* NUEVO: Mostrar quién creó el lead */}
+                              {lead.created_by && (
+                                <div className="text-xs text-gray-500">
+                                  Creado por: {userById.get(lead.created_by)?.name || 'Usuario eliminado'}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center space-x-1">
+                                <Phone size={12} className="text-gray-400" />
+                                <span className="text-gray-700">{lead.telefono}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <div>
+                                <div className="font-medium text-gray-900">{lead.modelo}</div>
+                                <div className="text-xs text-gray-500">{lead.formaPago}</div>
+                                {lead.infoUsado && (
+                                  <div className="text-xs text-orange-600">
+                                    Usado: {lead.infoUsado}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <select
+                                value={lead.estado}
+                                onChange={(e) =>
+                                  handleUpdateLeadStatus(lead.id, e.target.value)
+                                }
+                                className={`text-xs font-medium rounded-full px-2 py-1 border-0 text-white ${estados[lead.estado].color}`}
+                              >
+                                {Object.entries(estados).map(([key, estado]) => (
+                                  <option key={key} value={key} className="text-black">
+                                    {estado.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center space-x-1">
+                                <span className="text-sm">
+                                  {fuentes[lead.fuente as string]?.icon || "❓"}
+                                </span>
+                                <span className="text-xs text-gray-600">
+                                  {fuentes[lead.fuente as string]?.label || String(lead.fuente)}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4 text-gray-700">
+                              <div>
+                                {vendedor?.name || "Sin asignar"}
+                                {vendedor && !vendedor.active && (
+                                  <div className="text-xs text-red-600">
+                                    (Desactivado)
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-4 text-gray-500 text-xs">
+                              {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
+                            </td>
+                              <td className="px-4 py-4 text-center">
+                                <div className="flex items-center justify-center space-x-1">
+                                  {/* NUEVO: Botón de WhatsApp */}
+                                  <button
+                                    onClick={() => {
+                                      const phoneNumber = lead.telefono.replace(/\D/g, ''); // Quitar caracteres no numéricos
+                                      const message = encodeURIComponent(
+                                        `Hola ${lead.nombre}, me contacto desde Alluma por su consulta sobre el ${lead.modelo}. ¿Cómo está?`
+                                      );
+                                      const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
+                                      window.open(whatsappUrl, '_blank');
+                                    }}
+                                    className="px-2 py-1 text-xs rounded bg-green-100 text-green-700 hover:bg-green-200 flex items-center space-x-1"
+                                    title="Chatear por WhatsApp"
+                                  >
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.89 3.587"/>
+                                    </svg>
+                                  </button>
+                                  
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingLeadObservaciones(lead);
+                                      setShowObservacionesModal(true);
+                                    }}
+                                    className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                    title="Ver/Editar observaciones"
+                                  >
+                                    {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
+                                  </button>
+                                  {canReassign && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openReassignModal(lead);
+                                      }}
+                                      className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
+                                      title="Reasignar lead"
+                                    >
+                                      Reasignar
+                                    </button>
+                                  )}
+                                  {/* NUEVO: Botón de eliminar solo para owner y director */}
+                                  {canDeleteLeads() && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openDeleteLeadConfirm(lead);
+                                      }}
+                                      className="px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200"
+                                      title="Eliminar lead permanentemente"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setViewingLeadHistorial(lead);
+                                      setShowHistorialModal(true);
+                                    }}
+                                    className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                    title="Ver historial"
+                                  >
+                                    Historial
+                                  </button>
+                                </div>
+                              </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
         )}
-      </div>
-    </div>
-  );
-}
