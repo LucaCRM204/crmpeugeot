@@ -29,7 +29,6 @@ import {
   listLeads,
   createLead as apiCreateLead,
   updateLead as apiUpdateLead,
-  deleteLead as apiDeleteLead,
 } from "./services/leads";
 
 // ===== Utilidades de jerarquía =====
@@ -93,7 +92,7 @@ const fuentes: Record<
   google: { label: "Google Ads", color: "bg-red-500", icon: "🎯" },
   instagram: { label: "Instagram", color: "bg-pink-500", icon: "📸" },
   otro: { label: "Otro", color: "bg-gray-400", icon: "❓" },
-  creado_por: { label: "Creado por", color: "bg-teal-500", icon: "👤" },
+  creado_por: { label: "Creado por", color: "bg-teal-500", icon: "👤" }, // NUEVA FUENTE
 };
 
 // Configuración de bots
@@ -122,7 +121,7 @@ type LeadRow = {
     timestamp: string;
     usuario: string;
   }>;
-  created_by?: number;
+  created_by?: number; // NUEVO: ID del usuario que creó el lead
 };
 
 type Alert = {
@@ -285,23 +284,23 @@ export default function CRM() {
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState<any>(null);
 
-  // Estados para confirmación de eliminación de leads
-  const [showDeleteLeadConfirmModal, setShowDeleteLeadConfirmModal] = useState(false);
-  const [leadToDelete, setLeadToDelete] = useState<LeadRow | null>(null);
-
   // ===== Login contra backend =====
   const handleLogin = async (email: string, password: string) => {
     try {
+      // MODIFICADO: Enviar parámetro para permitir login de usuarios desactivados
       const r = await api.post("/auth/login", { 
         email, 
         password, 
-        allowInactiveUsers: true
+        allowInactiveUsers: true // Permitir acceso a usuarios desactivados
       });
 
+      // Verificar respuesta exitosa
       if (r.data?.ok && r.data?.token) {
+        // Guardar token
         localStorage.setItem("token", r.data.token);
         localStorage.setItem("user", JSON.stringify(r.data.user));
 
+        // Configurar axios para futuras peticiones
         api.defaults.headers.common["Authorization"] = `Bearer ${r.data.token}`;
 
         const u =
@@ -311,13 +310,14 @@ export default function CRM() {
             email,
             role: r.data?.user?.role || "owner",
             reportsTo: null,
-            active: r.data?.user?.active ?? true,
+            active: r.data?.user?.active ?? true, // IMPORTANTE: Mantener el estado real del usuario
           };
 
         setCurrentUser(u);
         setIsAuthenticated(true);
         setLoginError("");
 
+        // Cargar datos
         const [uu, ll] = await Promise.all([listUsers(), listLeads()]);
         const mappedLeads: LeadRow[] = (ll || []).map((L: any) => ({
           id: L.id,
@@ -333,7 +333,7 @@ export default function CRM() {
           notas: L.notas || "",
           fuente: (L.fuente || "otro") as LeadRow["fuente"],
           historial: L.historial || [],
-          created_by: L.created_by || null,
+          created_by: L.created_by || null, // NUEVO
         }));
         setUsers(uu || []);
         setLeads(mappedLeads);
@@ -349,31 +349,23 @@ export default function CRM() {
   // ===== Acceso por rol =====
   const getAccessibleUserIds = (user: any) => {
     if (!user) return [] as number[];
-    if (["owner", "director", "dueño"].includes(user.role))
+    if (["owner", "director"].includes(user.role))
       return users.map((u: any) => u.id);
     const ids = [user.id, ...getDescendantUserIds(user.id, childrenIndex)];
     return ids;
   };
   
+  // MODIFICADO: Función para verificar quién puede crear usuarios
   const canCreateUsers = () =>
     currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
 
   const canManageUsers = () =>
-    currentUser && ["owner", "director", "gerente", "dueño"].includes(currentUser.role);
-  const isOwner = () => currentUser?.role === "owner" || currentUser?.role === "dueño";
+    currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
+  const isOwner = () => currentUser?.role === "owner";
 
+  // NUEVO: Función para verificar quién puede crear leads
   const canCreateLeads = () =>
     currentUser && ["owner", "director", "gerente", "supervisor", "vendedor"].includes(currentUser.role);
-
-  const canDeleteLeads = () => {
-    const canDelete = currentUser && ["owner", "director", "dueño"].includes(currentUser.role);
-    console.log("Debug canDeleteLeads:", {
-      currentUser: currentUser?.name,
-      role: currentUser?.role,
-      canDelete
-    });
-    return canDelete;
-  };
 
   // ===== Funciones de filtro por equipo =====
   const getTeamManagerById = (teamId: string) => {
@@ -398,54 +390,74 @@ export default function CRM() {
     if (
       teamId &&
       teamId !== "todos" &&
-      ["owner", "director", "dueño"].includes(currentUser.role)
+      ["owner", "director"].includes(currentUser.role)
     ) {
+      // Filtrar por equipo específico usando ID
       const teamUserIds = getTeamUserIds(teamId);
       return leads.filter((l) =>
         l.vendedor ? teamUserIds.includes(l.vendedor) : false
       );
     }
 
+    // Filtro normal por scope del usuario
     const visibleUserIds = getAccessibleUserIds(currentUser);
     return leads.filter((l) =>
       l.vendedor ? visibleUserIds.includes(l.vendedor) : true
     );
   };
 
+  // ===== NUEVO: Función para obtener vendedores disponibles según el rol del usuario para asignación =====
   const getAvailableVendorsForAssignment = () => {
     if (!currentUser) return [];
 
+    // Obtener usuarios visibles según el rol
     const visibleUserIds = getAccessibleUserIds(currentUser);
     
     return users.filter((u: any) => {
+      // Solo vendedores activos
       if (u.role !== "vendedor" || !u.active) return false;
+      
+      // Verificar que esté en el scope del usuario actual
       if (!visibleUserIds.includes(u.id)) return false;
+      
       return true;
     });
   };
 
+  // ===== Nueva función para filtrar usuarios visibles según rol =====
   const getVisibleUsers = () => {
     if (!currentUser) return [];
 
     return users.filter((u: any) => {
+      // Owner ve a todos
       if (currentUser.role === "owner") return true;
 
+      // Director ve a todos menos al owner
       if (currentUser.role === "director") return u.role !== "owner";
 
+      // Gerente solo ve a su equipo
       if (currentUser.role === "gerente") {
+        // Ve a sí mismo
         if (u.id === currentUser.id) return true;
 
+        // Ve a sus supervisores directos
         if (u.reportsTo === currentUser.id) return true;
 
+        // Ve a los vendedores que reportan a sus supervisores
         const userSupervisor = userById.get(u.reportsTo);
         return userSupervisor && userSupervisor.reportsTo === currentUser.id;
       }
 
+      // Supervisor solo ve a su equipo directo
       if (currentUser.role === "supervisor") {
+        // Ve a sí mismo
         if (u.id === currentUser.id) return true;
+
+        // Ve a sus vendedores directos
         return u.reportsTo === currentUser.id;
       }
 
+      // Vendedor solo se ve a sí mismo
       if (currentUser.role === "vendedor") {
         return u.id === currentUser.id;
       }
@@ -454,26 +466,32 @@ export default function CRM() {
     });
   };
 
+  // ===== Función para obtener leads filtrados y buscados =====
   const getFilteredAndSearchedLeads = () => {
     if (!currentUser) return [] as LeadRow[];
 
+    // Comenzar con leads base según scope
     const visibleUserIds = getAccessibleUserIds(currentUser);
     let filteredLeads = leads.filter((l) =>
       l.vendedor ? visibleUserIds.includes(l.vendedor) : true
     );
 
+    // Aplicar filtro por vendedor específico
     if (selectedVendedorFilter) {
       filteredLeads = filteredLeads.filter((l) => l.vendedor === selectedVendedorFilter);
     }
 
+    // Aplicar filtro por estado
     if (selectedEstadoFilter) {
       filteredLeads = filteredLeads.filter((l) => l.estado === selectedEstadoFilter);
     }
 
+    // Aplicar filtro por fuente
     if (selectedFuenteFilter) {
       filteredLeads = filteredLeads.filter((l) => l.fuente === selectedFuenteFilter);
     }
 
+    // Aplicar búsqueda de texto
     if (searchText.trim()) {
       const searchLower = searchText.toLowerCase().trim();
       filteredLeads = filteredLeads.filter((l) => {
@@ -495,6 +513,7 @@ export default function CRM() {
     return filteredLeads;
   };
 
+  // ===== Función para limpiar filtros =====
   const clearFilters = () => {
     setSearchText("");
     setSelectedVendedorFilter(null);
@@ -502,6 +521,7 @@ export default function CRM() {
     setSelectedFuenteFilter("");
   };
 
+  // ===== Función para contar leads activos por filtros =====
   const getActiveFiltersCount = () => {
     let count = 0;
     if (searchText.trim()) count++;
@@ -511,19 +531,25 @@ export default function CRM() {
     return count;
   };
 
+  // ===== Función para obtener vendedores disponibles según el rol del usuario =====
   const getAvailableVendorsForReassign = () => {
     if (!currentUser) return [];
 
+    // Obtener usuarios visibles según el rol
     const visibleUsers = getVisibleUsers();
+
+    // Filtrar solo vendedores activos
     return visibleUsers.filter((u: any) => u.role === "vendedor" && u.active);
   };
 
+  // ===== Función para abrir modal de reasignación =====
   const openReassignModal = (lead: LeadRow) => {
     setLeadToReassign(lead);
     setSelectedVendorForReassign(lead.vendedor);
     setShowReassignModal(true);
   };
 
+  // ===== Función para reasignar lead =====
   const handleReassignLead = async () => {
     if (!leadToReassign) return;
 
@@ -533,6 +559,7 @@ export default function CRM() {
         { vendedor: selectedVendorForReassign } as any
       );
 
+      // Actualizar estado local
       setLeads((prev) =>
         prev.map((l) =>
           l.id === leadToReassign.id
@@ -541,6 +568,7 @@ export default function CRM() {
         )
       );
 
+      // Enviar notificación al nuevo vendedor
       if (selectedVendorForReassign) {
         pushAlert(
           selectedVendorForReassign,
@@ -549,6 +577,7 @@ export default function CRM() {
         );
       }
 
+      // Agregar entrada al historial
       addHistorialEntry(
         leadToReassign.id,
         `Reasignado a ${
@@ -566,29 +595,10 @@ export default function CRM() {
     }
   };
 
-  const openDeleteLeadConfirm = (lead: LeadRow) => {
-    setLeadToDelete(lead);
-    setShowDeleteLeadConfirmModal(true);
-  };
-
-  const confirmDeleteLead = async () => {
-    if (!leadToDelete) return;
-
-    try {
-      await apiDeleteLead(leadToDelete.id);
-      setLeads((prev) => prev.filter((l) => l.id !== leadToDelete.id));
-      setShowDeleteLeadConfirmModal(false);
-      setLeadToDelete(null);
-      alert("Lead eliminado exitosamente");
-    } catch (e: any) {
-      console.error("No pude eliminar el lead", e);
-      alert(`Error al eliminar el lead: ${e?.response?.data?.error || e.message}`);
-    }
-  };
-
-  // ===== Round-robin con soporte para bots específicos =====
+  // ===== Round-robin con soporte para bots específicos - MODIFICADO =====
   const [rrIndex, setRrIndex] = useState(0);
 
+  // MODIFICADO: Solo obtener vendedores ACTIVOS
   const getActiveVendorIdsInScope = (scopeUser?: any) => {
     if (!scopeUser) return [] as number[];
     const scope = getAccessibleUserIds(scopeUser);
@@ -599,7 +609,9 @@ export default function CRM() {
       .map((u: any) => u.id);
   };
 
+  // MODIFICADO: Solo obtener vendedores ACTIVOS del equipo
   const getVendorsByTeam = (teamName: string) => {
+    // Buscar el gerente del equipo por nombre
     const manager = users.find(
       (u: any) =>
         u.role === "gerente" &&
@@ -608,6 +620,7 @@ export default function CRM() {
 
     if (!manager) return [];
 
+    // Obtener todos los descendientes del gerente
     const descendants = getDescendantUserIds(manager.id, childrenIndex);
     return users
       .filter(
@@ -623,11 +636,14 @@ export default function CRM() {
     if (botSource && botConfig[botSource]) {
       const botConf = botConfig[botSource];
       if (botConf.targetTeam) {
+        // Bot específico para un equipo - SOLO ACTIVOS
         pool = getVendorsByTeam(botConf.targetTeam);
       } else {
+        // Bot 100 - distribución general - SOLO ACTIVOS
         pool = getActiveVendorIdsInScope(scopeUser || currentUser);
       }
     } else {
+      // Asignación manual normal - SOLO ACTIVOS
       pool = getActiveVendorIdsInScope(scopeUser || currentUser);
     }
 
@@ -718,16 +734,21 @@ export default function CRM() {
       .sort((a, b) => b.ventas - a.ventas);
   };
 
+  // ===== Nueva función para obtener ranking del equipo gerencial =====
   const getRankingByManagerialTeam = () => {
     if (!currentUser) return [];
     
+    // Si es vendedor, buscar su gerente
     if (currentUser.role === "vendedor") {
+      // Encontrar su supervisor
       const supervisor = userById.get(currentUser.reportsTo);
-      if (!supervisor) return getRankingInScope();
+      if (!supervisor) return getRankingInScope(); // fallback
       
+      // Encontrar el gerente del supervisor
       const gerente = userById.get(supervisor.reportsTo);
-      if (!gerente) return getRankingInScope();
+      if (!gerente) return getRankingInScope(); // fallback
       
+      // Obtener todos los vendedores bajo este gerente
       const teamUserIds = getDescendantUserIds(gerente.id, childrenIndex);
       const vendedores = users.filter(
         (u: any) => u.role === "vendedor" && teamUserIds.includes(u.id)
@@ -750,6 +771,7 @@ export default function CRM() {
         .sort((a, b) => b.ventas - a.ventas);
     }
     
+    // Para otros roles, usar el ranking normal en scope
     return getRankingInScope();
   };
 
@@ -833,7 +855,7 @@ export default function CRM() {
     notas: L.notas || "",
     fuente: (L.fuente || "otro") as LeadRow["fuente"],
     historial: L.historial || [],
-    created_by: L.created_by || null,
+    created_by: L.created_by || null, // NUEVO
   });
 
   const addHistorialEntry = (leadId: number, estado: string) => {
@@ -857,6 +879,7 @@ export default function CRM() {
     );
   };
 
+  // MODIFICADO: Función para actualizar estado de lead desde dashboard
   const handleUpdateLeadStatus = async (leadId: number, newStatus: string) => {
     try {
       const updated = await apiUpdateLead(leadId, { estado: newStatus } as any);
@@ -864,6 +887,7 @@ export default function CRM() {
         prev.map((l) => (l.id === leadId ? { ...l, ...mapLeadFromApi(updated) } : l))
       );
 
+      // Agregar entrada al historial
       addHistorialEntry(leadId, newStatus);
     } catch (e) {
       console.error("No pude actualizar estado del lead", e);
@@ -895,6 +919,7 @@ export default function CRM() {
     }
   };
 
+  // MODIFICADO: Función para crear lead con "creado por" y asignación inteligente
   const handleCreateLead = async () => {
     try {
       console.log("Iniciando creación de lead...");
@@ -924,6 +949,7 @@ export default function CRM() {
 
       console.log("Datos del formulario:", { nombre, telefono, modelo, formaPago, infoUsado, entrega, fecha, autoAssign, vendedorSelVal });
 
+      // Validaciones básicas
       if (!nombre || !telefono || !modelo) {
         alert("Por favor completa los campos obligatorios: Nombre, Teléfono y Modelo");
         return;
@@ -934,15 +960,19 @@ export default function CRM() {
         ? null
         : vendedorIdSelRaw;
 
+      // MODIFICADO: Usar fuente "creado_por" para leads creados manualmente
       const fuente = "creado_por";
 
+      // Asignación de vendedor
       let vendedorId: number | null = null;
       if (autoAssign) {
         console.log("Asignación automática activada");
+        // MODIFICADO: Solo asignar automáticamente entre vendedores del scope del usuario actual
         vendedorId = pickNextVendorId(currentUser) ?? null;
         console.log("Vendedor asignado automáticamente:", vendedorId);
       } else {
         console.log("Asignación manual");
+        // Verificar que el vendedor seleccionado esté activo y en el scope
         if (vendedorIdSel) {
           const selectedVendor = users.find(u => u.id === vendedorIdSel);
           const availableVendors = getAvailableVendorsForAssignment();
@@ -961,14 +991,17 @@ export default function CRM() {
         console.log("Vendedor asignado manualmente:", vendedorId);
       }
 
-      let equipo = 'roberto';
+      // Determinar equipo basado en el usuario actual o el vendedor asignado
+      let equipo = 'roberto'; // Default
       
       if (vendedorId) {
+        // Si hay vendedor asignado, determinar su equipo
         const vendedorAsignado = users.find(u => u.id === vendedorId);
         if (vendedorAsignado) {
-          let currentUserForTeam = vendedorAsignado;
-          while (currentUserForTeam && currentUserForTeam.reportsTo) {
-            const manager = userById.get(currentUserForTeam.reportsTo);
+          // Buscar el gerente del vendedor
+          let currentUser = vendedorAsignado;
+          while (currentUser && currentUser.reportsTo) {
+            const manager = userById.get(currentUser.reportsTo);
             if (!manager) break;
             
             if (manager.role === 'gerente') {
@@ -979,10 +1012,11 @@ export default function CRM() {
               }
               break;
             }
-            currentUserForTeam = manager;
+            currentUser = manager;
           }
         }
       } else {
+        // Si no hay vendedor, usar el equipo del usuario que está creando
         let currentUserForTeam = currentUser;
         while (currentUserForTeam && currentUserForTeam.reportsTo) {
           const manager = userById.get(currentUserForTeam.reportsTo);
@@ -1009,8 +1043,8 @@ export default function CRM() {
         estado: "nuevo",
         fuente,
         fecha: fecha || new Date().toISOString().split('T')[0],
-        vendedor: vendedorId,
-        equipo: equipo,
+        vendedor: vendedorId, // El backend convertirá esto a assigned_to
+        equipo: equipo, // NUEVO: Campo requerido por el backend
       };
 
       console.log("Datos a enviar al API:", leadData);
@@ -1032,6 +1066,7 @@ export default function CRM() {
       setLeads((prev) => [mapped, ...prev]);
       setShowNewLeadModal(false);
 
+      // Limpiar formulario
       (document.getElementById("new-nombre") as HTMLInputElement).value = "";
       (document.getElementById("new-telefono") as HTMLInputElement).value = "";
       (document.getElementById("new-modelo") as HTMLInputElement).value = "";
@@ -1141,7 +1176,7 @@ export default function CRM() {
     setEditingUser(u);
     const roleCurrent = u.role as typeof modalRole;
     const availableRoles: string[] =
-      currentUser.role === "owner" && u.id === currentUser?.id
+      currentUser.role === "owner" && u.id === currentUser.id
         ? ["owner", ...validRolesByUser(currentUser)]
         : validRolesByUser(currentUser);
     const roleToSet = availableRoles.includes(roleCurrent)
@@ -1155,6 +1190,7 @@ export default function CRM() {
     setShowUserModal(true);
   };
 
+  // MODIFICADO: Asegurar que la contraseña se envíe correctamente al backend
   const saveUser = async () => {
     const name = (document.getElementById("u-name") as HTMLInputElement).value.trim();
     const email = (document.getElementById("u-email") as HTMLInputElement).value.trim();
@@ -1166,6 +1202,7 @@ export default function CRM() {
       return;
     }
     
+    // NUEVO: Validar contraseña para usuarios nuevos
     if (!editingUser && !password) {
       alert("La contraseña es obligatoria para usuarios nuevos");
       return;
@@ -1183,6 +1220,7 @@ export default function CRM() {
           active: active ? 1 : 0,
         };
         
+        // Solo incluir password si se proporcionó
         if (password && password.trim()) {
           updateData.password = password.trim();
         }
@@ -1193,7 +1231,7 @@ export default function CRM() {
         const createData = {
           name,
           email,
-          password: password.trim(),
+          password: password.trim(), // MODIFICADO: Asegurar que se envíe la contraseña
           role: modalRole,
           reportsTo: finalReportsTo,
           active: active ? 1 : 0,
@@ -1209,6 +1247,7 @@ export default function CRM() {
     }
   };
 
+  // ===== Función para abrir modal de confirmación de eliminación =====
   const openDeleteConfirm = (user: any) => {
     if (user.role === "owner") {
       alert("No podés eliminar al Dueño.");
@@ -1231,6 +1270,7 @@ export default function CRM() {
     setShowDeleteConfirmModal(true);
   };
 
+  // ===== Función para confirmar eliminación =====
   const confirmDeleteUser = async () => {
     if (!userToDelete) return;
 
@@ -1393,7 +1433,7 @@ export default function CRM() {
             <div className="flex items-center justify-between">
               <h2 className="text-3xl font-bold text-gray-800">Dashboard</h2>
               <div className="flex items-center space-x-3">
-                {["owner", "director", "dueño"].includes(currentUser?.role) && (
+                {["owner", "director"].includes(currentUser?.role) && (
                   <select
                     value={selectedTeam}
                     onChange={(e) => setSelectedTeam(e.target.value)}
@@ -1409,6 +1449,7 @@ export default function CRM() {
                       ))}
                   </select>
                 )}
+                {/* NUEVO: Botón para crear lead si tiene permisos */}
                 {canCreateLeads() && (
                   <button
                     onClick={() => setShowNewLeadModal(true)}
@@ -1421,6 +1462,7 @@ export default function CRM() {
               </div>
             </div>
 
+            {/* Alerta si el usuario está desactivado */}
             {!currentUser?.active && (
               <div className="bg-orange-50 border-l-4 border-orange-400 p-4">
                 <div className="flex">
@@ -1440,7 +1482,7 @@ export default function CRM() {
             {/* Estadísticas principales */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {(() => {
-                const teamFilter = ["owner", "director", "dueño"].includes(currentUser?.role)
+                const teamFilter = ["owner", "director"].includes(currentUser?.role)
                   ? selectedTeam
                   : undefined;
                 const stats = getDashboardStats(teamFilter);
@@ -1492,7 +1534,7 @@ export default function CRM() {
               })()}
             </div>
 
-            {/* Estados de Leads con posibilidad de editar estados */}
+            {/* MODIFICADO: Estados de Leads con posibilidad de editar estados */}
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-semibold text-gray-800">Estados de Leads</h3>
@@ -1555,6 +1597,7 @@ export default function CRM() {
                           <div className="text-2xl font-bold">{count}</div>
                           <div className="text-xs opacity-75">{percentage}%</div>
                           
+                          {/* Botón de descarga solo para owner y director */}
                           {["owner", "director"].includes(currentUser?.role) && count > 0 && (
                             <button
                               onClick={(e) => {
@@ -1583,7 +1626,7 @@ export default function CRM() {
                 })}
               </div>
 
-              {/* Lista filtrada con edición de estados y botón de eliminar */}
+              {/* MODIFICADO: Lista filtrada con edición de estados */}
               {selectedEstado && (
                 <div className="mt-6 border-t pt-6">
                   <h4 className="text-lg font-semibold text-gray-800 mb-4">
@@ -1687,6 +1730,7 @@ export default function CRM() {
                                     </div>
                                   </td>
                                   <td className="px-4 py-2">
+                                    {/* NUEVO: Select editable para cambiar estado */}
                                     <select
                                       value={lead.estado}
                                       onChange={(e) =>
@@ -1727,6 +1771,7 @@ export default function CRM() {
                                   </td>
                                   <td className="px-4 py-2 text-center">
                                     <div className="flex items-center justify-center space-x-1">
+                                      {/* NUEVO: Botón de WhatsApp */}
                                       <button
                                         onClick={() => {
                                           const phoneNumber = lead.telefono.replace(/\D/g, '');
@@ -1765,18 +1810,6 @@ export default function CRM() {
                                           title="Reasignar lead"
                                         >
                                           Reasignar
-                                        </button>
-                                      )}
-                                      {canDeleteLeads() && (
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            openDeleteLeadConfirm(lead);
-                                          }}
-                                          className="px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200"
-                                          title="Eliminar lead permanentemente"
-                                        >
-                                          <Trash2 size={12} />
                                         </button>
                                       )}
                                       <button
@@ -1848,6 +1881,7 @@ export default function CRM() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-3xl font-bold text-gray-800">Gestión de Leads</h2>
+              {/* MODIFICADO: Mostrar botón solo si puede crear leads */}
               {canCreateLeads() && (
                 <button
                   onClick={() => setShowNewLeadModal(true)}
@@ -2037,6 +2071,7 @@ export default function CRM() {
                           <tr key={lead.id} className="hover:bg-gray-50">
                             <td className="px-4 py-4">
                               <div className="font-medium text-gray-900">{lead.nombre}</div>
+                              {/* NUEVO: Mostrar quién creó el lead */}
                               {lead.created_by && (
                                 <div className="text-xs text-gray-500">
                                   Creado por: {userById.get(lead.created_by)?.name || 'Usuario eliminado'}
@@ -2098,73 +2133,62 @@ export default function CRM() {
                             <td className="px-4 py-4 text-gray-500 text-xs">
                               {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
                             </td>
-                            <td className="px-4 py-4 text-center">
-                              <div className="flex items-center justify-center space-x-1">
-                                <button
-                                  onClick={() => {
-                                    const phoneNumber = lead.telefono.replace(/\D/g, '');
-                                    const message = encodeURIComponent(
-                                      `Hola ${lead.nombre}, me contacto desde Alluma por su consulta sobre el ${lead.modelo}. ¿Cómo está?`
-                                    );
-                                    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
-                                    window.open(whatsappUrl, '_blank');
-                                  }}
-                                  className="px-2 py-1 text-xs rounded bg-green-100 text-green-700 hover:bg-green-200 flex items-center space-x-1"
-                                  title="Chatear por WhatsApp"
-                                >
-                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.89 3.587"/>
-                                  </svg>
-                                </button>
-                                
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingLeadObservaciones(lead);
-                                    setShowObservacionesModal(true);
-                                  }}
-                                  className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                  title="Ver/Editar observaciones"
-                                >
-                                  {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
-                                </button>
-                                {canReassign && (
+                              <td className="px-4 py-4 text-center">
+                                <div className="flex items-center justify-center space-x-1">
+                                  {/* NUEVO: Botón de WhatsApp */}
+                                  <button
+                                    onClick={() => {
+                                      const phoneNumber = lead.telefono.replace(/\D/g, ''); // Quitar caracteres no numéricos
+                                      const message = encodeURIComponent(
+                                        `Hola ${lead.nombre}, me contacto desde Alluma por su consulta sobre el ${lead.modelo}. ¿Cómo está?`
+                                      );
+                                      const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
+                                      window.open(whatsappUrl, '_blank');
+                                    }}
+                                    className="px-2 py-1 text-xs rounded bg-green-100 text-green-700 hover:bg-green-200 flex items-center space-x-1"
+                                    title="Chatear por WhatsApp"
+                                  >
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.89 3.587"/>
+                                    </svg>
+                                  </button>
+                                  
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      openReassignModal(lead);
+                                      setEditingLeadObservaciones(lead);
+                                      setShowObservacionesModal(true);
                                     }}
-                                    className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
-                                    title="Reasignar lead"
+                                    className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                    title="Ver/Editar observaciones"
                                   >
-                                    Reasignar
+                                    {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
                                   </button>
-                                )}
-                                {canDeleteLeads() && (
+                                  {canReassign && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openReassignModal(lead);
+                                      }}
+                                      className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
+                                      title="Reasignar lead"
+                                    >
+                                      Reasignar
+                                    </button>
+                                  )}
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      openDeleteLeadConfirm(lead);
+                                      setViewingLeadHistorial(lead);
+                                      setShowHistorialModal(true);
                                     }}
-                                    className="px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200"
-                                    title="Eliminar lead permanentemente"
+                                    className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                    title="Ver historial"
                                   >
-                                    <Trash2 size={12} />
+                                    Historial
                                   </button>
-                                )}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setViewingLeadHistorial(lead);
-                                    setShowHistorialModal(true);
-                                  }}
-                                  className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                  title="Ver historial"
-                                >
-                                  Historial
-                                </button>
-                              </div>
-                            </td>
+                                </div>
+                              </td>
                           </tr>
                         );
                       })
@@ -2457,7 +2481,7 @@ export default function CRM() {
                   })}
                 </div>
 
-                {/* Lista filtrada de leads por estado en Mi Equipo con botón eliminar */}
+                {/* Lista filtrada de leads por estado en Mi Equipo */}
                 {selectedEstado && (
                   <div className="mt-6 border-t pt-6">
                     <h4 className="text-lg font-semibold text-gray-800 mb-4">
@@ -2557,6 +2581,7 @@ export default function CRM() {
                                       </div>
                                     </td>
                                     <td className="px-4 py-2">
+                                      {/* NUEVO: Select editable en equipo también */}
                                       <select
                                         value={lead.estado}
                                         onChange={(e) =>
@@ -2590,6 +2615,7 @@ export default function CRM() {
                                     </td>
                                     <td className="px-4 py-2 text-center">
                                       <div className="flex items-center justify-center space-x-1">
+                                        {/* NUEVO: Botón de WhatsApp */}
                                         <button
                                           onClick={() => {
                                             const phoneNumber = lead.telefono.replace(/\D/g, '');
@@ -2633,18 +2659,6 @@ export default function CRM() {
                                             title="Reasignar lead"
                                           >
                                             Reasignar
-                                          </button>
-                                        )}
-                                        {canDeleteLeads() && (
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              openDeleteLeadConfirm(lead);
-                                            }}
-                                            className="px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200"
-                                            title="Eliminar lead permanentemente"
-                                          >
-                                            <Trash2 size={12} />
                                           </button>
                                         )}
                                         <button
@@ -2732,6 +2746,7 @@ export default function CRM() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-3xl font-bold text-gray-800">Gestión de Usuarios</h2>
+              {/* MODIFICADO: Solo mostrar botón si puede crear usuarios */}
               {canCreateUsers() && (
                 <button
                   onClick={openCreateUser}
@@ -2972,80 +2987,6 @@ export default function CRM() {
 
         {/* MODALES */}
         
-        {/* Modal de Confirmación para Eliminar Lead */}
-        {showDeleteLeadConfirmModal && leadToDelete && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-md">
-              <div className="flex items-center mb-6">
-                <div className="bg-red-100 p-3 rounded-full mr-4">
-                  <Trash2 className="h-6 w-6 text-red-600" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-800">
-                    Eliminar Lead
-                  </h3>
-                  <p className="text-sm text-gray-600">
-                    Esta acción no se puede deshacer
-                  </p>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                <h4 className="font-medium text-gray-800 mb-2">Lead a eliminar:</h4>
-                <div className="text-sm space-y-1">
-                  <div><strong>Cliente:</strong> {leadToDelete.nombre}</div>
-                  <div><strong>Teléfono:</strong> {leadToDelete.telefono}</div>
-                  <div><strong>Modelo:</strong> {leadToDelete.modelo}</div>
-                  <div><strong>Estado:</strong> {estados[leadToDelete.estado]?.label || leadToDelete.estado}</div>
-                  <div><strong>Vendedor:</strong> {leadToDelete.vendedor ? userById.get(leadToDelete.vendedor)?.name : 'Sin asignar'}</div>
-                  {leadToDelete.created_by && (
-                    <div><strong>Creado por:</strong> {userById.get(leadToDelete.created_by)?.name || 'Usuario eliminado'}</div>
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <Bell className="h-5 w-5 text-red-400" />
-                  </div>
-                  <div className="ml-3">
-                    <h4 className="text-sm font-medium text-red-800">
-                      Atención - Eliminación Permanente
-                    </h4>
-                    <div className="mt-2 text-sm text-red-700">
-                      <ul className="list-disc pl-5 space-y-1">
-                        <li>El lead se eliminará permanentemente del sistema</li>
-                        <li>Se perderán todos los datos y el historial</li>
-                        <li>Esta acción no se puede revertir</li>
-                        <li>El vendedor asignado perderá el acceso al lead</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex space-x-3">
-                <button
-                  onClick={confirmDeleteLead}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
-                >
-                  Sí, Eliminar Lead
-                </button>
-                <button
-                  onClick={() => {
-                    setShowDeleteLeadConfirmModal(false);
-                    setLeadToDelete(null);
-                  }}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Modal de Confirmación para Eliminar Usuario */}
         {showDeleteConfirmModal && userToDelete && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -3209,7 +3150,7 @@ export default function CRM() {
                       </div>
                     </div>
 
-                    {/* Lista de vendedores disponibles */}
+                    {/* Lista de vendedores disponibles - SOLO ACTIVOS */}
                     {getAvailableVendorsForReassign().map((vendedor: any) => {
                       const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
                       const vendedorVentas = vendedorLeads.filter(
@@ -3461,7 +3402,7 @@ export default function CRM() {
           </div>
         )}
 
-        {/* Modal: Nuevo Lead */}
+        {/* MODIFICADO: Modal: Nuevo Lead - Con restricciones por rol */}
         {showNewLeadModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-xl p-6 w-full max-w-3xl">
@@ -3565,6 +3506,7 @@ export default function CRM() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Sin asignar</option>
+                    {/* MODIFICADO: Solo mostrar vendedores disponibles según el scope */}
                     {getAvailableVendorsForAssignment().map((u: any) => (
                       <option key={u.id} value={u.id}>
                         {u.name} - {userById.get(u.reportsTo)?.name ? `Equipo ${userById.get(u.reportsTo)?.name}` : 'Sin equipo'} ✓ Activo
@@ -3577,6 +3519,7 @@ export default function CRM() {
                   </p>
                 </div>
 
+                {/* NUEVO: Información sobre qué vendedores están disponibles */}
                 {getAvailableVendorsForAssignment().length === 0 && (
                   <div className="col-span-2 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                     <p className="text-sm text-yellow-700">
@@ -3701,7 +3644,7 @@ export default function CRM() {
           </div>
         )}
 
-        {/* Modal: Usuario */}
+        {/* MODIFICADO: Modal: Usuario - Con validación de contraseña mejorada */}
         {showUserModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-xl p-6 w-full max-w-lg">
@@ -3818,6 +3761,7 @@ export default function CRM() {
                   </div>
                 )}
 
+                {/* NUEVO: Información sobre permisos según el rol */}
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                   <h4 className="text-sm font-medium text-gray-800 mb-2">
                     Permisos del rol {roles[modalRole] || modalRole}:
@@ -3828,7 +3772,6 @@ export default function CRM() {
                         <li>• Acceso completo al sistema</li>
                         <li>• Gestión total de usuarios y equipos</li>
                         <li>• Visualización de todos los datos</li>
-                        <li>• Puede eliminar leads</li>
                       </>
                     )}
                     {modalRole === "director" && (
@@ -3836,7 +3779,6 @@ export default function CRM() {
                         <li>• Gestión de gerentes, supervisores y vendedores</li>
                         <li>• Visualización de todos los equipos</li>
                         <li>• Creación y asignación de leads</li>
-                        <li>• Puede eliminar leads</li>
                       </>
                     )}
                     {modalRole === "gerente" && (
