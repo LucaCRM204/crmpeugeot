@@ -1464,7 +1464,47 @@ export default function CRM() {
             </button>
           ))}
         </nav>
+      {/* Botón de Cerrar Sesión */}
+        <div className="mt-auto pt-4 border-t border-slate-700">
+          <button
+            onClick={async () => {
+              try {
+                // Llamar al endpoint de logout
+                await api.post('/auth/logout');
+              } catch (error) {
+                console.error('Error al cerrar sesión:', error);
+              } finally {
+                // Limpiar todo el storage local
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                localStorage.clear();
+                sessionStorage.clear();
+                
+                // Limpiar el header de autorización
+                delete api.defaults.headers.common['Authorization'];
+                
+                // Cambiar estado a no autenticado
+                setIsAuthenticated(false);
+                setCurrentUser(null);
+                setUsers([]);
+                setLeads([]);
+                
+                // Opcional: recargar la página para limpiar todo
+                window.location.reload();
+              }
+            }}
+            className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-red-300 hover:bg-red-900/20 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            <span>Cerrar Sesión</span>
+          </button>
+        </div>
       </div>
+     
 
       {/* Main */}
       <div className="flex-1 p-6">
