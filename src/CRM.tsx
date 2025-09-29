@@ -2664,10 +2664,7 @@ const [selectedLeadForPresupuesto, setSelectedLeadForPresupuesto] = useState<Lea
                     const teamFilter = ["owner", "director"].includes(currentUser?.role)
                       ? selectedTeam
                       : undefined;
-                    const filteredLeads =
-                      teamFilter && teamFilter !== "todos"
-                        ? getFilteredLeadsByTeam(teamFilter)
-                        : getFilteredLeads();
+                    const filteredLeads = getFilteredLeadsByTeam(teamFilter);
                     const count = filteredLeads.filter((l) => l.estado === key).length;
                     return (
                       <button
@@ -2705,10 +2702,7 @@ const [selectedLeadForPresupuesto, setSelectedLeadForPresupuesto] = useState<Lea
                       const teamFilter = ["owner", "director"].includes(currentUser?.role)
                         ? selectedTeam
                         : undefined;
-                      const filteredLeads =
-                        teamFilter && teamFilter !== "todos"
-                          ? getFilteredLeadsByTeam(teamFilter)
-                          : getFilteredLeads();
+                      const filteredLeads = getFilteredLeadsByTeam(teamFilter);
                       const leadsFiltrados = filteredLeads.filter(
                         (l) => l.estado === selectedEstado
                       );
@@ -2919,150 +2913,89 @@ const [selectedLeadForPresupuesto, setSelectedLeadForPresupuesto] = useState<Lea
                   Top Vendedores en Mi Organización
                 </h3>
                 <div className="space-y-3">
-                  {getRankingInScope().map((vendedor, index) => (
-                    <div
-                      key={vendedor.id}
-                      className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
-                            index === 0
-                              ? "bg-yellow-500"
-                              : index === 1
-                              ? "bg-gray-400"
-                              : index === 2
-                              ? "bg-orange-600"
-                              : "bg-gray-300"
-                          }`}
-                        >
-                          {index + 1}
+                  {(() => {
+                    const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                      ? selectedTeam
+                      : undefined;
+                    const filteredLeads = getFilteredLeadsByTeam(teamFilter);
+                    
+                    const vendedoresEnScope = users.filter(
+                      (u: any) => u.role === "vendedor" && visibleUserIds.includes(u.id)
+                    );
+                    
+                    const ranking = vendedoresEnScope
+                      .map((v: any) => {
+                        const vendedorLeads = filteredLeads.filter((l) => l.vendedor === v.id);
+                        const ventas = vendedorLeads.filter((l) => l.estado === "vendido").length;
+                        return {
+                          id: v.id,
+                          nombre: v.name,
+                          ventas,
+                          leadsAsignados: vendedorLeads.length,
+                          team: `Equipo de ${userById.get(v.reportsTo)?.name || "—"}`,
+                        };
+                      })
+                      .sort((a, b) => b.ventas - a.ventas);
+                    
+                    return ranking.map((vendedor, index) => (
+                      <div
+                        key={vendedor.id}
+                        className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
+                              index === 0
+                                ? "bg-yellow-500"
+                                : index === 1
+                                ? "bg-gray-400"
+                                : index === 2
+                                ? "bg-orange-600"
+                                : "bg-gray-300"
+                            }`}
+                          >
+                            {index + 1}
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">
+                              {vendedor.nombre}
+                            </p>
+                            <p className="text-xs text-gray-500">{vendedor.team}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            {vendedor.nombre}
+                        <div className="text-right">
+                          <p className="font-bold text-green-600">
+                            {vendedor.ventas} ventas
                           </p>
-                          <p className="text-xs text-gray-500">{vendedor.team}</p>
+                          <p className="text-xs text-gray-500">
+                            {vendedor.leadsAsignados} leads •{" "}
+                            {vendedor.leadsAsignados > 0
+                              ? ((vendedor.ventas / vendedor.leadsAsignados) * 100).toFixed(0)
+                              : 0}
+                            %
+                          </p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-green-600">
-                          {vendedor.ventas} ventas
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {vendedor.leadsAsignados} leads •{" "}
-                          {vendedor.leadsAsignados > 0
-                            ? ((vendedor.ventas / vendedor.leadsAsignados) * 100).toFixed(0)
-                            : 0}
-                          %
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                    ));
+                  })()}
                 </div>
-                {getRankingInScope().length === 0 && (
-                  <p className="text-gray-500 text-center py-8">
-                    No hay vendedores en tu equipo
-                  </p>
-                )}
+                {(() => {
+                  const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                    ? selectedTeam
+                    : undefined;
+                  const filteredLeads = getFilteredLeadsByTeam(teamFilter);
+                  const vendedoresEnScope = users.filter(
+                    (u: any) => u.role === "vendedor" && visibleUserIds.includes(u.id)
+                  );
+                  return vendedoresEnScope.length === 0 && (
+                    <p className="text-gray-500 text-center py-8">
+                      No hay vendedores en tu equipo
+                    </p>
+                  );
+                })()}
               </div>
             </div>
           )}
-
-        {/* Sección Alertas */}
-        {activeSection === "alerts" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-bold text-gray-800">Alertas y Notificaciones</h2>
-              <button
-                onClick={() => {
-                  setAlerts((prev) =>
-                    prev.map((a) =>
-                      a.userId === currentUser?.id ? { ...a, read: true } : a
-                    )
-                  );
-                }}
-                className="px-4 py-2 text-sm text-blue-600 hover:text-blue-800"
-              >
-                Marcar todas como leídas
-              </button>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              {alerts.filter((a) => a.userId === currentUser?.id).length === 0 ? (
-                <div className="text-center py-12">
-                  <Bell size={48} className="mx-auto text-gray-300 mb-4" />
-                  <p className="text-gray-500">No tienes alertas pendientes</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {alerts
-                    .filter((a) => a.userId === currentUser?.id)
-                    .sort(
-                      (a, b) =>
-                        new Date(b.ts).getTime() - new Date(a.ts).getTime()
-                    )
-                    .map((alert) => (
-                      <div
-                        key={alert.id}
-                        className={`p-4 border rounded-lg ${
-                          alert.read
-                            ? "border-gray-200 bg-gray-50"
-                            : "border-blue-200 bg-blue-50"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-start space-x-3">
-                            <div
-                              className={`mt-1 w-2 h-2 rounded-full ${
-                                alert.read ? "bg-gray-400" : "bg-blue-500"
-                              }`}
-                            />
-                            <div>
-                              <p
-                                className={`font-medium ${
-                                  alert.read ? "text-gray-700" : "text-gray-900"
-                                }`}
-                              >
-                                {alert.type === "lead_assigned"
-                                  ? "Nuevo Lead Asignado"
-                                  : "Cambio en Ranking"}
-                              </p>
-                              <p
-                                className={`text-sm ${
-                                  alert.read ? "text-gray-500" : "text-gray-700"
-                                }`}
-                              >
-                                {alert.message}
-                              </p>
-                              <p className="text-xs text-gray-400 mt-1">
-                                {new Date(alert.ts).toLocaleDateString("es-AR")}{" "}
-                                {new Date(alert.ts).toLocaleTimeString("es-AR")}
-                              </p>
-                            </div>
-                          </div>
-                          {!alert.read && (
-                            <button
-                              onClick={() => {
-                                setAlerts((prev) =>
-                                  prev.map((a) =>
-                                    a.id === alert.id ? { ...a, read: true } : a
-                                  )
-                                );
-                              }}
-                              className="text-blue-600 hover:text-blue-800 text-sm"
-                            >
-                              Marcar como leída
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
         
         {/* Sección Usuarios con filtros mejorados */}
         {activeSection === "users" && canManageUsers() && (
