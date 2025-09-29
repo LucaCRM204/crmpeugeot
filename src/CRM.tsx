@@ -1919,15 +1919,10 @@ const [selectedLeadForPresupuesto, setSelectedLeadForPresupuesto] = useState<Lea
                                     setShowObservacionesModal(true);
                                   }}
                                   className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setEditingLeadObservaciones(lead);
-                                          setShowObservacionesModal(true);
-                                        }}
-                                        className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                        title="Ver/Editar observaciones"
-                                      >
+                                  title="Ver/Editar observaciones"
+                                >
+                                  {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
+                                </button>
                                         {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
                                       </button>
                                       {canReassign && (
@@ -2311,17 +2306,10 @@ const [selectedLeadForPresupuesto, setSelectedLeadForPresupuesto] = useState<Lea
                                             setShowObservacionesModal(true);
                                           }}
                                           className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingLeadObservaciones(lead);
-                                    setShowObservacionesModal(true);
-                                  }}
-                                  className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                  title="Ver/Editar observaciones"
-                                >
-                                  {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
-                                </button>
+                                          title="Ver/Editar observaciones"
+                                        >
+                                          {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
+                                        </button>
                                 {canReassign && (
                                   <button
                                     onClick={(e) => {
@@ -2813,13 +2801,6 @@ const [selectedLeadForPresupuesto, setSelectedLeadForPresupuesto] = useState<Lea
                                           <span>Pres</span>
                                         </button>
 
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setEditingLeadObservaciones(lead);
-                                            setShowObservacionesModal(true);
-                                          }}
-                                          className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
                                         <button
                                           onClick={(e) => {
                                             e.stopPropagation();
