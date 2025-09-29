@@ -396,9 +396,9 @@ export default function CRM() {
     currentUser && ["owner", "director", "gerente", "supervisor", "vendedor"].includes(currentUser.role);
 
   const canDeleteLeads = () => {
-    const canDelete = currentUser && ["owner", "director", "dueño"].includes(currentUser.role);
-    return canDelete;
-  };
+  const canDelete = currentUser && ["owner", "dueño"].includes(currentUser.role);
+  return canDelete;
+};
 
   // ===== Funciones de filtro por equipo =====
   const getTeamManagerById = (teamId: string) => {
@@ -1636,7 +1636,7 @@ export default function CRM() {
                           <div className="text-2xl font-bold">{count}</div>
                           <div className="text-xs opacity-75">{percentage}%</div>
                           
-                          {["owner", "director"].includes(currentUser?.role) && count > 0 && (
+                          {["owner", "dueño"].includes(currentUser?.role) && count > 0 && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
