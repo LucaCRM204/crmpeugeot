@@ -927,24 +927,23 @@ const pushAlertToChain = (
   }, [leads, users, userById]);
 
   const getDashboardStats = (teamFilter?: string) => {
-    const filteredLeads =
-      teamFilter && teamFilter !== "todos"
-        ? getFilteredLeadsByTeam(teamFilter)
-        : getFilteredLeads();
-    const vendidos = filteredLeads.filter((lead) => lead.estado === "vendido")
-      .length;
-    const conversion =
-      filteredLeads.length > 0
-        ? ((vendidos / filteredLeads.length) * 100).toFixed(1)
-        : "0";
+    const filteredLeads = teamFilter && teamFilter !== "todos"
+      ? getFilteredLeadsByTeam(teamFilter)
+      : getFilteredLeadsByTeam(undefined);
+    
+    const vendidos = filteredLeads.filter((lead) => lead.estado === "vendido").length;
+    const conversion = filteredLeads.length > 0
+      ? ((vendidos / filteredLeads.length) * 100).toFixed(1)
+      : "0";
+    
     return { totalLeads: filteredLeads.length, vendidos, conversion };
   };
 
   const getSourceMetrics = (teamFilter?: string) => {
-    const filteredLeads =
-      teamFilter && teamFilter !== "todos"
-        ? getFilteredLeadsByTeam(teamFilter)
-        : getFilteredLeads();
+    const filteredLeads = teamFilter && teamFilter !== "todos"
+      ? getFilteredLeadsByTeam(teamFilter)
+      : getFilteredLeadsByTeam(undefined);
+      
     const sourceData = Object.keys(fuentes)
       .map((source) => {
         const sourceLeads = filteredLeads.filter(
