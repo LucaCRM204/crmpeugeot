@@ -466,15 +466,10 @@ const [selectedLeadForPresupuesto, setSelectedLeadForPresupuesto] = useState<Lea
     }
 
     const visibleUserIds = getAccessibleUserIds(currentUser);
-    // Para supervisores: solo mostrar leads con vendedor asignado que esté en su scope
-    if (currentUser.role === "supervisor") {
-      return leads.filter((l) =>
-        l.vendedor && visibleUserIds.includes(l.vendedor)
-      );
-    }
     
+    // Para supervisores y gerentes: mostrar leads asignados a ellos o a cualquier usuario en su scope
     return leads.filter((l) =>
-      l.vendedor ? visibleUserIds.includes(l.vendedor) : true
+      l.vendedor && visibleUserIds.includes(l.vendedor)
     );
   };
 
