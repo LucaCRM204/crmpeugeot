@@ -454,23 +454,12 @@ const [selectedLeadForPresupuesto, setSelectedLeadForPresupuesto] = useState<Lea
   const getFilteredLeadsByTeam = (teamId?: string) => {
     if (!currentUser) return [] as LeadRow[];
 
-    if (
-      teamId &&
-      teamId !== "todos" &&
-      ["owner", "director", "dueño"].includes(currentUser.role)
-    ) {
+    if (teamId && teamId !== "todos" && ["owner", "director", "dueño"].includes(currentUser.role)) {
       const teamUserIds = getTeamUserIds(teamId);
-      return leads.filter((l) =>
-        l.vendedor ? teamUserIds.includes(l.vendedor) : false
-      );
+      return leads.filter((l) => l.vendedor && teamUserIds.includes(l.vendedor));
     }
 
-    const visibleUserIds = getAccessibleUserIds(currentUser);
-    
-    // Para supervisores y gerentes: mostrar leads asignados a ellos o a cualquier usuario en su scope
-    return leads.filter((l) =>
-      l.vendedor && visibleUserIds.includes(l.vendedor)
-    );
+    return getFilteredLeads();
   };
 
   const getAvailableVendorsForAssignment = () => {
@@ -826,8 +815,10 @@ const pushAlertToChain = (
 
   const getFilteredLeads = () => {
     if (!currentUser) return [] as LeadRow[];
+    
+    const visibleUserIds = getAccessibleUserIds(currentUser);
     return leads.filter((l) =>
-      l.vendedor ? visibleUserIds.includes(l.vendedor) : true
+      l.vendedor && visibleUserIds.includes(l.vendedor)
     );
   };
 
@@ -927,9 +918,14 @@ const pushAlertToChain = (
   }, [leads, users, userById]);
 
   const getDashboardStats = (teamFilter?: string) => {
-    const filteredLeads = teamFilter && teamFilter !== "todos"
-      ? getFilteredLeadsByTeam(teamFilter)
-      : getFilteredLeadsByTeam(undefined);
+    let filteredLeads: LeadRow[];
+    
+    if (teamFilter && teamFilter !== "todos" && ["owner", "director", "dueño"].includes(currentUser?.role)) {
+      const teamUserIds = getTeamUserIds(teamFilter);
+      filteredLeads = leads.filter((l) => l.vendedor && teamUserIds.includes(l.vendedor));
+    } else {
+      filteredLeads = getFilteredLeads();
+    }
     
     const vendidos = filteredLeads.filter((lead) => lead.estado === "vendido").length;
     const conversion = filteredLeads.length > 0
@@ -940,22 +936,22 @@ const pushAlertToChain = (
   };
 
   const getSourceMetrics = (teamFilter?: string) => {
-    const filteredLeads = teamFilter && teamFilter !== "todos"
-      ? getFilteredLeadsByTeam(teamFilter)
-      : getFilteredLeadsByTeam(undefined);
-      
+    let filteredLeads: LeadRow[];
+    
+    if (teamFilter && teamFilter !== "todos" && ["owner", "director", "dueño"].includes(currentUser?.role)) {
+      const teamUserIds = getTeamUserIds(teamFilter);
+      filteredLeads = leads.filter((l) => l.vendedor && teamUserIds.includes(l.vendedor));
+    } else {
+      filteredLeads = getFilteredLeads();
+    }
+    
     const sourceData = Object.keys(fuentes)
       .map((source) => {
-        const sourceLeads = filteredLeads.filter(
-          (lead) => lead.fuente === source
-        );
-        const vendidos = sourceLeads.filter(
-          (lead) => lead.estado === "vendido"
-        ).length;
-        const conversion =
-          sourceLeads.length > 0
-            ? ((vendidos / sourceLeads.length) * 100).toFixed(1)
-            : "0";
+        const sourceLeads = filteredLeads.filter((lead) => lead.fuente === source);
+        const vendidos = sourceLeads.filter((lead) => lead.estado === "vendido").length;
+        const conversion = sourceLeads.length > 0
+          ? ((vendidos / sourceLeads.length) * 100).toFixed(1)
+          : "0";
         return {
           source,
           total: sourceLeads.length,
