@@ -1900,29 +1900,26 @@ const [selectedLeadForPresupuesto, setSelectedLeadForPresupuesto] = useState<Lea
                                         </svg>
                                       </button>
                                       <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedLeadForPresupuesto(lead);
-                                    setShowPresupuestoSelectModal(true);
-                                  }}
-                                  className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200 flex items-center space-x-1"
-                                  title="Enviar presupuesto por WhatsApp"
-                                >
-                                  <FileText size={12} />
-                                  <span>Pres</span>
-                                </button>
-
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingLeadObservaciones(lead);
-                                    setShowObservacionesModal(true);
-                                  }}
-                                  className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                  title="Ver/Editar observaciones"
-                                >
-                                  {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
-                                </button>
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedLeadForPresupuesto(lead);
+                                          setShowPresupuestoSelectModal(true);
+                                        }}
+                                        className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200 flex items-center space-x-1"
+                                        title="Enviar presupuesto por WhatsApp"
+                                      >
+                                        <FileText size={12} />
+                                        <span>Pres</span>
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEditingLeadObservaciones(lead);
+                                          setShowObservacionesModal(true);
+                                        }}
+                                        className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                        title="Ver/Editar observaciones"
+                                      >
                                         {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
                                       </button>
                                       {canReassign && (
