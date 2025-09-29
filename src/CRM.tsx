@@ -2599,6 +2599,55 @@ const [selectedLeadForPresupuesto, setSelectedLeadForPresupuesto] = useState<Lea
                 )}
               </div>
 
+              {/* Panel de Debug solo para Owner/Director */}
+              {["owner", "director"].includes(currentUser?.role) && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <details>
+                    <summary className="cursor-pointer font-semibold text-yellow-800 mb-2">
+                      🔧 Panel de Depuración - Jerarquía
+                    </summary>
+                    <div className="text-xs space-y-2 mt-3">
+                      <div>
+                        <strong>Tu información:</strong>
+                        <div className="ml-4">Nombre: {currentUser?.name}</div>
+                        <div className="ml-4">Rol: {currentUser?.role}</div>
+                        <div className="ml-4">IDs visibles: {visibleUserIds.join(', ')}</div>
+                      </div>
+                      <div className="border-t pt-2 mt-2">
+                        <strong>Jerarquía completa:</strong>
+                        {users.filter((u: any) => u.role === "gerente").map((gerente: any) => {
+                          const gerenteChildren = childrenIndex.get(gerente.id) || [];
+                          return (
+                            <div key={gerente.id} className="ml-4 mt-2">
+                              <div className="font-semibold">👔 {gerente.name} (Gerente)</div>
+                              {gerenteChildren.map((supId: number) => {
+                                const supervisor = userById.get(supId);
+                                const supChildren = childrenIndex.get(supId) || [];
+                                const supLeads = leads.filter(l => l.vendedor === supId || supChildren.includes(l.vendedor || 0));
+                                return (
+                                  <div key={supId} className="ml-4">
+                                    <div>👨‍💼 {supervisor?.name} ({supervisor?.role}) - {supLeads.length} leads</div>
+                                    {supChildren.map((vendId: number) => {
+                                      const vendedor = userById.get(vendId);
+                                      const vendLeads = leads.filter(l => l.vendedor === vendId);
+                                      return (
+                                        <div key={vendId} className="ml-4">
+                                          👤 {vendedor?.name} ({vendedor?.role}) - {vendLeads.length} leads
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </details>
+                </div>
+              )}
+
               {/* Estadísticas por estado tipo dashboard */}
               <div className="bg-white rounded-xl shadow-lg p-6">
                 <div className="flex items-center justify-between mb-4">
