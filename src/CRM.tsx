@@ -341,8 +341,6 @@ export default function CRM() {
 const [presupuestos, setPresupuestos] = useState<Presupuesto[]>([]);
 const [showPresupuestoModal, setShowPresupuestoModal] = useState(false);
 const [editingPresupuesto, setEditingPresupuesto] = useState<Presupuesto | null>(null);
-const [showPresupuestoSelectModal, setShowPresupuestoSelectModal] = useState(false);
-const [selectedLeadForPresupuesto, setSelectedLeadForPresupuesto] = useState<LeadRow | null>(null);
   // ===== Login contra backend =====
   const handleLogin = async (email: string, password: string) => {
   try {
