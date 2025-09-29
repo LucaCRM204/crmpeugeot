@@ -791,33 +791,32 @@ const [selectedLeadForPresupuesto, setSelectedLeadForPresupuesto] = useState<Lea
   };
 
   // ===== Alertas (locales de UI) =====
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const [alerts, setAlerts] = useState<Alert[]>([]);
-  const nextAlertId = useRef(1);
-  const pushAlert = (userId: number, type: Alert["type"], message: string) => {
-    setAlerts((prev) => [
-      ...prev,
-      {
-        id: nextAlertId.current++,
-        userId,
-        type,
-        message,
-        ts: new Date().toISOString(),
-        read: false,
-      },
-    ]);
-  };
-  const pushAlertToChain = (
-    vendorId: number,
-    type: Alert["type"],
-    message: string
-  ) => {
-    pushAlert(vendorId, type, message);
-    const sup = users.find((u: any) => u.id === userById.get(vendorId)?.reportsTo);
-    if (sup) pushAlert(sup.id, type, message);
-    const gerente = sup ? users.find((u: any) => u.id === sup.reportsTo) : null;
-    if (gerente) pushAlert(gerente.id, type, message);
-  };
+  // const [alerts, setAlerts] = useState<Alert[]>([]);
+  // const nextAlertId = useRef(1);
+// const pushAlert = (userId: number, type: Alert["type"], message: string) => {
+//   setAlerts((prev) => [
+//     ...prev,
+//     {
+//       id: nextAlertId.current++,
+//       userId,
+//       type,
+//       message,
+//       ts: new Date().toISOString(),
+//       read: false,
+//     },
+//   ]);
+// };
+// const pushAlertToChain = (
+//   vendorId: number,
+//   type: Alert["type"],
+//   message: string
+// ) => {
+//   pushAlert(vendorId, type, message);
+//   const sup = users.find((u: any) => u.id === userById.get(vendorId)?.reportsTo);
+//   if (sup) pushAlert(sup.id, type, message);
+//   const gerente = sup ? users.find((u: any) => u.id === sup.reportsTo) : null;
+//   if (gerente) pushAlert(gerente.id, type, message);
+// };
 
   // ===== Filtrados y ranking =====
   const visibleUserIds = useMemo(
