@@ -18,6 +18,7 @@ import {
   Filter,
   User,
   ChevronDown,
+  FileText,
 } from "lucide-react";
 import { api } from "./api";
 import {
@@ -32,7 +33,12 @@ import {
   updateLead as apiUpdateLead,
   deleteLead as apiDeleteLead,
 } from "./services/leads";
-
+import {
+  listPresupuestos,
+  createPresupuesto as apiCreatePresupuesto,
+  updatePresupuesto as apiUpdatePresupuesto,
+  deletePresupuesto as apiDeletePresupuesto,
+} from "./services/presupuestos";
 // ===== Utilidades de jerarquía =====
 function buildIndex(users: any[]) {
   const byId = new Map(users.map((u: any) => [u.id, u]));
@@ -134,7 +140,21 @@ type Alert = {
   ts: string;
   read: boolean;
 };
-
+type Presupuesto = {
+  id: number;
+  modelo: string;
+  marca: string;
+  imagen_url?: string;
+  precio_contado?: string;
+  especificaciones_tecnicas?: string;
+  planes_cuotas?: any;
+  bonificaciones?: string;
+  anticipo?: string;
+  activo: boolean;
+  created_by?: number;
+  created_at?: string;
+  updated_at?: string;
+};
 // ===== Funciones de descarga Excel =====
 const formatDate = (dateString: string): string => {
   if (!dateString) return "Sin fecha";
@@ -225,8 +245,7 @@ const downloadLeadsByStateExcel = (leads: LeadRow[], estado: string, userById: M
       ).join(' | ') || ''
     };
   });
-
-  // Crear contenido CSV
+     // Crear contenido CSV
   const headers = Object.keys(excelData[0] || {});
   const csvContent = [
     headers.join(','),
@@ -251,7 +270,7 @@ const downloadLeadsByStateExcel = (leads: LeadRow[], estado: string, userById: M
   link.click();
   document.body.removeChild(link);
 };
-
+  
 export default function CRM() {
   const [users, setUsers] = useState<any[]>([]);
   const [leads, setLeads] = useState<LeadRow[]>([]);
@@ -263,8 +282,8 @@ export default function CRM() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeSection, setActiveSection] = useState<
-    "dashboard" | "leads" | "calendar" | "ranking" | "users" | "alerts" | "team"
-  >("dashboard");
+  "dashboard" | "leads" | "calendar" | "ranking" | "users" | "alerts" | "team" | "presupuestos"
+>("dashboard");
   const [loginError, setLoginError] = useState("");
   const [selectedEstado, setSelectedEstado] = useState<string | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<string>("todos");
@@ -318,64 +337,79 @@ export default function CRM() {
     "owner" | "director" | "gerente" | "supervisor" | "vendedor"
   >("vendedor");
   const [modalReportsTo, setModalReportsTo] = useState<number | null>(null);
-
+  // Estados para presupuestos
+const [presupuestos, setPresupuestos] = useState<Presupuesto[]>([]);
+const [showPresupuestoModal, setShowPresupuestoModal] = useState(false);
+const [editingPresupuesto, setEditingPresupuesto] = useState<Presupuesto | null>(null);
+const [showPresupuestoSelectModal, setShowPresupuestoSelectModal] = useState(false);
+const [selectedLeadForPresupuesto, setSelectedLeadForPresupuesto] = useState<LeadRow | null>(null);
   // ===== Login contra backend =====
   const handleLogin = async (email: string, password: string) => {
-    try {
-      const r = await api.post("/auth/login", { 
-        email, 
-        password, 
-        allowInactiveUsers: true
-      });
+  try {
+    const r = await api.post("/auth/login", { 
+      email, 
+      password, 
+      allowInactiveUsers: true
+    });
 
-      if (r.data?.ok && r.data?.token) {
-        localStorage.setItem("token", r.data.token);
-        localStorage.setItem("user", JSON.stringify(r.data.user));
+    if (r.data?.ok && r.data?.token) {
+      localStorage.setItem("token", r.data.token);
+      localStorage.setItem("user", JSON.stringify(r.data.user));
 
-        api.defaults.headers.common["Authorization"] = `Bearer ${r.data.token}`;
+      api.defaults.headers.common["Authorization"] = `Bearer ${r.data.token}`;
 
-        const u =
-          r.data.user || {
-            id: 0,
-            name: r.data?.user?.email || email,
-            email,
-            role: r.data?.user?.role || "owner",
-            reportsTo: null,
-            active: r.data?.user?.active ?? true,
-          };
+      const u =
+        r.data.user || {
+          id: 0,
+          name: r.data?.user?.email || email,
+          email,
+          role: r.data?.user?.role || "owner",
+          reportsTo: null,
+          active: r.data?.user?.active ?? true,
+        };
 
-        setCurrentUser(u);
-        setIsAuthenticated(true);
-        setLoginError("");
+      setCurrentUser(u);
+      setIsAuthenticated(true);
+      setLoginError("");
 
-        const [uu, ll] = await Promise.all([listUsers(), listLeads()]);
-        const mappedLeads: LeadRow[] = (ll || []).map((L: any) => ({
-          id: L.id,
-          nombre: L.nombre,
-          telefono: L.telefono,
-          modelo: L.modelo,
-          formaPago: L.formaPago,
-          infoUsado: L.infoUsado,
-          entrega: L.entrega,
-          fecha: L.fecha || L.created_at || "",
-          estado: (L.estado || "nuevo") as LeadRow["estado"],
-          vendedor: L.assigned_to ?? null,
-          notas: L.notas || "",
-          fuente: (L.fuente || "otro") as LeadRow["fuente"],
-          historial: L.historial || [],
-          created_by: L.created_by || null,
-        }));
-        setUsers(uu || []);
-        setLeads(mappedLeads);
-      } else {
-        throw new Error("Respuesta inválida del servidor");
+      const [uu, ll] = await Promise.all([listUsers(), listLeads()]);
+      const mappedLeads: LeadRow[] = (ll || []).map((L: any) => ({
+        id: L.id,
+        nombre: L.nombre,
+        telefono: L.telefono,
+        modelo: L.modelo,
+        formaPago: L.formaPago,
+        infoUsado: L.infoUsado,
+        entrega: L.entrega,
+        fecha: L.fecha || L.created_at || "",
+        estado: (L.estado || "nuevo") as LeadRow["estado"],
+        vendedor: L.assigned_to ?? null,
+        notas: L.notas || "",
+        fuente: (L.fuente || "otro") as LeadRow["fuente"],
+        historial: L.historial || [],
+        created_by: L.created_by || null,
+      }));
+      setUsers(uu || []);
+      setLeads(mappedLeads);
+
+      // AGREGAR ESTO AQUÍ DENTRO
+      try {
+        const pp = await listPresupuestos();
+        setPresupuestos(pp || []);
+      } catch (error) {
+        console.error('Error cargando presupuestos:', error);
       }
-    } catch (err: any) {
-      setLoginError(err?.response?.data?.error || "Credenciales incorrectas");
-      setIsAuthenticated(false);
-    }
-  };
+      // FIN DEL CÓDIGO AGREGADO
 
+    } else {
+      throw new Error("Respuesta inválida del servidor");
+    }
+  } catch (err: any) {
+    setLoginError(err?.response?.data?.error || "Credenciales incorrectas");
+    setIsAuthenticated(false);
+  }
+};
+     
   // ===== Acceso por rol =====
   const getAccessibleUserIds = (user: any) => {
     if (!user) return [] as number[];
@@ -1442,6 +1476,7 @@ export default function CRM() {
             { key: "dashboard", label: "Dashboard", Icon: Home },
             { key: "leads", label: "Leads", Icon: Users },
             { key: "calendar", label: "Calendario", Icon: Calendar },
+            { key: "presupuestos", label: "Presupuestos", Icon: FileText },
             { key: "ranking", label: "Ranking", Icon: Trophy },
             ...(["supervisor", "gerente", "director", "owner"].includes(currentUser?.role)
               ? [{ key: "team", label: "Mi Equipo", Icon: UserCheck }]
@@ -3250,7 +3285,131 @@ export default function CRM() {
             </div>
           </div>
         )}
+    {/* Sección Presupuestos */}
+{activeSection === "presupuestos" && (
+  <div className="space-y-6">
+    <div className="flex items-center justify-between">
+      <h2 className="text-3xl font-bold text-gray-800">Plantillas de Presupuesto</h2>
+      {isOwner() && (
+        <button
+          onClick={() => {
+            setEditingPresupuesto(null);
+            setShowPresupuestoModal(true);
+          }}
+          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          <Plus size={20} />
+          <span>Nueva Plantilla</span>
+        </button>
+      )}
+    </div>
 
+    {!isOwner() && (
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <p className="text-sm text-blue-700">
+          <strong>Nota:</strong> Solo puedes ver las plantillas de presupuesto. 
+          Para enviar un presupuesto a un cliente, usa el botón de WhatsApp en la tabla de leads.
+        </p>
+      </div>
+    )}
+
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {presupuestos.length === 0 ? (
+        <div className="col-span-full text-center py-12">
+          <FileText size={48} className="mx-auto text-gray-300 mb-4" />
+          <p className="text-gray-500">No hay plantillas de presupuesto creadas</p>
+          {isOwner() && (
+            <button
+              onClick={() => {
+                setEditingPresupuesto(null);
+                setShowPresupuestoModal(true);
+              }}
+              className="mt-4 text-blue-600 hover:text-blue-800"
+            >
+              Crear la primera plantilla
+            </button>
+          )}
+        </div>
+      ) : (
+        presupuestos.map((presupuesto) => (
+          <div
+            key={presupuesto.id}
+            className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow"
+          >
+            {presupuesto.imagen_url && (
+              <div className="h-48 bg-gray-200 overflow-hidden">
+                <img
+                  src={presupuesto.imagen_url}
+                  alt={presupuesto.modelo}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x300?text=Sin+Imagen';
+                  }}
+                />
+              </div>
+            )}
+            <div className="p-4">
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">
+                    {presupuesto.modelo}
+                  </h3>
+                  <p className="text-sm text-gray-600">{presupuesto.marca}</p>
+                </div>
+              </div>
+              
+              {presupuesto.precio_contado && (
+                <div className="mt-3 p-3 bg-green-50 rounded-lg">
+                  <p className="text-sm text-gray-600">Precio Contado</p>
+                  <p className="text-xl font-bold text-green-600">
+                    {presupuesto.precio_contado}
+                  </p>
+                </div>
+              )}
+
+              {presupuesto.anticipo && (
+                <div className="mt-2 text-sm text-gray-600">
+                  <strong>Anticipo:</strong> {presupuesto.anticipo}
+                </div>
+              )}
+
+              {isOwner() && (
+                <div className="mt-4 flex space-x-2">
+                  <button
+                    onClick={() => {
+                      setEditingPresupuesto(presupuesto);
+                      setShowPresupuestoModal(true);
+                    }}
+                    className="flex-1 px-3 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
+                  >
+                    <Edit3 size={14} className="inline mr-1" />
+                    Editar
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (confirm(`¿Eliminar plantilla de ${presupuesto.modelo}?`)) {
+                        try {
+                          await apiDeletePresupuesto(presupuesto.id);
+                          setPresupuestos(prev => prev.filter(p => p.id !== presupuesto.id));
+                        } catch (error) {
+                          console.error('Error al eliminar:', error);
+                          alert('Error al eliminar la plantilla');
+                        }
+                      }
+                    }}
+                    className="px-3 py-2 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  </div>
+)}
          {/* MODALES */}
         
         {/* Modal de Confirmación para Eliminar Lead */}
@@ -4162,6 +4321,200 @@ export default function CRM() {
             </div>
           </div>
         )}
+       {/* Modal: Presupuesto */}
+{showPresupuestoModal && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="text-xl font-semibold text-gray-800">
+          {editingPresupuesto ? "Editar Plantilla" : "Nueva Plantilla de Presupuesto"}
+        </h3>
+        <button onClick={() => {
+          setShowPresupuestoModal(false);
+          setEditingPresupuesto(null);
+        }}>
+          <X size={24} className="text-gray-600" />
+        </button>
+      </div>
+
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Marca *
+            </label>
+            <input
+              type="text"
+              id="pres-marca"
+              defaultValue={editingPresupuesto?.marca || ""}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="ej: Chevrolet"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Modelo *
+            </label>
+            <input
+              type="text"
+              id="pres-modelo"
+              defaultValue={editingPresupuesto?.modelo || ""}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="ej: Cruze LT"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            URL de Imagen
+          </label>
+          <input
+            type="url"
+            id="pres-imagen"
+            defaultValue={editingPresupuesto?.imagen_url || ""}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            placeholder="https://ejemplo.com/imagen.jpg"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Precio Contado
+          </label>
+          <input
+            type="text"
+            id="pres-precio"
+            defaultValue={editingPresupuesto?.precio_contado || ""}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            placeholder="ej: $25.000.000"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Anticipo
+          </label>
+          <input
+            type="text"
+            id="pres-anticipo"
+            defaultValue={editingPresupuesto?.anticipo || ""}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            placeholder="ej: 30% - $7.500.000"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Bonificaciones
+          </label>
+          <textarea
+            id="pres-bonificaciones"
+            defaultValue={editingPresupuesto?.bonificaciones || ""}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 h-20 resize-none"
+            placeholder="ej: Bonificación por pago contado: $500.000"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Especificaciones Técnicas
+          </label>
+          <textarea
+            id="pres-specs"
+            defaultValue={editingPresupuesto?.especificaciones_tecnicas || ""}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 h-24 resize-none"
+            placeholder="Motor, transmisión, equipamiento, etc."
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Planes de Cuotas (JSON)
+          </label>
+          <textarea
+            id="pres-cuotas"
+            defaultValue={editingPresupuesto?.planes_cuotas ? JSON.stringify(editingPresupuesto.planes_cuotas, null, 2) : ""}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 h-24 resize-none font-mono text-xs"
+            placeholder='{"12": "cuota de $2.000.000", "24": "cuota de $1.100.000"}'
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Formato JSON opcional. Ejemplo: {`{"12": "cuota $X", "24": "cuota $Y"}`}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex space-x-3 pt-6">
+        <button
+          onClick={async () => {
+            const marca = (document.getElementById("pres-marca") as HTMLInputElement)?.value?.trim();
+            const modelo = (document.getElementById("pres-modelo") as HTMLInputElement)?.value?.trim();
+            const imagen_url = (document.getElementById("pres-imagen") as HTMLInputElement)?.value?.trim();
+            const precio_contado = (document.getElementById("pres-precio") as HTMLInputElement)?.value?.trim();
+            const anticipo = (document.getElementById("pres-anticipo") as HTMLInputElement)?.value?.trim();
+            const bonificaciones = (document.getElementById("pres-bonificaciones") as HTMLTextAreaElement)?.value?.trim();
+            const especificaciones_tecnicas = (document.getElementById("pres-specs") as HTMLTextAreaElement)?.value?.trim();
+            const cuotasStr = (document.getElementById("pres-cuotas") as HTMLTextAreaElement)?.value?.trim();
+
+            if (!marca || !modelo) {
+              alert("Marca y Modelo son obligatorios");
+              return;
+            }
+
+            let planes_cuotas = null;
+            if (cuotasStr) {
+              try {
+                planes_cuotas = JSON.parse(cuotasStr);
+              } catch (e) {
+                alert("El formato de Planes de Cuotas no es JSON válido");
+                return;
+              }
+            }
+
+            const data: any = {
+              marca,
+              modelo,
+              imagen_url: imagen_url || null,
+              precio_contado: precio_contado || null,
+              anticipo: anticipo || null,
+              bonificaciones: bonificaciones || null,
+              especificaciones_tecnicas: especificaciones_tecnicas || null,
+              planes_cuotas,
+              activo: true,
+            };
+
+            try {
+              if (editingPresupuesto) {
+                const updated = await apiUpdatePresupuesto(editingPresupuesto.id, data);
+                setPresupuestos(prev => prev.map(p => p.id === editingPresupuesto.id ? updated : p));
+              } else {
+                const created = await apiCreatePresupuesto(data);
+                setPresupuestos(prev => [created, ...prev]);
+              }
+              setShowPresupuestoModal(false);
+              setEditingPresupuesto(null);
+            } catch (e: any) {
+              console.error("Error al guardar presupuesto:", e);
+              alert(`Error: ${e?.response?.data?.error || e.message}`);
+            }
+          }}
+          className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+        >
+          {editingPresupuesto ? "Actualizar" : "Crear"} Plantilla
+        </button>
+        <button
+          onClick={() => {
+            setShowPresupuestoModal(false);
+            setEditingPresupuesto(null);
+          }}
+          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  </div>
+)}
       </div>
     </div>
   );
