@@ -791,33 +791,33 @@ const [selectedLeadForPresupuesto, setSelectedLeadForPresupuesto] = useState<Lea
   };
 
   // ===== Alertas (locales de UI) =====
-  // const [alerts, setAlerts] = useState<Alert[]>([]);
-  // const nextAlertId = useRef(1);
-// const pushAlert = (userId: number, type: Alert["type"], message: string) => {
-//   setAlerts((prev) => [
-//     ...prev,
-//     {
-//       id: nextAlertId.current++,
-//       userId,
-//       type,
-//       message,
-//       ts: new Date().toISOString(),
-//       read: false,
-//     },
-//   ]);
-// };
-// const pushAlertToChain = (
-//   vendorId: number,
-//   type: Alert["type"],
-//   message: string
-// ) => {
-//   pushAlert(vendorId, type, message);
-//   const sup = users.find((u: any) => u.id === userById.get(vendorId)?.reportsTo);
-//   if (sup) pushAlert(sup.id, type, message);
-//   const gerente = sup ? users.find((u: any) => u.id === sup.reportsTo) : null;
-//   if (gerente) pushAlert(gerente.id, type, message);
-// };
-
+   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const nextAlertId = useRef(1);
+const pushAlert = (userId: number, type: Alert["type"], message: string) => {
+  setAlerts((prev) => [
+    ...prev,
+    {
+      id: nextAlertId.current++,
+      userId,
+      type,
+      message,
+      ts: new Date().toISOString(),
+      read: false,
+    },
+  ]);
+};
+const pushAlertToChain = (
+  vendorId: number,
+  type: Alert["type"],
+  message: string
+) => {
+  pushAlert(vendorId, type, message);
+  const sup = users.find((u: any) => u.id === userById.get(vendorId)?.reportsTo);
+  if (sup) pushAlert(sup.id, type, message);
+  const gerente = sup ? users.find((u: any) => u.id === sup.reportsTo) : null;
+  if (gerente) pushAlert(gerente.id, type, message);
+};// Usar las alertas en el navbar para mostrar contador
+  const unreadAlerts = alerts.filter(a => a.userId === currentUser?.id && !a.read).length;
   // ===== Filtrados y ranking =====
   const visibleUserIds = useMemo(
     () => getAccessibleUserIds(currentUser),
@@ -1483,21 +1483,29 @@ const [selectedLeadForPresupuesto, setSelectedLeadForPresupuesto] = useState<Lea
             ...(["supervisor", "gerente", "director", "owner"].includes(currentUser?.role)
               ? [{ key: "team", label: "Mi Equipo", Icon: UserCheck }]
               : []),
+            { key: "alerts", label: "Alertas", Icon: Bell, badge: unreadAlerts },
             ...(canManageUsers()
               ? [{ key: "users", label: "Usuarios", Icon: Settings }]
               : []),
-          ].map(({ key, label, Icon }) => (
+          ].map(({ key, label, Icon, badge }) => (
             <button
               key={key}
               onClick={() => setActiveSection(key as any)}
-              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+              className={`w-full flex items-center justify-between space-x-3 px-3 py-2 rounded-lg transition-colors ${
                 activeSection === (key as any)
                   ? "bg-blue-600 text-white"
                   : "text-gray-300 hover:bg-slate-800"
               }`}
             >
-              <Icon size={20} />
-              <span>{label}</span>
+              <div className="flex items-center space-x-3">
+                <Icon size={20} />
+                <span>{label}</span>
+              </div>
+              {badge !== undefined && badge > 0 && (
+                <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 min-w-[20px] text-center">
+                  {badge}
+                </span>
+              )}
             </button>
           ))}
         </nav>
