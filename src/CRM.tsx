@@ -791,7 +791,8 @@ const [selectedLeadForPresupuesto, setSelectedLeadForPresupuesto] = useState<Lea
   };
 
   // ===== Alertas (locales de UI) =====
-  const [alerts, setAlerts] = useState<Alert[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+const [alerts, setAlerts] = useState<Alert[]>([]);
   const nextAlertId = useRef(1);
   const pushAlert = (userId: number, type: Alert["type"], message: string) => {
     setAlerts((prev) => [
@@ -2980,10 +2981,6 @@ const [selectedLeadForPresupuesto, setSelectedLeadForPresupuesto] = useState<Lea
                   })()}
                 </div>
                 {(() => {
-                  const teamFilter = ["owner", "director"].includes(currentUser?.role)
-                    ? selectedTeam
-                    : undefined;
-                  const filteredLeads = getFilteredLeadsByTeam(teamFilter);
                   const vendedoresEnScope = users.filter(
                     (u: any) => u.role === "vendedor" && visibleUserIds.includes(u.id)
                   );
