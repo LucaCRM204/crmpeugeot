@@ -56,12 +56,15 @@ function getDescendantUserIds(
 ) {
   const out: number[] = [];
   const stack = [...(childrenIndex.get(rootId) || [])];
+  console.log(`=== getDescendantUserIds para ID ${rootId} ===`);
+  console.log('Hijos directos:', childrenIndex.get(rootId));
   while (stack.length) {
     const id = stack.pop()!;
     out.push(id);
     const kids = childrenIndex.get(id) || [];
     for (const k of kids) stack.push(k);
   }
+ console.log('Descendientes totales:', out);
   return out;
 }
 
@@ -416,6 +419,20 @@ const [selectedLeadForPresupuesto, setSelectedLeadForPresupuesto] = useState<Lea
     if (["owner", "director", "dueño"].includes(user.role))
       return users.map((u: any) => u.id);
     const ids = [user.id, ...getDescendantUserIds(user.id, childrenIndex)];
+    console.log('=== getAccessibleUserIds ===');
+  console.log('Usuario:', user.name, 'ID:', user.id, 'Role:', user.role);
+  console.log('IDs visibles:', ids);
+  console.log('Leads filtrados:', leads.filter(l => l.vendedor && ids.includes(l.vendedor)).length);
+  console.log('Primeros 5 leads:', leads.slice(0, 5).map(l => ({ id: l.id, nombre: l.nombre, vendedor: l.vendedor })));
+console.log('Leads de Molina (ID 38):', leads.filter(l => l.vendedor === 38).length);
+console.log('=== getAccessibleUserIds ===');
+console.log('Usuario:', user.name, 'ID:', user.id, 'Role:', user.role);
+console.log('IDs visibles:', ids);
+console.log('Total leads en sistema:', leads.length);
+console.log('Primeros 3 leads completos:', leads.slice(0, 3));
+console.log('Leads con vendedor === 38:', leads.filter(l => l.vendedor === 38).length);
+console.log('Leads con vendedor tipo:', leads.slice(0, 3).map(l => ({ id: l.id, vendedor: l.vendedor, tipo: typeof l.vendedor })));
+console.log('Leads filtrados:', leads.filter(l => l.vendedor && ids.includes(l.vendedor)).length);
     return ids;
   };
   
@@ -2276,7 +2293,7 @@ const pushAlertToChain = (
                                   onClick={() => {
                                     const phoneNumber = lead.telefono.replace(/\D/g, '');
                                     const message = encodeURIComponent(
-                                      `Hola ${lead.nombre}, me contacto desde Alluma por su consulta sobre el ${lead.modelo}. ¿Cómo está?`
+                                      `Hola ${lead.nombre}, me contacto desde Alra por su consulta sobre el ${lead.modelo}. ¿Cómo está?`
                                     );
                                     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
                                     window.open(whatsappUrl, '_blank');
