@@ -1,4 +1,247 @@
-﻿import { useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
+
+// Iconos SVG reemplazando lucide-react
+const Calendar = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+    <line x1="16" y1="2" x2="16" y2="6"/>
+    <line x1="8" y1="2" x2="8" y2="6"/>
+    <line x1="3" y1="10" x2="21" y2="10"/>
+  </svg>
+);
+
+const Users = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+    <circle cx="9" cy="7" r="4"/>
+    <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+  </svg>
+);
+
+const Trophy = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
+    <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+    <path d="M4 22h16"/>
+    <path d="M10 14.66V17c0 .55.47.98.97 1.21C12.25 18.75 14 20 14 20s1.75-1.25 3.03-1.79c.5-.23.97-.66.97-1.21v-2.34"/>
+    <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
+  </svg>
+);
+
+const Plus = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <line x1="12" y1="5" x2="12" y2="19"/>
+    <line x1="5" y1="12" x2="19" y2="12"/>
+  </svg>
+);
+
+const Phone = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+  </svg>
+);
+
+const BarChart3 = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M3 3v18h18"/>
+    <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/>
+  </svg>
+);
+
+const Settings = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="12" cy="12" r="3"/>
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+  </svg>
+);
+
+const Home = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+    <polyline points="9,22 9,12 15,12 15,22"/>
+  </svg>
+);
+
+const X = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <line x1="18" y1="6" x2="6" y2="18"/>
+    <line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>
+);
+
+const Trash2 = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <polyline points="3,6 5,6 21,6"/>
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+    <line x1="10" y1="11" x2="10" y2="17"/>
+    <line x1="14" y1="11" x2="14" y2="17"/>
+  </svg>
+);
+
+const Edit3 = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M12 20h9"/>
+    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+  </svg>
+);
+
+const Bell = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
+    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+  </svg>
+);
+
+const UserCheck = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+    <circle cx="9" cy="7" r="4"/>
+    <polyline points="16,11 18,13 22,9"/>
+  </svg>
+);
+
+const Download = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+    <polyline points="7,10 12,15 17,10"/>
+    <line x1="12" y1="15" x2="12" y2="3"/>
+  </svg>
+);
+
+const Search = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="11" cy="11" r="8"/>
+    <path d="M21 21l-4.35-4.35"/>
+  </svg>
+);
+
+const Filter = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46"/>
+  </svg>
+);
+
+const User = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+    <circle cx="12" cy="7" r="4"/>
+  </svg>
+);
+
+// ===== API Configuration =====
+const API_BASE_URL = "https://peugeotbackend-production.up.railway.app";
+
+const api = {
+  defaults: {
+    headers: {
+      common: {} as Record<string, string>
+    }
+  },
+  async post(endpoint: string, data: any) {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...this.defaults.headers.common
+      },
+      body: JSON.stringify(data)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP ${response.status}`);
+    }
+    
+    return { data: await response.json() };
+  },
+  
+  async get(endpoint: string) {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'GET',
+      headers: {
+        ...this.defaults.headers.common
+      }
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP ${response.status}`);
+    }
+    
+    return { data: await response.json() };
+  },
+  
+  async put(endpoint: string, data: any) {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...this.defaults.headers.common
+      },
+      body: JSON.stringify(data)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP ${response.status}`);
+    }
+    
+    return { data: await response.json() };
+  },
+  
+  async delete(endpoint: string) {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'DELETE',
+      headers: {
+        ...this.defaults.headers.common
+      }
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP ${response.status}`);
+    }
+    
+    return { data: await response.json() };
+  }
+};
+
+// ===== API Services =====
+const listUsers = async () => {
+  const response = await api.get("/api/users");
+  return response.data;
+};
+
+const createUser = async (userData: any) => {
+  const response = await api.post("/api/users", userData);
+  return response.data;
+};
+
+const updateUser = async (id: number, userData: any) => {
+  const response = await api.put(`/api/users/${id}`, userData);
+  return response.data;
+};
+
+const deleteUser = async (id: number) => {
+  const response = await api.delete(`/api/users/${id}`);
+  return response.data;
+};
+
+const listLeads = async () => {
+  const response = await api.get("/api/leads");
+  return response.data;
+};
+
+const createLead = async (leadData: any) => {
+  const response = await api.post("/api/leads", leadData);
+  return response.data;
+};
+
+const updateLead = async (id: number, leadData: any) => {
+  const response = await api.put(`/api/leads/${id}`, leadData);
+  return response.data;
+};
 
 // ===== Utilidades de jerarquía =====
 function buildIndex(users: any[]) {
@@ -61,14 +304,15 @@ const fuentes: Record<
   google: { label: "Google Ads", color: "bg-red-500", icon: "🎯" },
   instagram: { label: "Instagram", color: "bg-pink-500", icon: "📸" },
   otro: { label: "Otro", color: "bg-gray-400", icon: "❓" },
+  creado_por: { label: "Creado por", color: "bg-teal-500", icon: "👤" },
 };
 
 // Configuración de bots
 const botConfig: Record<string, { targetTeam: string | null; label: string }> =
   {
-    whatsapp_bot_cm1: { targetTeam: null , label: "Bot CM 1" },
-    whatsapp_bot_cm2: { targetTeam: null , label: "Bot CM 2" },
-    whatsapp_100: { targetTeam: null, label: "Bot 100" }, // null = distribución general
+    whatsapp_bot_cm1: { targetTeam: "equipo1", label: "Bot CM 1" },
+    whatsapp_bot_cm2: { targetTeam: "equipo2", label: "Bot CM 2" },
+    whatsapp_100: { targetTeam: null, label: "Bot 100" },
   };
 
 type LeadRow = {
@@ -89,6 +333,7 @@ type LeadRow = {
     timestamp: string;
     usuario: string;
   }>;
+  created_by?: number;
 };
 
 type Alert = {
@@ -100,16 +345,118 @@ type Alert = {
   read: boolean;
 };
 
-// Mock de datos iniciales
-const initialUsers = [
-  { id: 1, name: "Admin Peugeot", email: "admin@peugeot.com", password: "admin123", role: "owner", reportsTo: null, active: true },
-];
+// ===== Funciones de descarga Excel =====
+const formatDate = (dateString: string): string => {
+  if (!dateString) return "Sin fecha";
+  const date = new Date(dateString);
+  return date.toLocaleDateString("es-AR");
+};
 
-const initialLeads: LeadRow[] = [];
+const downloadAllLeadsExcel = (leads: LeadRow[], userById: Map<number, any>, fuentes: any): void => {
+  const excelData = leads.map(lead => {
+    const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
+    const fuente = fuentes[lead.fuente] || { label: lead.fuente };
+    const creadoPor = lead.created_by ? userById.get(lead.created_by) : null;
+    
+    return {
+      'ID': lead.id,
+      'Cliente': lead.nombre,
+      'Teléfono': lead.telefono,
+      'Modelo': lead.modelo,
+      'Forma de Pago': lead.formaPago || '',
+      'Info Usado': lead.infoUsado || '',
+      'Entrega': lead.entrega ? 'Sí' : 'No',
+      'Estado': estados[lead.estado]?.label || lead.estado,
+      'Fuente': fuente.label,
+      'Vendedor': vendedor?.name || 'Sin asignar',
+      'Equipo': vendedor && vendedor.reportsTo ? `Equipo de ${userById.get(vendedor.reportsTo)?.name || '—'}` : '',
+      'Fecha': formatDate(lead.fecha || ''),
+      'Creado Por': creadoPor?.name || 'Sistema',
+      'Observaciones': lead.notas || ''
+    };
+  });
+
+  const headers = Object.keys(excelData[0] || {});
+  const csvContent = [
+    headers.join(','),
+    ...excelData.map(row => 
+      headers.map(header => {
+        const value = (row as any)[header] || '';
+        return `"${String(value).replace(/"/g, '""')}"`;
+      }).join(',')
+    )
+  ].join('\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', `todos_los_leads_${new Date().toISOString().slice(0,10)}.csv`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+const downloadLeadsByStateExcel = (leads: LeadRow[], estado: string, userById: Map<number, any>, fuentes: any): void => {
+  const leadsByState = leads.filter(l => l.estado === estado);
+
+  if (leadsByState.length === 0) {
+    alert(`No hay leads en estado "${estados[estado]?.label || estado}"`);
+    return;
+  }
+
+  const excelData = leadsByState.map(lead => {
+    const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
+    const fuente = fuentes[lead.fuente] || { label: lead.fuente };
+    const creadoPor = lead.created_by ? userById.get(lead.created_by) : null;
+    
+    return {
+      'ID': lead.id,
+      'Cliente': lead.nombre,
+      'Teléfono': lead.telefono,
+      'Modelo': lead.modelo,
+      'Forma de Pago': lead.formaPago || '',
+      'Info Usado': lead.infoUsado || '',
+      'Entrega': lead.entrega ? 'Sí' : 'No',
+      'Fuente': fuente.label,
+      'Vendedor': vendedor?.name || 'Sin asignar',
+      'Equipo': vendedor && vendedor.reportsTo ? `Equipo de ${userById.get(vendedor.reportsTo)?.name || '—'}` : '',
+      'Fecha': formatDate(lead.fecha || ''),
+      'Creado Por': creadoPor?.name || 'Sistema',
+      'Observaciones': lead.notas || '',
+      'Historial': lead.historial?.map(h => 
+        `${formatDate(h.timestamp)}: ${h.estado} (${h.usuario})`
+      ).join(' | ') || ''
+    };
+  });
+
+  const headers = Object.keys(excelData[0] || {});
+  const csvContent = [
+    headers.join(','),
+    ...excelData.map(row => 
+      headers.map(header => {
+        const value = (row as any)[header] || '';
+        return `"${String(value).replace(/"/g, '""')}"`;
+      }).join(',')
+    )
+  ].join('\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  const estadoLabel = estados[estado]?.label || estado;
+  link.setAttribute('download', `leads_${estadoLabel.toLowerCase().replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.csv`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
 
 export default function PeugeotCRM() {
-  const [users, setUsers] = useState<any[]>(initialUsers);
-  const [leads, setLeads] = useState<LeadRow[]>(initialLeads);
+  const [users, setUsers] = useState<any[]>([]);
+  const [leads, setLeads] = useState<LeadRow[]>([]);
   const { byId: userById, children: childrenIndex } = useMemo(
     () => buildIndex(users),
     [users]
@@ -141,19 +488,101 @@ export default function PeugeotCRM() {
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState<any>(null);
 
-  // ===== Login contra mock local =====
-  const handleLogin = (email: string, password: string) => {
-    const user = users.find((u: any) => u.email === email && u.password === password);
-    
-    if (user) {
-      setCurrentUser(user);
-      setIsAuthenticated(true);
-      setLoginError("");
-    } else {
-      setLoginError("Credenciales incorrectas");
+  // ===== Login contra backend =====
+  const handleLogin = async (email: string, password: string) => {
+    try {
+      const r = await api.post("/api/auth/login", { 
+        email, 
+        password, 
+        allowInactiveUsers: true
+      });
+
+      if (r.data?.ok && r.data?.token) {
+        localStorage.setItem("token", r.data.token);
+        localStorage.setItem("user", JSON.stringify(r.data.user));
+
+        api.defaults.headers.common["Authorization"] = `Bearer ${r.data.token}`;
+
+        const u = r.data.user || {
+          id: 0,
+          name: r.data?.user?.email || email,
+          email,
+          role: r.data?.user?.role || "owner",
+          reportsTo: null,
+          active: r.data?.user?.active ?? true,
+        };
+
+        setCurrentUser(u);
+        setIsAuthenticated(true);
+        setLoginError("");
+
+        const [uu, ll] = await Promise.all([listUsers(), listLeads()]);
+        const mappedLeads: LeadRow[] = (ll || []).map((L: any) => ({
+          id: L.id,
+          nombre: L.nombre,
+          telefono: L.telefono,
+          modelo: L.modelo,
+          formaPago: L.formaPago,
+          infoUsado: L.infoUsado,
+          entrega: L.entrega,
+          fecha: L.fecha || L.created_at || "",
+          estado: (L.estado || "nuevo") as LeadRow["estado"],
+          vendedor: L.vendedor ?? null,
+          notas: L.notas || "",
+          fuente: (L.fuente || "otro") as LeadRow["fuente"],
+          historial: L.historial || [],
+          created_by: L.created_by || null,
+        }));
+        setUsers(uu || []);
+        setLeads(mappedLeads);
+      } else {
+        throw new Error("Respuesta inválida del servidor");
+      }
+    } catch (err: any) {
+      setLoginError(err?.response?.data?.error || err.message || "Credenciales incorrectas");
       setIsAuthenticated(false);
     }
   };
+
+  // ===== Verificar token al cargar =====
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const savedUser = localStorage.getItem("user");
+    
+    if (token && savedUser) {
+      try {
+        const user = JSON.parse(savedUser);
+        api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+        setCurrentUser(user);
+        setIsAuthenticated(true);
+        
+        // Cargar datos
+        Promise.all([listUsers(), listLeads()]).then(([uu, ll]) => {
+          const mappedLeads: LeadRow[] = (ll || []).map((L: any) => ({
+            id: L.id,
+            nombre: L.nombre,
+            telefono: L.telefono,
+            modelo: L.modelo,
+            formaPago: L.formaPago,
+            infoUsado: L.infoUsado,
+            entrega: L.entrega,
+            fecha: L.fecha || L.created_at || "",
+            estado: (L.estado || "nuevo") as LeadRow["estado"],
+            vendedor: L.vendedor ?? null,
+            notas: L.notas || "",
+            fuente: (L.fuente || "otro") as LeadRow["fuente"],
+            historial: L.historial || [],
+            created_by: L.created_by || null,
+          }));
+          setUsers(uu || []);
+          setLeads(mappedLeads);
+        }).catch(console.error);
+      } catch (e) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+      }
+    }
+  }, []);
 
   // ===== Acceso por rol =====
   const getAccessibleUserIds = (user: any) => {
@@ -163,9 +592,16 @@ export default function PeugeotCRM() {
     const ids = [user.id, ...getDescendantUserIds(user.id, childrenIndex)];
     return ids;
   };
+  
+  const canCreateUsers = () =>
+    currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
+
   const canManageUsers = () =>
     currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
   const isOwner = () => currentUser?.role === "owner";
+
+  const canCreateLeads = () =>
+    currentUser && ["owner", "director", "gerente", "supervisor", "vendedor"].includes(currentUser.role);
 
   // ===== Funciones de filtro por equipo =====
   const getTeamManagerById = (teamId: string) => {
@@ -192,93 +628,89 @@ export default function PeugeotCRM() {
       teamId !== "todos" &&
       ["owner", "director"].includes(currentUser.role)
     ) {
-      // Filtrar por equipo específico usando ID
       const teamUserIds = getTeamUserIds(teamId);
       return leads.filter((l) =>
         l.vendedor ? teamUserIds.includes(l.vendedor) : false
       );
     }
 
-    // Filtro normal por scope del usuario
     const visibleUserIds = getAccessibleUserIds(currentUser);
     return leads.filter((l) =>
       l.vendedor ? visibleUserIds.includes(l.vendedor) : true
     );
   };
 
-  // ===== Nueva función para filtrar usuarios visibles según rol =====
+  const getAvailableVendorsForAssignment = () => {
+    if (!currentUser) return [];
+
+    const visibleUserIds = getAccessibleUserIds(currentUser);
+    
+    return users.filter((u: any) => {
+      if (u.role !== "vendedor" || !u.active) return false;
+      if (!visibleUserIds.includes(u.id)) return false;
+      return true;
+    });
+  };
+
   const getVisibleUsers = () => {
     if (!currentUser) return [];
 
     return users.filter((u: any) => {
-      // Owner ve a todos
       if (currentUser.role === "owner") return true;
-
-      // Director ve a todos menos al owner
       if (currentUser.role === "director") return u.role !== "owner";
 
-      // Gerente solo ve a su equipo
       if (currentUser.role === "gerente") {
-        // Ve a sí mismo
         if (u.id === currentUser.id) return true;
-
-        // Ve a sus supervisores directos
         if (u.reportsTo === currentUser.id) return true;
-
-        // Ve a los vendedores que reportan a sus supervisores
         const userSupervisor = userById.get(u.reportsTo);
         return userSupervisor && userSupervisor.reportsTo === currentUser.id;
       }
 
-      // Supervisor solo ve a su equipo directo
       if (currentUser.role === "supervisor") {
-        // Ve a sí mismo
         if (u.id === currentUser.id) return true;
-
-        // Ve a sus vendedores directos
         return u.reportsTo === currentUser.id;
+      }
+
+      if (currentUser.role === "vendedor") {
+        return u.id === currentUser.id;
       }
 
       return false;
     });
   };
 
-  // ===== Función para obtener leads filtrados y buscados =====
   const getFilteredAndSearchedLeads = () => {
     if (!currentUser) return [] as LeadRow[];
 
-    // Comenzar con leads base según scope
     const visibleUserIds = getAccessibleUserIds(currentUser);
     let filteredLeads = leads.filter((l) =>
       l.vendedor ? visibleUserIds.includes(l.vendedor) : true
     );
 
-    // Aplicar filtro por vendedor específico
     if (selectedVendedorFilter) {
       filteredLeads = filteredLeads.filter((l) => l.vendedor === selectedVendedorFilter);
     }
 
-    // Aplicar filtro por estado
     if (selectedEstadoFilter) {
       filteredLeads = filteredLeads.filter((l) => l.estado === selectedEstadoFilter);
     }
 
-    // Aplicar filtro por fuente
     if (selectedFuenteFilter) {
       filteredLeads = filteredLeads.filter((l) => l.fuente === selectedFuenteFilter);
     }
 
-    // Aplicar búsqueda de texto
     if (searchText.trim()) {
       const searchLower = searchText.toLowerCase().trim();
       filteredLeads = filteredLeads.filter((l) => {
         const vendedor = l.vendedor ? userById.get(l.vendedor) : null;
+        const creadoPor = l.created_by ? userById.get(l.created_by) : null;
         return (
           l.nombre.toLowerCase().includes(searchLower) ||
           l.telefono.includes(searchText.trim()) ||
           l.modelo.toLowerCase().includes(searchLower) ||
           (l.notas && l.notas.toLowerCase().includes(searchLower)) ||
           (vendedor && vendedor.name.toLowerCase().includes(searchLower)) ||
+          (creadoPor && creadoPor.name.toLowerCase().includes(searchLower)) ||
           (l.formaPago && l.formaPago.toLowerCase().includes(searchLower)) ||
           (l.infoUsado && l.infoUsado.toLowerCase().includes(searchLower))
         );
@@ -288,7 +720,6 @@ export default function PeugeotCRM() {
     return filteredLeads;
   };
 
-  // ===== Función para limpiar filtros =====
   const clearFilters = () => {
     setSearchText("");
     setSelectedVendedorFilter(null);
@@ -296,7 +727,6 @@ export default function PeugeotCRM() {
     setSelectedFuenteFilter("");
   };
 
-  // ===== Función para contar leads activos por filtros =====
   const getActiveFiltersCount = () => {
     let count = 0;
     if (searchText.trim()) count++;
@@ -306,65 +736,63 @@ export default function PeugeotCRM() {
     return count;
   };
 
-  // ===== Función para obtener vendedores disponibles según el rol del usuario =====
   const getAvailableVendorsForReassign = () => {
     if (!currentUser) return [];
-
-    // Obtener usuarios visibles según el rol
     const visibleUsers = getVisibleUsers();
-
-    // Filtrar solo vendedores activos
     return visibleUsers.filter((u: any) => u.role === "vendedor" && u.active);
   };
 
-  // ===== Función para abrir modal de reasignación =====
   const openReassignModal = (lead: LeadRow) => {
     setLeadToReassign(lead);
     setSelectedVendorForReassign(lead.vendedor);
     setShowReassignModal(true);
   };
 
-  // ===== Función para reasignar lead =====
-  const handleReassignLead = () => {
+  const handleReassignLead = async () => {
     if (!leadToReassign) return;
 
-    // Actualizar estado local
-    setLeads((prev) =>
-      prev.map((l) =>
-        l.id === leadToReassign.id
-        ? { ...l, vendedor: selectedVendorForReassign }
-        : l
-      )
-    );
-
-    // Enviar notificación al nuevo vendedor
-    if (selectedVendorForReassign) {
-      pushAlert(
-        selectedVendorForReassign,
-        "lead_assigned",
-        `Lead reasignado: ${leadToReassign.nombre} - ${leadToReassign.modelo}`
+    try {
+      await updateLead(
+        leadToReassign.id,
+        { vendedor: selectedVendorForReassign } as any
       );
+
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadToReassign.id
+          ? { ...l, vendedor: selectedVendorForReassign }
+          : l
+        )
+      );
+
+      if (selectedVendorForReassign) {
+        pushAlert(
+          selectedVendorForReassign,
+          "lead_assigned",
+          `Lead reasignado: ${leadToReassign.nombre} - ${leadToReassign.modelo}`
+        );
+      }
+
+      addHistorialEntry(
+        leadToReassign.id,
+        `Reasignado a ${
+          selectedVendorForReassign
+            ? userById.get(selectedVendorForReassign)?.name
+            : "Sin asignar"
+        }`
+      );
+
+      setShowReassignModal(false);
+      setLeadToReassign(null);
+      setSelectedVendorForReassign(null);
+    } catch (e) {
+      console.error("No pude reasignar el lead", e);
     }
-
-    // Agregar entrada al historial
-    addHistorialEntry(
-      leadToReassign.id,
-      `Reasignado a ${
-        selectedVendorForReassign
-          ? userById.get(selectedVendorForReassign)?.name
-          : "Sin asignar"
-      }`
-    );
-
-    setShowReassignModal(false);
-    setLeadToReassign(null);
-    setSelectedVendorForReassign(null);
   };
 
   // ===== Round-robin con soporte para bots específicos =====
   const [rrIndex, setRrIndex] = useState(0);
 
-  // Solo obtener vendedores ACTIVOS
   const getActiveVendorIdsInScope = (scopeUser?: any) => {
     if (!scopeUser) return [] as number[];
     const scope = getAccessibleUserIds(scopeUser);
@@ -375,9 +803,7 @@ export default function PeugeotCRM() {
       .map((u: any) => u.id);
   };
 
-  // Solo obtener vendedores ACTIVOS del equipo
   const getVendorsByTeam = (teamName: string) => {
-    // Buscar el gerente del equipo por nombre
     const manager = users.find(
       (u: any) =>
         u.role === "gerente" &&
@@ -386,7 +812,6 @@ export default function PeugeotCRM() {
 
     if (!manager) return [];
 
-    // Obtener todos los descendientes del gerente
     const descendants = getDescendantUserIds(manager.id, childrenIndex);
     return users
       .filter(
@@ -402,14 +827,11 @@ export default function PeugeotCRM() {
     if (botSource && botConfig[botSource]) {
       const botConf = botConfig[botSource];
       if (botConf.targetTeam) {
-        // Bot específico para un equipo - SOLO ACTIVOS
         pool = getVendorsByTeam(botConf.targetTeam);
       } else {
-        // Bot 100 - distribución general - SOLO ACTIVOS
         pool = getActiveVendorIdsInScope(scopeUser || currentUser);
       }
     } else {
-      // Asignación manual normal - SOLO ACTIVOS
       pool = getActiveVendorIdsInScope(scopeUser || currentUser);
     }
 
@@ -419,7 +841,7 @@ export default function PeugeotCRM() {
     return id;
   };
 
-  // ===== Alertas (locales de UI) =====
+  // ===== Alertas =====
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const nextAlertId = useRef(1);
   const pushAlert = (userId: number, type: Alert["type"], message: string) => {
@@ -435,6 +857,17 @@ export default function PeugeotCRM() {
       },
     ]);
   };
+  const pushAlertToChain = (
+    vendorId: number,
+    type: Alert["type"],
+    message: string
+  ) => {
+    pushAlert(vendorId, type, message);
+    const sup = users.find((u: any) => u.id === userById.get(vendorId)?.reportsTo);
+    if (sup) pushAlert(sup.id, type, message);
+    const gerente = sup ? users.find((u: any) => u.id === sup.reportsTo) : null;
+    if (gerente) pushAlert(gerente.id, type, message);
+  };
 
   // ===== Filtrados y ranking =====
   const visibleUserIds = useMemo(
@@ -447,6 +880,25 @@ export default function PeugeotCRM() {
     return leads.filter((l) =>
       l.vendedor ? visibleUserIds.includes(l.vendedor) : true
     );
+  };
+
+  const getRanking = () => {
+    const vendedores = users.filter((u: any) => u.role === "vendedor");
+    return vendedores
+      .map((v: any) => {
+        const ventas = leads.filter(
+          (l) => l.vendedor === v.id && l.estado === "vendido"
+        ).length;
+        const leadsAsignados = leads.filter((l) => l.vendedor === v.id).length;
+        return {
+          id: v.id,
+          nombre: v.name,
+          ventas,
+          leadsAsignados,
+          team: `Equipo de ${userById.get(v.reportsTo)?.name || "—"}`,
+        };
+      })
+      .sort((a, b) => b.ventas - a.ventas);
   };
 
   const getRankingInScope = () => {
@@ -469,6 +921,61 @@ export default function PeugeotCRM() {
       })
       .sort((a, b) => b.ventas - a.ventas);
   };
+
+  const getRankingByManagerialTeam = () => {
+    if (!currentUser) return [];
+    
+    if (currentUser.role === "vendedor") {
+      const supervisor = userById.get(currentUser.reportsTo);
+      if (!supervisor) return getRankingInScope();
+      
+      const gerente = userById.get(supervisor.reportsTo);
+      if (!gerente) return getRankingInScope();
+      
+      const teamUserIds = getDescendantUserIds(gerente.id, childrenIndex);
+      const vendedores = users.filter(
+        (u: any) => u.role === "vendedor" && teamUserIds.includes(u.id)
+      );
+      
+      return vendedores
+        .map((v: any) => {
+          const ventas = leads.filter(
+            (l) => l.vendedor === v.id && l.estado === "vendido"
+          ).length;
+          const leadsAsignados = leads.filter((l) => l.vendedor === v.id).length;
+          return {
+            id: v.id,
+            nombre: v.name,
+            ventas,
+            leadsAsignados,
+            team: `Equipo de ${gerente.name}`,
+          };
+        })
+        .sort((a, b) => b.ventas - a.ventas);
+    }
+    
+    return getRankingInScope();
+  };
+
+  const prevRankingRef = useRef(new Map<number, number>());
+  useEffect(() => {
+    const r = getRanking();
+    const curr = new Map<number, number>();
+    r.forEach((row, idx) => curr.set(row.id, idx + 1));
+    const prev = prevRankingRef.current;
+    curr.forEach((pos, vid) => {
+      const before = prev.get(vid);
+      if (before && before !== pos) {
+        const delta = before - pos;
+        const msg =
+          delta > 0
+            ? `¡Subiste ${Math.abs(delta)} puesto(s) en el ranking!`
+            : `Bajaste ${Math.abs(delta)} puesto(s) en el ranking.`;
+        pushAlertToChain(vid, "ranking_change", msg);
+      }
+    });
+    prevRankingRef.current = curr;
+  }, [leads, users, userById]);
 
   const getDashboardStats = (teamFilter?: string) => {
     const filteredLeads =
@@ -516,6 +1023,23 @@ export default function PeugeotCRM() {
   };
 
   // ===== Acciones de Leads =====
+  const mapLeadFromApi = (L: any): LeadRow => ({
+    id: L.id,
+    nombre: L.nombre,
+    telefono: L.telefono,
+    modelo: L.modelo,
+    formaPago: L.formaPago,
+    infoUsado: L.infoUsado,
+    entrega: L.entrega,
+    fecha: L.fecha || L.createdAt || "",
+    estado: (L.estado || "nuevo") as LeadRow["estado"],
+    vendedor: L.vendedor ?? null, // Backend usa 'vendedor' no 'assigned_to'
+    notas: L.notas || "",
+    fuente: (L.fuente || "otro") as LeadRow["fuente"],
+    historial: L.historial || [],
+    created_by: L.created_by || null,
+  });
+
   const addHistorialEntry = (leadId: number, estado: string) => {
     if (!currentUser) return;
     setLeads((prev) =>
@@ -537,13 +1061,17 @@ export default function PeugeotCRM() {
     );
   };
 
-  const handleUpdateLeadStatus = (leadId: number, newStatus: string) => {
-    setLeads((prev) =>
-      prev.map((l) => (l.id === leadId ? { ...l, estado: newStatus as keyof typeof estados } : l))
-    );
+  const handleUpdateLeadStatus = async (leadId: number, newStatus: string) => {
+    try {
+      const updated = await updateLead(leadId, { estado: newStatus } as any);
+      setLeads((prev) =>
+        prev.map((l) => (l.id === leadId ? { ...l, ...mapLeadFromApi(updated) } : l))
+      );
 
-    // Agregar entrada al historial
-    addHistorialEntry(leadId, newStatus);
+      addHistorialEntry(leadId, newStatus);
+    } catch (e) {
+      console.error("No pude actualizar estado del lead", e);
+    }
   };
 
   // ===== Crear Lead y Modales =====
@@ -555,102 +1083,125 @@ export default function PeugeotCRM() {
   const [viewingLeadHistorial, setViewingLeadHistorial] =
     useState<LeadRow | null>(null);
 
-  const handleUpdateObservaciones = (
+  const handleUpdateObservaciones = async (
     leadId: number,
     observaciones: string
   ) => {
-    setLeads((prev) =>
-      prev.map((l) => (l.id === leadId ? { ...l, notas: observaciones } : l))
-    );
-    setShowObservacionesModal(false);
-    setEditingLeadObservaciones(null);
+    try {
+      const updated = await updateLead(leadId, { notas: observaciones } as any);
+      setLeads((prev) =>
+        prev.map((l) => (l.id === leadId ? { ...l, ...mapLeadFromApi(updated) } : l))
+      );
+      setShowObservacionesModal(false);
+      setEditingLeadObservaciones(null);
+    } catch (e) {
+      console.error("No pude actualizar observaciones del lead", e);
+    }
   };
 
-  const handleCreateLead = () => {
-    const nombre = (document.getElementById("new-nombre") as HTMLInputElement)
-      .value
-      .trim();
-    const telefono = (
-      document.getElementById("new-telefono") as HTMLInputElement
-    ).value.trim();
-    const modelo = (document.getElementById("new-modelo") as HTMLInputElement)
-      .value
-      .trim();
-    const formaPago = (document.getElementById("new-formaPago") as HTMLSelectElement).value;
-    const infoUsado = (
-      document.getElementById("new-infoUsado") as HTMLInputElement
-    ).value.trim();
-    const entrega = (document.getElementById("new-entrega") as HTMLInputElement)
-      .checked;
-    const fecha = (document.getElementById("new-fecha") as HTMLInputElement)
-      .value;
-    const fuente = (document.getElementById("new-fuente") as HTMLSelectElement)
-      .value;
-    const autoAssign = (
-      document.getElementById("new-autoassign") as HTMLInputElement
-    )?.checked;
-    const vendedorSelVal = (document.getElementById("new-vendedor") as HTMLSelectElement)
-      .value;
+  const handleCreateLead = async () => {
+    try {
+      const nombre = (document.getElementById("new-nombre") as HTMLInputElement)
+        ?.value
+        ?.trim();
+      const telefono = (
+        document.getElementById("new-telefono") as HTMLInputElement
+      )?.value?.trim();
+      const modelo = (document.getElementById("new-modelo") as HTMLInputElement)
+        ?.value
+        ?.trim();
+      const formaPago = (document.getElementById("new-formaPago") as HTMLSelectElement)?.value;
+      const infoUsado = (
+        document.getElementById("new-infoUsado") as HTMLInputElement
+      )?.value?.trim();
+      const entrega = (document.getElementById("new-entrega") as HTMLInputElement)
+        ?.checked;
+      const fecha = (document.getElementById("new-fecha") as HTMLInputElement)
+        ?.value;
+      const autoAssign = (
+        document.getElementById("new-autoassign") as HTMLInputElement
+      )?.checked;
+      const vendedorSelVal = (document.getElementById("new-vendedor") as HTMLSelectElement)
+        ?.value;
 
-    const vendedorIdSelRaw = parseInt(vendedorSelVal, 10);
-    const vendedorIdSel = Number.isNaN(vendedorIdSelRaw)
-      ? null
-      : vendedorIdSelRaw;
-
-    // Detectar si es un bot y asignar según configuración - SOLO A ACTIVOS
-    let vendedorId: number | null = null;
-    if (autoAssign) {
-      vendedorId = pickNextVendorId(currentUser, fuente) ?? vendedorIdSel ?? null;
-    } else {
-      // Verificar que el vendedor seleccionado esté activo si se asigna manualmente
-      if (vendedorIdSel) {
-        const selectedVendor = users.find(u => u.id === vendedorIdSel);
-        if (selectedVendor && selectedVendor.active) {
-          vendedorId = vendedorIdSel;
-        } else {
-          alert("El vendedor seleccionado está desactivado. Por favor selecciona otro vendedor o usa la asignación automática.");
-          return;
-        }
-      } else {
-        vendedorId = null;
+      if (!nombre || !telefono || !modelo) {
+        alert("Por favor completa los campos obligatorios: Nombre, Teléfono y Modelo");
+        return;
       }
-    }
 
-    if (nombre && telefono && modelo && fuente) {
-      const newLead: LeadRow = {
-        id: Math.max(0, ...leads.map(l => l.id)) + 1,
+      const vendedorIdSelRaw = parseInt(vendedorSelVal, 10);
+      const vendedorIdSel = Number.isNaN(vendedorIdSelRaw)
+        ? null
+        : vendedorIdSelRaw;
+
+      const fuente = "creado_por";
+
+      let vendedorId: number | null = null;
+      if (autoAssign) {
+        vendedorId = pickNextVendorId(currentUser) ?? null;
+      } else {
+        if (vendedorIdSel) {
+          const selectedVendor = users.find(u => u.id === vendedorIdSel);
+          const availableVendors = getAvailableVendorsForAssignment();
+          
+          if (selectedVendor && selectedVendor.active && availableVendors.some(v => v.id === vendedorIdSel)) {
+            vendedorId = vendedorIdSel;
+          } else {
+            alert("El vendedor seleccionado no está disponible. Por favor selecciona otro vendedor o usa la asignación automática.");
+            return;
+          }
+        } else {
+          vendedorId = null;
+        }
+      }
+
+      // Datos que espera tu backend
+      const leadData = {
         nombre,
         telefono,
         modelo,
-        formaPago,
-        notas: "",
-        estado: "nuevo",
-        fuente: fuente as keyof typeof fuentes,
-        infoUsado,
-        entrega,
-        fecha,
-        vendedor: vendedorId,
-        historial: [{
-          estado: "nuevo",
-          timestamp: new Date().toISOString(),
-          usuario: currentUser.name,
-        }],
+        formaPago: formaPago || "Contado",
+        infoUsado: infoUsado || null,
+        entrega: entrega ? 1 : 0, // Backend espera 1/0
+        fecha: fecha || new Date().toISOString().split('T')[0],
+        vendedor: vendedorId, // Backend usa 'vendedor'
+        fuente,
+        notas: `Creado por: ${currentUser?.name}${infoUsado ? `\nInfo usado: ${infoUsado}` : ''}${entrega ? '\nEntrega usado: Sí' : ''}`,
       };
+
+      const created = await createLead(leadData as any);
+      const mapped = mapLeadFromApi(created);
       
-      if (newLead.vendedor)
+      if (mapped.vendedor) {
         pushAlert(
-          newLead.vendedor,
+          mapped.vendedor,
           "lead_assigned",
-          `Nuevo lead asignado: ${newLead.nombre}`
+          `Nuevo lead asignado: ${mapped.nombre} (creado por ${currentUser?.name})`
         );
-      setLeads((prev) => [newLead, ...prev]);
+      }
+      
+      setLeads((prev) => [mapped, ...prev]);
       setShowNewLeadModal(false);
 
-      addHistorialEntry(newLead.id, "nuevo");
+      // Limpiar formulario
+      (document.getElementById("new-nombre") as HTMLInputElement).value = "";
+      (document.getElementById("new-telefono") as HTMLInputElement).value = "";
+      (document.getElementById("new-modelo") as HTMLInputElement).value = "";
+      (document.getElementById("new-infoUsado") as HTMLInputElement).value = "";
+      (document.getElementById("new-fecha") as HTMLInputElement).value = "";
+      (document.getElementById("new-entrega") as HTMLInputElement).checked = false;
+
+      addHistorialEntry(mapped.id, `Creado por ${currentUser?.name}`);
+      
+      alert("Lead creado exitosamente");
+      
+    } catch (e: any) {
+      console.error("Error al crear el lead:", e);
+      alert(`Error al crear el lead: ${e?.message || 'Error desconocido'}`);
     }
   };
 
-  // ===== Calendario (UI local) =====
+  // ===== Calendario =====
   const [events, setEvents] = useState<any[]>([]);
   const [selectedCalendarUserId, setSelectedCalendarUserId] = useState<number | null>(null);
   const [showNewEventModal, setShowNewEventModal] = useState(false);
@@ -755,41 +1306,60 @@ export default function PeugeotCRM() {
     setShowUserModal(true);
   };
 
-  const saveUser = () => {
+  const saveUser = async () => {
     const name = (document.getElementById("u-name") as HTMLInputElement).value.trim();
     const email = (document.getElementById("u-email") as HTMLInputElement).value.trim();
     const password = (document.getElementById("u-pass") as HTMLInputElement).value;
     const active = (document.getElementById("u-active") as HTMLInputElement).checked;
 
-    if (!name || !email) return;
+    if (!name || !email) {
+      alert("Nombre y email son obligatorios");
+      return;
+    }
+    
+    if (!editingUser && !password) {
+      alert("La contraseña es obligatoria para usuarios nuevos");
+      return;
+    }
+
     const finalReportsTo = modalRole === "owner" ? null : modalReportsTo ?? null;
 
-    if (editingUser) {
-      setUsers((prev) => prev.map((u: any) => (u.id === editingUser.id ? {
-        ...u,
-        name,
-        email,
-        password: password || u.password,
-        role: modalRole,
-        reportsTo: finalReportsTo,
-        active: active,
-      } : u)));
-    } else {
-      const newUser = {
-        id: Math.max(0, ...users.map(u => u.id)) + 1,
-        name,
-        email,
-        password: password || "123456",
-        role: modalRole,
-        reportsTo: finalReportsTo,
-        active: active,
-      };
-      setUsers((prev) => [...prev, newUser]);
+    try {
+      if (editingUser) {
+        const updateData: any = {
+          name,
+          email,
+          role: modalRole,
+          reportsTo: finalReportsTo,
+          active: active ? 1 : 0,
+        };
+        
+        if (password && password.trim()) {
+          updateData.password = password.trim();
+        }
+
+        const updated = await updateUser(editingUser.id, updateData);
+        setUsers((prev) => prev.map((u: any) => (u.id === editingUser.id ? updated : u)));
+      } else {
+        const createData = {
+          name,
+          email,
+          password: password.trim(),
+          role: modalRole,
+          reportsTo: finalReportsTo,
+          active: active ? 1 : 0,
+        };
+        
+        const created = await createUser(createData as any);
+        setUsers((prev) => [...prev, created]);
+      }
+      setShowUserModal(false);
+    } catch (e: any) {
+      console.error("No pude guardar usuario", e);
+      alert(`Error al ${editingUser ? 'actualizar' : 'crear'} usuario: ${e?.response?.data?.error || e.message}`);
     }
-    setShowUserModal(false);
   };
 
-  // ===== Función para abrir modal de confirmación de eliminación =====
   const openDeleteConfirm = (user: any) => {
     if (user.role === "owner") {
       alert("No podés eliminar al Dueño.");
@@ -812,31 +1382,46 @@ export default function PeugeotCRM() {
     setShowDeleteConfirmModal(true);
   };
 
-  // ===== Función para confirmar eliminación =====
-  const confirmDeleteUser = () => {
+  const confirmDeleteUser = async () => {
     if (!userToDelete) return;
 
-    setUsers((prev) => prev.filter((u: any) => u.id !== userToDelete.id));
-    setShowDeleteConfirmModal(false);
-    setUserToDelete(null);
+    try {
+      await deleteUser(userToDelete.id);
+      setUsers((prev) => prev.filter((u: any) => u.id !== userToDelete.id));
+      setShowDeleteConfirmModal(false);
+      setUserToDelete(null);
+    } catch (e) {
+      console.error("No pude eliminar usuario", e);
+      alert("Error al eliminar el usuario. Por favor, intenta nuevamente.");
+    }
+  };
+
+  // ===== Logout =====
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    setCurrentUser(null);
+    setIsAuthenticated(false);
+    setUsers([]);
+    setLeads([]);
   };
 
   // ===== UI: Login =====
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-blue-800 flex items-center justify-center">
         <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
           <div className="text-center mb-8">
             <div className="flex items-center justify-center mb-4">
-              <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-blue-800 rounded-xl flex items-center justify-center">
-                <span className="text-white font-bold text-2xl">🦁</span>
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                <span className="text-white font-bold text-2xl">P</span>
               </div>
               <div className="ml-3">
                 <h1 className="text-2xl font-bold text-gray-800">Peugeot</h1>
-                <p className="text-sm text-gray-600">CRM Sistema</p>
+                <p className="text-sm text-gray-600">CRM System</p>
               </div>
             </div>
-            <p className="text-gray-600">Sistema de gestión CRM</p>
+            <p className="text-gray-600">Sistema de gestión de leads</p>
           </div>
 
           <div className="space-y-6">
@@ -846,7 +1431,7 @@ export default function PeugeotCRM() {
                 type="email"
                 id="email"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="admin@peugeot.com"
+                placeholder="tu@peugeot.com"
               />
             </div>
             <div>
@@ -856,6 +1441,14 @@ export default function PeugeotCRM() {
                 id="password"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 placeholder="••••••••"
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    handleLogin(
+                      (document.getElementById("email") as HTMLInputElement).value,
+                      (document.getElementById("password") as HTMLInputElement).value
+                    );
+                  }
+                }}
               />
             </div>
             {loginError && (
@@ -871,7 +1464,7 @@ export default function PeugeotCRM() {
                   (document.getElementById("password") as HTMLInputElement).value
                 )
               }
-              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-700 hover:to-blue-800"
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700"
             >
               Iniciar Sesión
             </button>
@@ -888,14 +1481,12 @@ export default function PeugeotCRM() {
       <div className="bg-slate-900 text-white w-64 min-h-screen p-4">
         <div className="mb-8">
           <div className="flex items-center mb-4">
-            <div className="relative">
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-blue-800 rounded-xl flex items-center justify-center">
-                <span className="text-white font-bold text-xl">🦁</span>
-              </div>
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-lg">P</span>
             </div>
             <div className="ml-3">
               <h1 className="text-xl font-bold text-white">Peugeot</h1>
-              <p className="text-xs text-gray-400">CRM Sistema</p>
+              <p className="text-xs text-gray-400">CRM System</p>
             </div>
           </div>
 
@@ -904,7 +1495,6 @@ export default function PeugeotCRM() {
             <p className="text-blue-300">
               {roles[currentUser?.role] || currentUser?.role}
             </p>
-            {/* Indicador si el usuario está desactivado */}
             {!currentUser?.active && (
               <p className="text-red-300 text-xs mt-1">
                 ⚠️ Usuario desactivado - No recibe leads nuevos
@@ -914,18 +1504,17 @@ export default function PeugeotCRM() {
         </div>
         <nav className="space-y-2">
           {[
-            { key: "dashboard", label: "Dashboard", icon: "🏠" },
-            { key: "leads", label: "Leads", icon: "👥" },
-            { key: "calendar", label: "Calendario", icon: "📅" },
-            { key: "ranking", label: "Ranking", icon: "🏆" },
+            { key: "dashboard", label: "Dashboard", Icon: Home },
+            { key: "leads", label: "Leads", Icon: Users },
+            { key: "calendar", label: "Calendario", Icon: Calendar },
+            { key: "ranking", label: "Ranking", Icon: Trophy },
             ...(["supervisor", "gerente", "director", "owner"].includes(currentUser?.role)
-              ? [{ key: "team", label: "Mi Equipo", icon: "👨‍💼" }]
+              ? [{ key: "team", label: "Mi Equipo", Icon: UserCheck }]
               : []),
             ...(canManageUsers()
-              ? [{ key: "users", label: "Usuarios", icon: "⚙️" }]
+              ? [{ key: "users", label: "Usuarios", Icon: Settings }]
               : []),
-            { key: "alerts", label: "Alertas", icon: "🔔" },
-          ].map(({ key, label, icon }) => (
+          ].map(({ key, label, Icon }) => (
             <button
               key={key}
               onClick={() => setActiveSection(key as any)}
@@ -935,44 +1524,62 @@ export default function PeugeotCRM() {
                   : "text-gray-300 hover:bg-slate-800"
               }`}
             >
-              <span className="text-xl">{icon}</span>
+              <Icon size={20} />
               <span>{label}</span>
             </button>
           ))}
+          
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-300 hover:bg-red-600 hover:text-white transition-colors mt-4"
+          >
+            <span>🚪</span>
+            <span>Cerrar Sesión</span>
+          </button>
         </nav>
       </div>
 
-      {/* Main */}
+      {/* Main Content */}
       <div className="flex-1 p-6">
         {/* Dashboard */}
         {activeSection === "dashboard" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-3xl font-bold text-gray-800">Dashboard</h2>
-              {["owner", "director"].includes(currentUser?.role) && (
-                <select
-                  value={selectedTeam}
-                  onChange={(e) => setSelectedTeam(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
-                >
-                  <option value="todos">Todos los equipos</option>
-                  {users
-                    .filter((u: any) => u.role === "gerente")
-                    .map((gerente: any) => (
-                      <option key={gerente.id} value={gerente.id.toString()}>
-                        Equipo {gerente.name}
-                      </option>
-                    ))}
-                </select>
-              )}
+              <div className="flex items-center space-x-3">
+                {["owner", "director"].includes(currentUser?.role) && (
+                  <select
+                    value={selectedTeam}
+                    onChange={(e) => setSelectedTeam(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+                  >
+                    <option value="todos">Todos los equipos</option>
+                    {users
+                      .filter((u: any) => u.role === "gerente")
+                      .map((gerente: any) => (
+                        <option key={gerente.id} value={gerente.id.toString()}>
+                          Equipo {gerente.name}
+                        </option>
+                      ))}
+                  </select>
+                )}
+                {canCreateLeads() && (
+                  <button
+                    onClick={() => setShowNewLeadModal(true)}
+                    className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  >
+                    <Plus size={20} />
+                    <span>Nuevo Lead</span>
+                  </button>
+                )}
+              </div>
             </div>
 
-            {/* Alerta si el usuario está desactivado */}
             {!currentUser?.active && (
               <div className="bg-orange-50 border-l-4 border-orange-400 p-4">
                 <div className="flex">
                   <div className="flex-shrink-0">
-                    <span className="text-orange-400">🔔</span>
+                    <Bell className="h-5 w-5 text-orange-400" />
                   </div>
                   <div className="ml-3">
                     <p className="text-sm text-orange-700">
@@ -1002,7 +1609,7 @@ export default function PeugeotCRM() {
                           </p>
                         </div>
                         <div className="bg-blue-500 p-3 rounded-full">
-                          <span className="text-white text-xl">👥</span>
+                          <Users className="h-6 w-6 text-white" />
                         </div>
                       </div>
                     </div>
@@ -1015,7 +1622,7 @@ export default function PeugeotCRM() {
                           </p>
                         </div>
                         <div className="bg-green-500 p-3 rounded-full">
-                          <span className="text-white text-xl">🏆</span>
+                          <Trophy className="h-6 w-6 text-white" />
                         </div>
                       </div>
                     </div>
@@ -1030,7 +1637,7 @@ export default function PeugeotCRM() {
                           </p>
                         </div>
                         <div className="bg-purple-500 p-3 rounded-full">
-                          <span className="text-white text-xl">📊</span>
+                          <BarChart3 className="h-6 w-6 text-white" />
                         </div>
                       </div>
                     </div>
@@ -1039,19 +1646,42 @@ export default function PeugeotCRM() {
               })()}
             </div>
 
-            {/* Estados de Leads - NUEVA SECCIÓN EN DASHBOARD */}
+            {/* Estados de Leads */}
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-semibold text-gray-800">Estados de Leads</h3>
-                {selectedEstado && (
-                  <button
-                    onClick={() => setSelectedEstado(null)}
-                    className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
-                  >
-                    <span>✕</span>
-                    <span>Cerrar filtro</span>
-                  </button>
-                )}
+                <div className="flex items-center space-x-2">
+                  {["owner", "director"].includes(currentUser?.role) && (
+                    <>
+                      <span className="text-sm text-gray-600">Descargar Excel:</span>
+                      <button
+                        onClick={() => {
+                          const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                            ? selectedTeam
+                            : undefined;
+                          const filteredLeads = teamFilter && teamFilter !== "todos"
+                            ? getFilteredLeadsByTeam(teamFilter)
+                            : getFilteredLeads();
+                          downloadAllLeadsExcel(filteredLeads, userById, fuentes);
+                        }}
+                        className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 flex items-center space-x-1"
+                        title="Descargar Excel completo"
+                      >
+                        <Download size={12} />
+                        <span>Todos</span>
+                      </button>
+                    </>
+                  )}
+                  {selectedEstado && (
+                    <button
+                      onClick={() => setSelectedEstado(null)}
+                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
+                    >
+                      <X size={16} />
+                      <span>Cerrar filtro</span>
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {Object.entries(estados).map(([key, estado]) => {
@@ -1062,23 +1692,257 @@ export default function PeugeotCRM() {
                     ? getFilteredLeadsByTeam(teamFilter)
                     : getFilteredLeads();
                   const count = filteredLeads.filter((l) => l.estado === key).length;
+                  const percentage = filteredLeads.length > 0 
+                    ? ((count / filteredLeads.length) * 100).toFixed(1)
+                    : "0";
+                  
                   return (
-                    <button
-                      key={key}
-                      onClick={() => setSelectedEstado(selectedEstado === key ? null : key)}
-                      className={`text-center transition-all duration-200 transform hover:scale-105 ${
-                        selectedEstado === key ? "ring-4 ring-blue-300 ring-opacity-50" : ""
-                      }`}
-                      title={`Ver todos los leads en estado: ${estado.label}`}
-                    >
-                      <div className={`${estado.color} text-white rounded-lg p-4 mb-2 hover:opacity-90`}>
-                        <div className="text-2xl font-bold">{count}</div>
+                    <div key={key} className="relative group">
+                      <button
+                        onClick={() => setSelectedEstado(selectedEstado === key ? null : key)}
+                        className={`w-full text-center transition-all duration-200 transform hover:scale-105 ${
+                          selectedEstado === key ? "ring-4 ring-blue-300 ring-opacity-50" : ""
+                        }`}
+                        title={`Ver todos los leads en estado: ${estado.label}`}
+                      >
+                        <div className={`${estado.color} text-white rounded-lg p-4 mb-2 relative cursor-pointer hover:opacity-90 transition-opacity`}>
+                          <div className="text-2xl font-bold">{count}</div>
+                          <div className="text-xs opacity-75">{percentage}%</div>
+                          
+                          {["owner", "director"].includes(currentUser?.role) && count > 0 && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                                  ? selectedTeam
+                                  : undefined;
+                                const filteredLeads = teamFilter && teamFilter !== "todos"
+                                  ? getFilteredLeadsByTeam(teamFilter)
+                                  : getFilteredLeads();
+                                downloadLeadsByStateExcel(filteredLeads, key, userById, fuentes);
+                              }}
+                              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white bg-opacity-20 hover:bg-opacity-40 rounded p-1"
+                              title={`Descargar Excel: ${estado.label}`}
+                            >
+                              <Download size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </button>
+                      <div className="text-sm text-gray-600 text-center font-medium">
+                        {estado.label}
                       </div>
-                      <div className="text-sm text-gray-600">{estado.label}</div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
+
+              {/* Lista filtrada */}
+              {selectedEstado && (
+                <div className="mt-6 border-t pt-6">
+                  <h4 className="text-lg font-semibold text-gray-800 mb-4">
+                    Leads en estado:{" "}
+                    <span
+                      className={`px-3 py-1 rounded-full text-white text-sm ${
+                        estados[selectedEstado].color
+                      }`}
+                    >
+                      {estados[selectedEstado].label}
+                    </span>
+                  </h4>
+
+                  {(() => {
+                    const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                      ? selectedTeam
+                      : undefined;
+                    const filteredLeads = teamFilter && teamFilter !== "todos"
+                      ? getFilteredLeadsByTeam(teamFilter)
+                      : getFilteredLeads();
+                    const leadsFiltrados = filteredLeads.filter(
+                      (l) => l.estado === selectedEstado
+                    );
+
+                    if (leadsFiltrados.length === 0) {
+                      return (
+                        <p className="text-gray-500 text-center py-8">
+                          No hay leads en estado "{estados[selectedEstado].label}"
+                        </p>
+                      );
+                    }
+
+                    return (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Cliente
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Contacto
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Vehículo
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Estado
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Fuente
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Vendedor
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Fecha
+                              </th>
+                              <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">
+                                Acciones
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {leadsFiltrados.map((lead) => {
+                              const vendedor = lead.vendedor
+                                ? userById.get(lead.vendedor)
+                                : null;
+                              const canReassign =
+                                canManageUsers() ||
+                                (currentUser?.role === "supervisor" &&
+                                  lead.vendedor &&
+                                  getVisibleUsers().some((u: any) => u.id === lead.vendedor));
+                              
+                              return (
+                                <tr key={lead.id} className="hover:bg-gray-50">
+                                  <td className="px-4 py-2">
+                                    <div className="font-medium text-gray-900">
+                                      {lead.nombre}
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2">
+                                    <div className="flex items-center space-x-1">
+                                      <Phone size={12} className="text-gray-400" />
+                                      <span className="text-gray-700">{lead.telefono}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2">
+                                    <div>
+                                      <div className="font-medium text-gray-900">
+                                        {lead.modelo}
+                                      </div>
+                                      <div className="text-xs text-gray-500">
+                                        {lead.formaPago}
+                                      </div>
+                                      {lead.infoUsado && (
+                                        <div className="text-xs text-orange-600">
+                                          Usado: {lead.infoUsado}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2">
+                                    <select
+                                      value={lead.estado}
+                                      onChange={(e) =>
+                                        handleUpdateLeadStatus(lead.id, e.target.value)
+                                      }
+                                      className={`text-xs font-medium rounded-full px-2 py-1 border-0 text-white ${estados[lead.estado].color}`}
+                                    >
+                                      {Object.entries(estados).map(([key, estado]) => (
+                                        <option key={key} value={key} className="text-black">
+                                          {estado.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                  <td className="px-4 py-2">
+                                    <div className="flex items-center space-x-1">
+                                      <span className="text-sm">
+                                        {fuentes[lead.fuente as string]?.icon || "❓"}
+                                      </span>
+                                      <span className="text-xs text-gray-600">
+                                        {fuentes[lead.fuente as string]?.label ||
+                                          String(lead.fuente)}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2 text-gray-700">
+                                    <div>
+                                      {vendedor?.name || "Sin asignar"}
+                                      {vendedor && !vendedor.active && (
+                                        <div className="text-xs text-red-600">
+                                          (Desactivado)
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2 text-gray-500 text-xs">
+                                    {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
+                                  </td>
+                                  <td className="px-4 py-2 text-center">
+                                    <div className="flex items-center justify-center space-x-1">
+                                      <button
+                                        onClick={() => {
+                                          const phoneNumber = lead.telefono.replace(/\D/g, '');
+                                          const message = encodeURIComponent(
+                                            `Hola ${lead.nombre}, me contacto desde Peugeot por su consulta sobre el ${lead.modelo}. ¿Cómo está? ¿Tiene un minuto?`
+                                          );
+                                          const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
+                                          window.open(whatsappUrl, '_blank');
+                                        }}
+                                        className="px-2 py-1 text-xs rounded bg-green-100 text-green-700 hover:bg-green-200 flex items-center space-x-1"
+                                        title="Chatear por WhatsApp"
+                                      >
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.89 3.587"/>
+                                        </svg>
+                                      </button>
+                                      
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEditingLeadObservaciones(lead);
+                                          setShowObservacionesModal(true);
+                                        }}
+                                        className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                        title="Ver/Editar observaciones"
+                                      >
+                                        {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
+                                      </button>
+                                      {canReassign && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            openReassignModal(lead);
+                                          }}
+                                          className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
+                                          title="Reasignar lead"
+                                        >
+                                          Reasignar
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setActiveSection("leads");
+                                        }}
+                                        className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                        title="Ver en tabla completa"
+                                      >
+                                        Ver
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
 
             {/* Métricas por fuente */}
@@ -1126,22 +1990,23 @@ export default function PeugeotCRM() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-3xl font-bold text-gray-800">Gestión de Leads</h2>
-              <button
-                onClick={() => setShowNewLeadModal(true)}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <span>➕</span>
-                <span>Nuevo Lead</span>
-              </button>
+              {canCreateLeads() && (
+                <button
+                  onClick={() => setShowNewLeadModal(true)}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <Plus size={20} />
+                  <span>Nuevo Lead</span>
+                </button>
+              )}
             </div>
 
             {/* Barra de búsqueda y filtros */}
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex flex-col lg:flex-row gap-4">
-                {/* Búsqueda de texto */}
                 <div className="flex-1">
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">🔍</span>
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                     <input
                       type="text"
                       placeholder="Buscar por cliente, teléfono, modelo, vendedor, observaciones..."
@@ -1152,7 +2017,6 @@ export default function PeugeotCRM() {
                   </div>
                 </div>
 
-                {/* Botón para mostrar/ocultar filtros */}
                 <div className="flex items-center space-x-3">
                   <button
                     onClick={() => setShowFilters(!showFilters)}
@@ -1162,7 +2026,7 @@ export default function PeugeotCRM() {
                         : "bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100"
                     }`}
                   >
-                    <span>🔽</span>
+                    <Filter size={20} />
                     <span>Filtros</span>
                     {getActiveFiltersCount() > 0 && (
                       <span className="bg-blue-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
@@ -1176,7 +2040,7 @@ export default function PeugeotCRM() {
                       onClick={clearFilters}
                       className="flex items-center space-x-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
                     >
-                      <span>✕</span>
+                      <X size={16} />
                       <span>Limpiar</span>
                     </button>
                   )}
@@ -1191,10 +2055,10 @@ export default function PeugeotCRM() {
               {showFilters && (
                 <div className="mt-4 pt-4 border-t border-gray-200">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {/* Filtro por vendedor */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        <span>👤</span> Vendedor
+                        <User size={16} className="inline mr-1" />
+                        Vendedor
                       </label>
                       <select
                         value={selectedVendedorFilter || ""}
@@ -1216,7 +2080,6 @@ export default function PeugeotCRM() {
                       </select>
                     </div>
 
-                    {/* Filtro por estado */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Estado
@@ -1235,7 +2098,6 @@ export default function PeugeotCRM() {
                       </select>
                     </div>
 
-                    {/* Filtro por fuente */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Fuente
@@ -1258,7 +2120,7 @@ export default function PeugeotCRM() {
               )}
             </div>
 
-            {/* Tabla de leads con búsqueda y filtros aplicados */}
+            {/* Tabla de leads */}
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -1312,10 +2174,15 @@ export default function PeugeotCRM() {
                           <tr key={lead.id} className="hover:bg-gray-50">
                             <td className="px-4 py-4">
                               <div className="font-medium text-gray-900">{lead.nombre}</div>
+                              {lead.created_by && (
+                                <div className="text-xs text-gray-500">
+                                  Creado por: {userById.get(lead.created_by)?.name || 'Usuario eliminado'}
+                                </div>
+                              )}
                             </td>
                             <td className="px-4 py-4">
                               <div className="flex items-center space-x-1">
-                                <span className="text-gray-400">📞</span>
+                                <Phone size={12} className="text-gray-400" />
                                 <span className="text-gray-700">{lead.telefono}</span>
                               </div>
                             </td>
@@ -1358,7 +2225,6 @@ export default function PeugeotCRM() {
                             <td className="px-4 py-4 text-gray-700">
                               <div>
                                 {vendedor?.name || "Sin asignar"}
-                                {/* Indicador de vendedor desactivado */}
                                 {vendedor && !vendedor.active && (
                                   <div className="text-xs text-red-600">
                                     (Desactivado)
@@ -1371,6 +2237,23 @@ export default function PeugeotCRM() {
                             </td>
                             <td className="px-4 py-4 text-center">
                               <div className="flex items-center justify-center space-x-1">
+                                <button
+                                  onClick={() => {
+                                    const phoneNumber = lead.telefono.replace(/\D/g, '');
+                                    const message = encodeURIComponent(
+                                      `Hola ${lead.nombre}, me contacto desde Peugeot por su consulta sobre el ${lead.modelo}. ¿Cómo está?`
+                                    );
+                                    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
+                                    window.open(whatsappUrl, '_blank');
+                                  }}
+                                  className="px-2 py-1 text-xs rounded bg-green-100 text-green-700 hover:bg-green-200 flex items-center space-x-1"
+                                  title="Chatear por WhatsApp"
+                                >
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.89 3.587"/>
+                                  </svg>
+                                </button>
+                                
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -1446,7 +2329,7 @@ export default function PeugeotCRM() {
                   onClick={() => setShowNewEventModal(true)}
                   className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
-                  <span>➕</span>
+                  <Plus size={20} />
                   <span>Nuevo Evento</span>
                 </button>
               </div>
@@ -1486,7 +2369,7 @@ export default function PeugeotCRM() {
                           className="p-2 text-red-600 hover:text-red-800"
                           title="Eliminar evento"
                         >
-                          <span>🗑️</span>
+                          <Trash2 size={16} />
                         </button>
                       </div>
                     </div>
@@ -1502,64 +2385,129 @@ export default function PeugeotCRM() {
           <div className="space-y-6">
             <h2 className="text-3xl font-bold text-gray-800">Ranking de Vendedores</h2>
 
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4">
-                Ranking en Mi Scope
-              </h3>
-              <div className="space-y-3">
-                {getRankingInScope().map((vendedor, index) => (
-                  <div
-                    key={vendedor.id}
-                    className={`flex items-center justify-between p-4 border border-gray-200 rounded-lg ${
-                      vendedor.id === currentUser?.id ? "bg-blue-50 border-blue-300" : ""
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {isOwner() && (
+                <div className="bg-white rounded-xl shadow-lg p-6">
+                  <h3 className="text-xl font-semibold text-gray-800 mb-4">
+                    Ranking General
+                  </h3>
+                  <div className="space-y-3">
+                    {getRanking().map((vendedor, index) => (
                       <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
-                          index === 0
-                            ? "bg-yellow-500"
-                            : index === 1
-                            ? "bg-gray-400"
-                            : index === 2
-                            ? "bg-orange-600"
-                            : "bg-gray-300"
-                        }`}
+                        key={vendedor.id}
+                        className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
                       >
-                        {index + 1}
+                        <div className="flex items-center space-x-3">
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
+                              index === 0
+                                ? "bg-yellow-500"
+                                : index === 1
+                                ? "bg-gray-400"
+                                : index === 2
+                                ? "bg-orange-600"
+                                : "bg-gray-300"
+                            }`}
+                          >
+                            {index + 1}
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">
+                              {vendedor.nombre}
+                            </p>
+                            <p className="text-xs text-gray-500">{vendedor.team}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-green-600">
+                            {vendedor.ventas} ventas
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {vendedor.leadsAsignados} leads asignados
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className={`font-medium ${
-                          vendedor.id === currentUser?.id ? "text-blue-900" : "text-gray-900"
-                        }`}>
-                          {vendedor.nombre}
-                          {vendedor.id === currentUser?.id && (
-                            <span className="ml-2 text-xs text-blue-600 font-normal">(Tú)</span>
-                          )}
-                        </p>
-                        <p className="text-xs text-gray-500">{vendedor.team}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-green-600">
-                        {vendedor.ventas} ventas
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {vendedor.leadsAsignados} leads •{" "}
-                        {vendedor.leadsAsignados > 0
-                          ? ((vendedor.ventas / vendedor.leadsAsignados) * 100).toFixed(0)
-                          : 0}
-                        %
-                      </p>
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              {getRankingInScope().length === 0 && (
-                <p className="text-gray-500 text-center py-8">
-                  No hay vendedores en tu scope
-                </p>
+                  {getRanking().length === 0 && (
+                    <p className="text-gray-500 text-center py-8">
+                      No hay vendedores registrados
+                    </p>
+                  )}
+                </div>
               )}
+
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <h3 className="text-xl font-semibold text-gray-800 mb-4">
+                  {currentUser?.role === "vendedor" 
+                    ? "Ranking Vendedores" 
+                    : isOwner() 
+                    ? "Mi Scope" 
+                    : "Ranking"}
+                </h3>
+                <div className="space-y-3">
+                  {(currentUser?.role === "vendedor" 
+                    ? getRankingByManagerialTeam() 
+                    : getRankingInScope()
+                  ).map((vendedor, index) => (
+                    <div
+                      key={vendedor.id}
+                      className={`flex items-center justify-between p-4 border border-gray-200 rounded-lg ${
+                        vendedor.id === currentUser?.id ? "bg-blue-50 border-blue-300" : ""
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
+                            index === 0
+                              ? "bg-yellow-500"
+                              : index === 1
+                              ? "bg-gray-400"
+                              : index === 2
+                              ? "bg-orange-600"
+                              : "bg-gray-300"
+                          }`}
+                        >
+                          {index + 1}
+                        </div>
+                        <div>
+                          <p className={`font-medium ${
+                            vendedor.id === currentUser?.id ? "text-blue-900" : "text-gray-900"
+                          }`}>
+                            {vendedor.nombre}
+                            {vendedor.id === currentUser?.id && (
+                              <span className="ml-2 text-xs text-blue-600 font-normal">(Tú)</span>
+                            )}
+                          </p>
+                          <p className="text-xs text-gray-500">{vendedor.team}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-green-600">
+                          {vendedor.ventas} ventas
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {vendedor.leadsAsignados} leads •{" "}
+                          {vendedor.leadsAsignados > 0
+                            ? ((vendedor.ventas / vendedor.leadsAsignados) * 100).toFixed(0)
+                            : 0}
+                          %
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {(currentUser?.role === "vendedor" 
+                  ? getRankingByManagerialTeam() 
+                  : getRankingInScope()
+                ).length === 0 && (
+                  <p className="text-gray-500 text-center py-8">
+                    {currentUser?.role === "vendedor" 
+                      ? "No hay otros vendedores en tu gerencia"
+                      : "No hay vendedores en tu scope"}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -1588,7 +2536,6 @@ export default function PeugeotCRM() {
                 )}
               </div>
 
-              {/* Estadísticas por estado tipo dashboard */}
               <div className="bg-white rounded-xl shadow-lg p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xl font-semibold text-gray-800">
@@ -1599,7 +2546,7 @@ export default function PeugeotCRM() {
                       onClick={() => setSelectedEstado(null)}
                       className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
                     >
-                      <span>✕</span>
+                      <X size={16} />
                       <span>Cerrar filtro</span>
                     </button>
                   )}
@@ -1633,7 +2580,6 @@ export default function PeugeotCRM() {
                 </div>
               </div>
 
-              {/* Top vendedores en mi organización */}
               <div className="bg-white rounded-xl shadow-lg p-6">
                 <h3 className="text-xl font-semibold text-gray-800 mb-4">
                   Top Vendedores en Mi Organización
@@ -1694,13 +2640,15 @@ export default function PeugeotCRM() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-3xl font-bold text-gray-800">Gestión de Usuarios</h2>
-              <button
-                onClick={openCreateUser}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <span>➕</span>
-                <span>Nuevo Usuario</span>
-              </button>
+              {canCreateUsers() && (
+                <button
+                  onClick={openCreateUser}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <Plus size={20} />
+                  <span>Nuevo Usuario</span>
+                </button>
+              )}
             </div>
 
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
@@ -1763,10 +2711,18 @@ export default function PeugeotCRM() {
                               </span>
                               {user.role === "vendedor" && (
                                 <button
-                                  onClick={() => {
-                                    setUsers((prev) =>
-                                      prev.map((u: any) => (u.id === user.id ? { ...u, active: !u.active } : u))
-                                    );
+                                  onClick={async () => {
+                                    try {
+                                      const updated = await updateUser(user.id, {
+                                        ...user,
+                                        active: user.active ? 0 : 1,
+                                      });
+                                      setUsers((prev) =>
+                                        prev.map((u: any) => (u.id === user.id ? updated : u))
+                                      );
+                                    } catch (e) {
+                                      console.error("No pude cambiar estado del usuario", e);
+                                    }
                                   }}
                                   className={`px-2 py-1 text-xs rounded ${
                                     user.active
@@ -1779,7 +2735,6 @@ export default function PeugeotCRM() {
                                 </button>
                               )}
                             </div>
-                            {/* Mensaje explicativo para vendedores desactivados */}
                             {user.role === "vendedor" && !user.active && (
                               <div className="text-xs text-orange-600 mt-1">
                                 No recibe leads nuevos
@@ -1805,16 +2760,15 @@ export default function PeugeotCRM() {
                                 className="p-1 text-blue-600 hover:text-blue-800"
                                 title="Editar usuario"
                               >
-                                <span>✏️</span>
+                                <Edit3 size={16} />
                               </button>
-                              {/* Solo el owner puede eliminar usuarios */}
                               {isOwner() && user.id !== currentUser?.id && (
                                 <button
                                   onClick={() => openDeleteConfirm(user)}
                                   className="p-1 text-red-600 hover:text-red-800"
                                   title="Eliminar usuario"
                                 >
-                                  <span>🗑️</span>
+                                  <Trash2 size={16} />
                                 </button>
                               )}
                             </div>
@@ -1851,7 +2805,7 @@ export default function PeugeotCRM() {
             <div className="bg-white rounded-xl shadow-lg p-6">
               {alerts.filter((a) => a.userId === currentUser?.id).length === 0 ? (
                 <div className="text-center py-12">
-                  <span className="text-6xl text-gray-300 block mb-4">🔔</span>
+                  <Bell size={48} className="mx-auto text-gray-300 mb-4" />
                   <p className="text-gray-500">No tienes alertas pendientes</p>
                 </div>
               ) : (
@@ -1926,13 +2880,327 @@ export default function PeugeotCRM() {
 
         {/* MODALES */}
         
+        {/* Modal: Nuevo Lead */}
+        {showNewLeadModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-3xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">Nuevo Lead</h3>
+                <button onClick={() => setShowNewLeadModal(false)}>
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nombre *
+                  </label>
+                  <input
+                    type="text"
+                    id="new-nombre"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Teléfono *
+                  </label>
+                  <input
+                    type="text"
+                    id="new-telefono"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Modelo *
+                  </label>
+                  <input
+                    type="text"
+                    id="new-modelo"
+                    placeholder="208, 308, 408, 2008, 3008, etc."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Forma de Pago
+                  </label>
+                  <select
+                    id="new-formaPago"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="Contado">Contado</option>
+                    <option value="Financiado">Financiado</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Info Usado
+                  </label>
+                  <input
+                    type="text"
+                    id="new-infoUsado"
+                    placeholder="Marca Modelo Año"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Fecha
+                  </label>
+                  <input
+                    type="date"
+                    id="new-fecha"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="col-span-2 flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    id="new-entrega"
+                    className="rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">
+                    Entrega de vehículo usado
+                  </span>
+                </div>
+                <div className="col-span-2 flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    id="new-autoassign"
+                    defaultChecked
+                    className="rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">
+                    Asignación automática y equitativa a vendedores activos de mi equipo
+                  </span>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Asignar a vendedor específico (opcional)
+                  </label>
+                  <select
+                    id="new-vendedor"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Sin asignar</option>
+                    {getAvailableVendorsForAssignment().map((u: any) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} - {userById.get(u.reportsTo)?.name ? `Equipo ${userById.get(u.reportsTo)?.name}` : 'Sin equipo'} ✓ Activo
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Si está activada la "Asignación automática", se ignorará esta selección.
+                    Solo puedes asignar a vendedores activos de tu equipo.
+                  </p>
+                </div>
+
+                {getAvailableVendorsForAssignment().length === 0 && (
+                  <div className="col-span-2 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                    <p className="text-sm text-yellow-700">
+                      <strong>Atención:</strong> No hay vendedores activos disponibles en tu equipo. 
+                      El lead se creará sin asignar.
+                    </p>
+                  </div>
+                )}
+
+                <div className="col-span-2 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <h4 className="text-sm font-medium text-blue-800 mb-2">
+                    Información sobre la creación de leads:
+                  </h4>
+                  <ul className="text-xs text-blue-700 space-y-1">
+                    <li>• Este lead aparecerá marcado como "Creado por {currentUser?.name}"</li>
+                    <li>• La fuente se establecerá automáticamente como "Creado por"</li>
+                    <li>• Solo puedes asignar a vendedores activos de tu scope/equipo</li>
+                    {currentUser?.role === "vendedor" && (
+                      <li>• Como vendedor, puedes crear leads pero solo asignártelos a ti mismo</li>
+                    )}
+                  </ul>
+                </div>
+              </div>
+
+              <div className="flex space-x-3 pt-6">
+                <button
+                  onClick={handleCreateLead}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                >
+                  Crear Lead
+                </button>
+                <button
+                  onClick={() => setShowNewLeadModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Observaciones del Lead */}
+        {showObservacionesModal && editingLeadObservaciones && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">
+                  Observaciones - {editingLeadObservaciones.nombre}
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowObservacionesModal(false);
+                    setEditingLeadObservaciones(null);
+                  }}
+                >
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-2">
+                  <span className="font-medium">Cliente:</span>{" "}
+                  {editingLeadObservaciones.nombre} |{" "}
+                  <span className="font-medium ml-2">Teléfono:</span>{" "}
+                  {editingLeadObservaciones.telefono} |{" "}
+                  <span className="font-medium ml-2">Vehículo:</span>{" "}
+                  {editingLeadObservaciones.modelo}
+                </p>
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium">Estado actual:</span>
+                  <span
+                    className={`ml-2 px-2 py-1 rounded-full text-xs font-medium text-white ${estados[editingLeadObservaciones.estado].color}`}
+                  >
+                    {estados[editingLeadObservaciones.estado].label}
+                  </span>
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Observaciones
+                </label>
+                <textarea
+                  id="observaciones-textarea"
+                  defaultValue={editingLeadObservaciones.notas || ""}
+                  placeholder="Agregar observaciones sobre el cliente, llamadas realizadas, intereses, objeciones, etc..."
+                  className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex space-x-3 pt-6">
+                <button
+                  onClick={() => {
+                    const textarea = document.getElementById(
+                      "observaciones-textarea"
+                    ) as HTMLTextAreaElement;
+                    if (textarea && editingLeadObservaciones) {
+                      handleUpdateObservaciones(
+                        editingLeadObservaciones.id,
+                        textarea.value
+                      );
+                    }
+                  }}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Guardar Observaciones
+                </button>
+                <button
+                  onClick={() => {
+                    setShowObservacionesModal(false);
+                    setEditingLeadObservaciones(null);
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Historial del Lead */}
+        {showHistorialModal && viewingLeadHistorial && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">
+                  Historial - {viewingLeadHistorial.nombre}
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowHistorialModal(false);
+                    setViewingLeadHistorial(null);
+                  }}
+                >
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-2">
+                  <span className="font-medium">Cliente:</span>{" "}
+                  {viewingLeadHistorial.nombre} |{" "}
+                  <span className="font-medium ml-2">Teléfono:</span>{" "}
+                  {viewingLeadHistorial.telefono} |{" "}
+                  <span className="font-medium ml-2">Vehículo:</span>{" "}
+                  {viewingLeadHistorial.modelo}
+                </p>
+              </div>
+
+              <div className="max-h-96 overflow-y-auto">
+                {(viewingLeadHistorial.historial || []).length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">
+                    No hay historial disponible para este lead
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {viewingLeadHistorial.historial?.map((entry, index) => (
+                      <div key={index} className="border-l-4 border-blue-500 pl-4 py-2">
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-medium text-white ${
+                              estados[entry.estado]?.color || "bg-gray-500"
+                            }`}
+                          >
+                            {estados[entry.estado]?.label || entry.estado}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {new Date(entry.timestamp).toLocaleDateString("es-AR")}{" "}
+                            {new Date(entry.timestamp).toLocaleTimeString("es-AR")}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700 mt-1">
+                          Actualizado por: {entry.usuario}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end pt-6">
+                <button
+                  onClick={() => {
+                    setShowHistorialModal(false);
+                    setViewingLeadHistorial(null);
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Modal de Confirmación para Eliminar Usuario */}
         {showDeleteConfirmModal && userToDelete && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-xl p-6 w-full max-w-md">
               <div className="flex items-center mb-6">
                 <div className="bg-red-100 p-3 rounded-full mr-4">
-                  <span className="text-red-600 text-xl">🗑️</span>
+                  <Trash2 className="h-6 w-6 text-red-600" />
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-800">
@@ -1956,7 +3224,7 @@ export default function PeugeotCRM() {
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
                 <div className="flex">
                   <div className="flex-shrink-0">
-                    <span className="text-red-400">🔔</span>
+                    <Bell className="h-5 w-5 text-red-400" />
                   </div>
                   <div className="ml-3">
                     <h4 className="text-sm font-medium text-red-800">
@@ -2010,7 +3278,7 @@ export default function PeugeotCRM() {
                     setSelectedVendorForReassign(null);
                   }}
                 >
-                  <span className="text-gray-600 text-xl hover:text-gray-800">✕</span>
+                  <X size={24} className="text-gray-600" />
                 </button>
               </div>
 
@@ -2060,7 +3328,6 @@ export default function PeugeotCRM() {
                     Seleccionar nuevo vendedor (solo vendedores activos)
                   </label>
                   <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {/* Opción para no asignar */}
                     <div
                       onClick={() => setSelectedVendorForReassign(null)}
                       className={`p-3 border rounded-lg cursor-pointer transition-colors ${
@@ -2089,7 +3356,6 @@ export default function PeugeotCRM() {
                       </div>
                     </div>
 
-                    {/* Lista de vendedores disponibles - SOLO ACTIVOS */}
                     {getAvailableVendorsForReassign().map((vendedor: any) => {
                       const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
                       const vendedorVentas = vendedorLeads.filter(
@@ -2186,318 +3452,6 @@ export default function PeugeotCRM() {
           </div>
         )}
 
-        {/* Modal: Observaciones del Lead */}
-        {showObservacionesModal && editingLeadObservaciones && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">
-                  Observaciones - {editingLeadObservaciones.nombre}
-                </h3>
-                <button
-                  onClick={() => {
-                    setShowObservacionesModal(false);
-                    setEditingLeadObservaciones(null);
-                  }}
-                >
-                  <span className="text-gray-600 text-xl hover:text-gray-800">✕</span>
-                </button>
-              </div>
-
-              <div className="mb-4">
-                <p className="text-sm text-gray-600 mb-2">
-                  <span className="font-medium">Cliente:</span>{" "}
-                  {editingLeadObservaciones.nombre} |{" "}
-                  <span className="font-medium ml-2">Teléfono:</span>{" "}
-                  {editingLeadObservaciones.telefono} |{" "}
-                  <span className="font-medium ml-2">Vehículo:</span>{" "}
-                  {editingLeadObservaciones.modelo}
-                </p>
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium">Estado actual:</span>
-                  <span
-                    className={`ml-2 px-2 py-1 rounded-full text-xs font-medium text-white ${estados[editingLeadObservaciones.estado].color}`}
-                  >
-                    {estados[editingLeadObservaciones.estado].label}
-                  </span>
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Observaciones
-                </label>
-                <textarea
-                  id="observaciones-textarea"
-                  defaultValue={editingLeadObservaciones.notas || ""}
-                  placeholder="Agregar observaciones sobre el cliente, llamadas realizadas, intereses, objeciones, etc..."
-                  className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-
-              <div className="flex space-x-3 pt-6">
-                <button
-                  onClick={() => {
-                    const textarea = document.getElementById(
-                      "observaciones-textarea"
-                    ) as HTMLTextAreaElement;
-                    if (textarea && editingLeadObservaciones) {
-                      handleUpdateObservaciones(
-                        editingLeadObservaciones.id,
-                        textarea.value
-                      );
-                    }
-                  }}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Guardar Observaciones
-                </button>
-                <button
-                  onClick={() => {
-                    setShowObservacionesModal(false);
-                    setEditingLeadObservaciones(null);
-                  }}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Historial del Lead */}
-        {showHistorialModal && viewingLeadHistorial && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">
-                  Historial - {viewingLeadHistorial.nombre}
-                </h3>
-                <button
-                  onClick={() => {
-                    setShowHistorialModal(false);
-                    setViewingLeadHistorial(null);
-                  }}
-                >
-                  <span className="text-gray-600 text-xl hover:text-gray-800">✕</span>
-                </button>
-              </div>
-
-              <div className="mb-4">
-                <p className="text-sm text-gray-600 mb-2">
-                  <span className="font-medium">Cliente:</span>{" "}
-                  {viewingLeadHistorial.nombre} |{" "}
-                  <span className="font-medium ml-2">Teléfono:</span>{" "}
-                  {viewingLeadHistorial.telefono} |{" "}
-                  <span className="font-medium ml-2">Vehículo:</span>{" "}
-                  {viewingLeadHistorial.modelo}
-                </p>
-              </div>
-
-              <div className="max-h-96 overflow-y-auto">
-                {(viewingLeadHistorial.historial || []).length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">
-                    No hay historial disponible para este lead
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {viewingLeadHistorial.historial?.map((entry, index) => (
-                      <div key={index} className="border-l-4 border-blue-500 pl-4 py-2">
-                        <div className="flex items-center justify-between">
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium text-white ${
-                              estados[entry.estado]?.color || "bg-gray-500"
-                            }`}
-                          >
-                            {estados[entry.estado]?.label || entry.estado}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {new Date(entry.timestamp).toLocaleDateString("es-AR")}{" "}
-                            {new Date(entry.timestamp).toLocaleTimeString("es-AR")}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-700 mt-1">
-                          Actualizado por: {entry.usuario}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-end pt-6">
-                <button
-                  onClick={() => {
-                    setShowHistorialModal(false);
-                    setViewingLeadHistorial(null);
-                  }}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cerrar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Nuevo Lead */}
-        {showNewLeadModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-3xl">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">Nuevo Lead</h3>
-                <button onClick={() => setShowNewLeadModal(false)}>
-                  <span className="text-gray-600 text-xl hover:text-gray-800">✕</span>
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nombre
-                  </label>
-                  <input
-                    type="text"
-                    id="new-nombre"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Teléfono
-                  </label>
-                  <input
-                    type="text"
-                    id="new-telefono"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Modelo
-                  </label>
-                  <input
-                    type="text"
-                    id="new-modelo"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Forma de Pago
-                  </label>
-                  <select
-                    id="new-formaPago"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    <option value="Contado">Contado</option>
-                    <option value="Financiado">Financiado</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fuente del Lead
-                  </label>
-                  <select
-                    id="new-fuente"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    defaultValue="sitio_web"
-                  >
-                    {Object.entries(fuentes).map(([key, fuente]) => (
-                      <option key={key} value={key}>
-                        {fuente.icon} {fuente.label}
-                      </option>
-                    ))}
-                    {/* Opciones específicas para bots */}
-                    <option value="whatsapp_bot_cm1">💬 Bot CM 1 </option>
-                    <option value="whatsapp_bot_cm2">💬 Bot CM 2 </option>
-                    <option value="whatsapp_100">💬 Bot 100 (Distribución general)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Info Usado
-                  </label>
-                  <input
-                    type="text"
-                    id="new-infoUsado"
-                    placeholder="Marca Modelo Año"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fecha
-                  </label>
-                  <input
-                    type="date"
-                    id="new-fecha"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div className="col-span-2 flex items-center space-x-3">
-                  <input
-                    type="checkbox"
-                    id="new-entrega"
-                    className="rounded border-gray-300 text-blue-600"
-                  />
-                  <span className="text-sm text-gray-700">
-                    Entrega de vehículo usado
-                  </span>
-                </div>
-                <div className="col-span-2 flex items-center space-x-3">
-                  <input
-                    type="checkbox"
-                    id="new-autoassign"
-                    defaultChecked
-                    className="rounded border-gray-300 text-blue-600"
-                  />
-                  <span className="text-sm text-gray-700">
-                    Asignación automática y equitativa a vendedores activos
-                  </span>
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Asignar a vendedor (opcional - solo vendedores activos)
-                  </label>
-                  <select
-                    id="new-vendedor"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    <option value="">Sin asignar</option>
-                    {getVisibleUsers()
-                      .filter((u: any) => u.role === "vendedor")
-                      .map((u: any) => (
-                        <option key={u.id} value={u.id} disabled={!u.active}>
-                          {u.name} {u.active ? "✓ Activo" : "✗ Inactivo"}
-                        </option>
-                      ))}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Si está tildado "Asignación automática", se ignorará esta selección.
-                    Solo se puede asignar a vendedores activos.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex space-x-3 pt-6">
-                <button
-                  onClick={handleCreateLead}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Crear Lead
-                </button>
-                <button
-                  onClick={() => setShowNewLeadModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Modal: Nuevo Evento */}
         {showNewEventModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -2505,29 +3459,29 @@ export default function PeugeotCRM() {
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-semibold text-gray-800">Nuevo Evento</h3>
                 <button onClick={() => setShowNewEventModal(false)}>
-                  <span className="text-gray-600 text-xl hover:text-gray-800">✕</span>
+                  <X size={24} className="text-gray-600" />
                 </button>
               </div>
 
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Título
+                    Título *
                   </label>
                   <input
                     type="text"
                     id="ev-title"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fecha
+                    Fecha *
                   </label>
                   <input
                     type="date"
                     id="ev-date"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
@@ -2538,7 +3492,7 @@ export default function PeugeotCRM() {
                     type="time"
                     id="ev-time"
                     defaultValue="09:00"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
@@ -2547,7 +3501,8 @@ export default function PeugeotCRM() {
                   </label>
                   <select
                     id="ev-user"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    defaultValue={currentUser?.id}
                   >
                     <option value={currentUser?.id}>{currentUser?.name} (Yo)</option>
                     {visibleUsers
@@ -2588,45 +3543,50 @@ export default function PeugeotCRM() {
                   {editingUser ? "Editar Usuario" : "Nuevo Usuario"}
                 </h3>
                 <button onClick={() => setShowUserModal(false)}>
-                  <span className="text-gray-600 text-xl hover:text-gray-800">✕</span>
+                  <X size={24} className="text-gray-600" />
                 </button>
               </div>
 
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nombre
+                    Nombre *
                   </label>
                   <input
                     type="text"
                     id="u-name"
                     defaultValue={editingUser?.name || ""}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email
+                    Email *
                   </label>
                   <input
                     type="email"
                     id="u-email"
                     defaultValue={editingUser?.email || ""}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Contraseña {editingUser && "(dejar vacío para mantener)"}
+                    Contraseña {editingUser ? "(dejar vacío para mantener actual)" : "*"}
                   </label>
                   <input
                     type="password"
                     id="u-pass"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     placeholder={
-                      editingUser ? "Nueva contraseña (opcional)" : "Contraseña"
+                      editingUser ? "Nueva contraseña (opcional)" : "Contraseña obligatoria"
                     }
                   />
+                  {!editingUser && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      La contraseña es obligatoria para usuarios nuevos
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -2640,7 +3600,7 @@ export default function PeugeotCRM() {
                       const validManagers = validManagersByRole(newRole);
                       setModalReportsTo(validManagers[0]?.id ?? null);
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     {validRolesByUser(currentUser).map((role: string) => (
                       <option key={role} value={role}>
@@ -2652,7 +3612,7 @@ export default function PeugeotCRM() {
                 {modalRole !== "owner" && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Reporta a
+                      Reporta a *
                     </label>
                     <select
                       value={modalReportsTo || ""}
@@ -2661,7 +3621,7 @@ export default function PeugeotCRM() {
                           e.target.value ? parseInt(e.target.value, 10) : null
                         )
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
                       {validManagersByRole(modalRole).map((manager: any) => (
                         <option key={manager.id} value={manager.id}>
@@ -2676,7 +3636,7 @@ export default function PeugeotCRM() {
                     type="checkbox"
                     id="u-active"
                     defaultChecked={editingUser?.active !== false}
-                    className="rounded border-gray-300 text-blue-600"
+                    className="rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
                   />
                   <label htmlFor="u-active" className="text-sm text-gray-700">
                     Usuario activo
@@ -2690,12 +3650,55 @@ export default function PeugeotCRM() {
                     </p>
                   </div>
                 )}
+
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                  <h4 className="text-sm font-medium text-gray-800 mb-2">
+                    Permisos del rol {roles[modalRole] || modalRole}:
+                  </h4>
+                  <ul className="text-xs text-gray-600 space-y-1">
+                    {modalRole === "owner" && (
+                      <>
+                        <li>• Acceso completo al sistema</li>
+                        <li>• Gestión total de usuarios y equipos</li>
+                        <li>• Visualización de todos los datos</li>
+                      </>
+                    )}
+                    {modalRole === "director" && (
+                      <>
+                        <li>• Gestión de gerentes, supervisores y vendedores</li>
+                        <li>• Visualización de todos los equipos</li>
+                        <li>• Creación y asignación de leads</li>
+                      </>
+                    )}
+                    {modalRole === "gerente" && (
+                      <>
+                        <li>• Gestión de supervisores y vendedores de su equipo</li>
+                        <li>• Visualización de su equipo completo</li>
+                        <li>• Creación y asignación de leads a su equipo</li>
+                      </>
+                    )}
+                    {modalRole === "supervisor" && (
+                      <>
+                        <li>• Gestión de vendedores directos</li>
+                        <li>• Visualización de su equipo directo</li>
+                        <li>• Creación y asignación de leads a su equipo</li>
+                      </>
+                    )}
+                    {modalRole === "vendedor" && (
+                      <>
+                        <li>• Gestión de sus propios leads</li>
+                        <li>• Creación de leads (autoasignados)</li>
+                        <li>• Visualización de su propio ranking</li>
+                      </>
+                    )}
+                  </ul>
+                </div>
               </div>
 
               <div className="flex space-x-3 pt-6">
                 <button
                   onClick={saveUser}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
                 >
                   {editingUser ? "Actualizar" : "Crear"} Usuario
                 </button>
