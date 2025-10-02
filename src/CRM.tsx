@@ -133,9 +133,9 @@ type LeadRow = {
     usuario: string;
   }>;
   created_by?: number;
+  created_at?: string;  // AGREGAR ESTA LÍNEA
   last_status_change?: string;
 };
-
 type Alert = {
   id: number;
   userId: number;
@@ -1005,22 +1005,23 @@ const pushAlertToChain = (
 
   // ===== Acciones de Leads (API) =====
   const mapLeadFromApi = (L: any): LeadRow => ({
-    id: L.id,
-    nombre: L.nombre,
-    telefono: L.telefono,
-    modelo: L.modelo,
-    formaPago: L.formaPago,
-    infoUsado: L.infoUsado,
-    entrega: L.entrega,
-    fecha: L.fecha || L.created_at || "",
-    estado: (L.estado || "nuevo") as LeadRow["estado"],
-    vendedor: L.assigned_to ?? null,
-    notas: L.notas || "",
-    fuente: (L.fuente || "otro") as LeadRow["fuente"],
-    historial: L.historial || [],
-    created_by: L.created_by || null,
-    last_status_change: L.last_status_change || null,
-  });
+  id: L.id,
+  nombre: L.nombre,
+  telefono: L.telefono,
+  modelo: L.modelo,
+  formaPago: L.formaPago,
+  infoUsado: L.infoUsado,
+  entrega: L.entrega,
+  fecha: L.fecha || L.created_at || "",
+  estado: (L.estado || "nuevo") as LeadRow["estado"],
+  vendedor: L.assigned_to ?? null,
+  notas: L.notas || "",
+  fuente: (L.fuente || "otro") as LeadRow["fuente"],
+  historial: L.historial || [],
+  created_by: L.created_by || null,
+  created_at: L.created_at || null,  // AGREGAR ESTA LÍNEA
+  last_status_change: L.last_status_change || null,
+});
 
   const addHistorialEntry = (leadId: number, estado: string) => {
     if (!currentUser) return;
