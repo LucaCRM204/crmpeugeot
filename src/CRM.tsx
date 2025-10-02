@@ -133,6 +133,7 @@ type LeadRow = {
     usuario: string;
   }>;
   created_by?: number;
+  last_status_change?: string;
 };
 
 type Alert = {
@@ -297,7 +298,9 @@ export default function CRM() {
   const [selectedEstadoFilter, setSelectedEstadoFilter] = useState<string>("");
   const [selectedFuenteFilter, setSelectedFuenteFilter] = useState<string>("");
   const [showFilters, setShowFilters] = useState(false);
-
+  const [selectedMonth, setSelectedMonth] = useState<string>("");
+  const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
+  const [dateFilterType, setDateFilterType] = useState<"created" | "status_change">("status_change");
   // Estados para filtrado de usuarios
   const [userSearchText, setUserSearchText] = useState("");
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("todos");
@@ -612,27 +615,21 @@ console.log('Leads filtrados:', leads.filter(l => l.vendedor && ids.includes(l.v
     if (selectedRoleFilter !== "todos") count++;
     return count;
   };
-
-  const getFilteredAndSearchedLeads = () => {
+const getFilteredAndSearchedLeads = () => {
     if (!currentUser) return [] as LeadRow[];
-
     const visibleUserIds = getAccessibleUserIds(currentUser);
     let filteredLeads = leads.filter((l) =>
       l.vendedor ? visibleUserIds.includes(l.vendedor) : true
     );
-
     if (selectedVendedorFilter) {
       filteredLeads = filteredLeads.filter((l) => l.vendedor === selectedVendedorFilter);
     }
-
     if (selectedEstadoFilter) {
       filteredLeads = filteredLeads.filter((l) => l.estado === selectedEstadoFilter);
     }
-
     if (selectedFuenteFilter) {
       filteredLeads = filteredLeads.filter((l) => l.fuente === selectedFuenteFilter);
     }
-
     if (searchText.trim()) {
       const searchLower = searchText.toLowerCase().trim();
       filteredLeads = filteredLeads.filter((l) => {
@@ -650,15 +647,37 @@ console.log('Leads filtrados:', leads.filter(l => l.vendedor && ids.includes(l.v
         );
       });
     }
-
     return filteredLeads;
   };
 
+  const getFilteredLeadsByDate = () => {
+    let filteredLeads = getFilteredAndSearchedLeads();
+    
+    if (selectedMonth && selectedYear) {
+      filteredLeads = filteredLeads.filter((lead) => {
+        const dateToCheck = dateFilterType === "status_change" 
+          ? (lead.last_status_change || lead.fecha || lead.created_at)
+          : (lead.fecha || lead.created_at);
+        
+        if (!dateToCheck) return false;
+        
+        const leadDate = new Date(dateToCheck);
+        const leadMonth = (leadDate.getMonth() + 1).toString().padStart(2, '0');
+        const leadYear = leadDate.getFullYear().toString();
+        
+        return leadMonth === selectedMonth && leadYear === selectedYear;
+      });
+    }
+    
+    return filteredLeads;
+  };
   const clearFilters = () => {
     setSearchText("");
     setSelectedVendedorFilter(null);
     setSelectedEstadoFilter("");
     setSelectedFuenteFilter("");
+    setSelectedMonth("");
+    setSelectedYear(new Date().getFullYear().toString());
   };
 
   const getActiveFiltersCount = () => {
@@ -667,6 +686,7 @@ console.log('Leads filtrados:', leads.filter(l => l.vendedor && ids.includes(l.v
     if (selectedVendedorFilter) count++;
     if (selectedEstadoFilter) count++;
     if (selectedFuenteFilter) count++;
+    if (selectedMonth) count++;
     return count;
   };
 
@@ -999,6 +1019,7 @@ const pushAlertToChain = (
     fuente: (L.fuente || "otro") as LeadRow["fuente"],
     historial: L.historial || [],
     created_by: L.created_by || null,
+    last_status_change: L.last_status_change || null,
   });
 
   const addHistorialEntry = (leadId: number, estado: string) => {
@@ -2095,7 +2116,7 @@ const pushAlertToChain = (
                   )}
 
                   <div className="text-sm text-gray-600">
-                    <span className="font-medium">{getFilteredAndSearchedLeads().length}</span> leads encontrados
+                    <span className="font-medium">{getFilteredLeadsByDate().length}</span> leads encontrados
                   </div>
                 </div>
               </div>
@@ -2171,7 +2192,54 @@ const pushAlertToChain = (
                 </div>
               )}
             </div>
-
+{/* AGREGAR ESTE NUEVO FILTRO DE FECHA */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Filtrar por fecha
+                      </label>
+                      <div className="space-y-2">
+                        <select
+                          value={dateFilterType}
+                          onChange={(e) => setDateFilterType(e.target.value as "created" | "status_change")}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                        >
+                          <option value="status_change">Último cambio de estado</option>
+                          <option value="created">Fecha de creación</option>
+                        </select>
+                        
+                        <div className="flex space-x-2">
+                          <select
+                            value={selectedMonth}
+                            onChange={(e) => setSelectedMonth(e.target.value)}
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                          >
+                            <option value="">Todos los meses</option>
+                            <option value="01">Enero</option>
+                            <option value="02">Febrero</option>
+                            <option value="03">Marzo</option>
+                            <option value="04">Abril</option>
+                            <option value="05">Mayo</option>
+                            <option value="06">Junio</option>
+                            <option value="07">Julio</option>
+                            <option value="08">Agosto</option>
+                            <option value="09">Septiembre</option>
+                            <option value="10">Octubre</option>
+                            <option value="11">Noviembre</option>
+                            <option value="12">Diciembre</option>
+                          </select>
+                          
+                          <select
+                            value={selectedYear}
+                            onChange={(e) => setSelectedYear(e.target.value)}
+                            className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                          >
+                            <option value="2024">2024</option>
+                            <option value="2025">2025</option>
+                            <option value="2026">2026</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
             {/* Tabla de leads con búsqueda y filtros aplicados */}
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
               <div className="overflow-x-auto">
@@ -2205,7 +2273,7 @@ const pushAlertToChain = (
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {getFilteredAndSearchedLeads().length === 0 ? (
+                    {getFilteredLeadsByDate().length === 0 ? (
                       <tr>
                         <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                           {searchText.trim() || selectedVendedorFilter || selectedEstadoFilter || selectedFuenteFilter
@@ -2214,7 +2282,7 @@ const pushAlertToChain = (
                         </td>
                       </tr>
                     ) : (
-                      getFilteredAndSearchedLeads().map((lead) => {
+                      getFilteredLeadsByDate().map((lead) => {
                         const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
                         const canReassign =
                           canManageUsers() ||
