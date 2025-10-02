@@ -953,8 +953,7 @@ const pushAlertToChain = (
     });
     prevRankingRef.current = curr;
   }, [leads, users, userById]);
-
-  const getDashboardStats = (teamFilter?: string) => {
+const getDashboardStats = (teamFilter?: string) => {
     let filteredLeads: LeadRow[];
     
     if (teamFilter && teamFilter !== "todos" && ["owner", "director", "dueño"].includes(currentUser?.role)) {
@@ -962,6 +961,23 @@ const pushAlertToChain = (
       filteredLeads = leads.filter((l) => l.vendedor && teamUserIds.includes(l.vendedor));
     } else {
       filteredLeads = getFilteredLeads();
+    }
+    
+    // AGREGAR FILTRO POR FECHA
+    if (selectedMonth && selectedYear) {
+      filteredLeads = filteredLeads.filter((lead) => {
+        const dateToCheck = dateFilterType === "status_change" 
+          ? (lead.last_status_change || lead.fecha || lead.created_at)
+          : (lead.fecha || lead.created_at);
+        
+        if (!dateToCheck) return false;
+        
+        const leadDate = new Date(dateToCheck);
+        const leadMonth = (leadDate.getMonth() + 1).toString().padStart(2, '0');
+        const leadYear = leadDate.getFullYear().toString();
+        
+        return leadMonth === selectedMonth && leadYear === selectedYear;
+      });
     }
     
     const vendidos = filteredLeads.filter((lead) => lead.estado === "vendido").length;
@@ -971,7 +987,6 @@ const pushAlertToChain = (
     
     return { totalLeads: filteredLeads.length, vendidos, conversion };
   };
-
   const getSourceMetrics = (teamFilter?: string) => {
     let filteredLeads: LeadRow[];
     
@@ -981,6 +996,44 @@ const pushAlertToChain = (
     } else {
       filteredLeads = getFilteredLeads();
     }
+    
+    // AGREGAR FILTRO POR FECHA
+    if (selectedMonth && selectedYear) {
+      filteredLeads = filteredLeads.filter((lead) => {
+        const dateToCheck = dateFilterType === "status_change" 
+          ? (lead.last_status_change || lead.fecha || lead.created_at)
+          : (lead.fecha || lead.created_at);
+        
+        if (!dateToCheck) return false;
+        
+        const leadDate = new Date(dateToCheck);
+        const leadMonth = (leadDate.getMonth() + 1).toString().padStart(2, '0');
+        const leadYear = leadDate.getFullYear().toString();
+        
+        return leadMonth === selectedMonth && leadYear === selectedYear;
+      });
+    }
+    
+    const sourceData = Object.keys(fuentes)
+      .map((source) => {
+        const sourceLeads = filteredLeads.filter((lead) => lead.fuente === source);
+        const vendidos = sourceLeads.filter((lead) => lead.estado === "vendido").length;
+        const conversion = sourceLeads.length > 0
+          ? ((vendidos / sourceLeads.length) * 100).toFixed(1)
+          : "0";
+        return {
+          source,
+          total: sourceLeads.length,
+          vendidos,
+          conversion: parseFloat(conversion),
+          ...fuentes[source],
+        };
+      })
+      .filter((item) => item.total > 0)
+      .sort((a, b) => b.total - a.total);
+
+    return sourceData;
+  };
     
     const sourceData = Object.keys(fuentes)
       .map((source) => {
@@ -2750,11 +2803,29 @@ const pushAlertToChain = (
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                   {Object.entries(estados).map(([key, estado]) => {
-                    const teamFilter = ["owner", "director"].includes(currentUser?.role)
-                      ? selectedTeam
-                      : undefined;
-                    const filteredLeads = getFilteredLeadsByTeam(teamFilter);
-                    const count = filteredLeads.filter((l) => l.estado === key).length;
+  const teamFilter = ["owner", "director"].includes(currentUser?.role)
+    ? selectedTeam
+    : undefined;
+  let filteredLeads = getFilteredLeadsByTeam(teamFilter);
+  
+  // Aplicar filtro de fecha
+  if (selectedMonth && selectedYear) {
+    filteredLeads = filteredLeads.filter((lead) => {
+      const dateToCheck = dateFilterType === "status_change" 
+        ? (lead.last_status_change || lead.fecha || lead.created_at)
+        : (lead.fecha || lead.created_at);
+      
+      if (!dateToCheck) return false;
+      
+      const leadDate = new Date(dateToCheck);
+      const leadMonth = (leadDate.getMonth() + 1).toString().padStart(2, '0');
+      const leadYear = leadDate.getFullYear().toString();
+      
+      return leadMonth === selectedMonth && leadYear === selectedYear;
+    });
+  }
+  
+  const count = filteredLeads.filter((l) => l.estado === key).length;
                     return (
                       <button
                         key={key}
