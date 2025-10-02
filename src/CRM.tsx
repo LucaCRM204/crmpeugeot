@@ -1623,51 +1623,76 @@ const getDashboardStats = (teamFilter?: string) => {
         {activeSection === "dashboard" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-bold text-gray-800">Dashboard</h2>
-              <div className="flex items-center space-x-3">
-                {["owner", "director", "dueño"].includes(currentUser?.role) && (
-                  <select
-                    value={selectedTeam}
-                    onChange={(e) => setSelectedTeam(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
-                  >
-                    <option value="todos">Todos los equipos</option>
-                    {users
-                      .filter((u: any) => u.role === "gerente")
-                      .map((gerente: any) => (
-                        <option key={gerente.id} value={gerente.id.toString()}>
-                          Equipo {gerente.name}
-                        </option>
-                      ))}
-                  </select>
-                )}
-                {canCreateLeads() && (
-                  <button
-                    onClick={() => setShowNewLeadModal(true)}
-                    className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                  >
-                    <Plus size={20} />
-                    <span>Nuevo Lead</span>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {!currentUser?.active && (
-              <div className="bg-orange-50 border-l-4 border-orange-400 p-4">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <Bell className="h-5 w-5 text-orange-400" />
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm text-orange-700">
-                      <strong>Usuario Desactivado:</strong> No recibirás nuevos leads automáticamente. 
-                      Solo podrás gestionar los leads que ya tienes asignados.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
+  <h2 className="text-3xl font-bold text-gray-800">Dashboard</h2>
+  <div className="flex items-center space-x-3">
+    {["owner", "director", "dueño"].includes(currentUser?.role) && (
+      <select
+        value={selectedTeam}
+        onChange={(e) => setSelectedTeam(e.target.value)}
+        className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+      >
+        <option value="todos">Todos los equipos</option>
+        {users
+          .filter((u: any) => u.role === "gerente")
+          .map((gerente: any) => (
+            <option key={gerente.id} value={gerente.id.toString()}>
+              Equipo {gerente.name}
+            </option>
+          ))}
+      </select>
+    )}
+    
+    {/* AGREGAR ESTOS SELECTORES DE FECHA */}
+    <select
+      value={dateFilterType}
+      onChange={(e) => setDateFilterType(e.target.value as "created" | "status_change")}
+      className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"
+    >
+      <option value="status_change">Por cambio de estado</option>
+      <option value="created">Por fecha de creación</option>
+    </select>
+    
+    <select
+      value={selectedMonth}
+      onChange={(e) => setSelectedMonth(e.target.value)}
+      className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+    >
+      <option value="">Todos los meses</option>
+      <option value="01">Enero</option>
+      <option value="02">Febrero</option>
+      <option value="03">Marzo</option>
+      <option value="04">Abril</option>
+      <option value="05">Mayo</option>
+      <option value="06">Junio</option>
+      <option value="07">Julio</option>
+      <option value="08">Agosto</option>
+      <option value="09">Septiembre</option>
+      <option value="10">Octubre</option>
+      <option value="11">Noviembre</option>
+      <option value="12">Diciembre</option>
+    </select>
+    
+    <select
+      value={selectedYear}
+      onChange={(e) => setSelectedYear(e.target.value)}
+      className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+    >
+      <option value="2024">2024</option>
+      <option value="2025">2025</option>
+      <option value="2026">2026</option>
+    </select>
+    
+    {canCreateLeads() && (
+      <button
+        onClick={() => setShowNewLeadModal(true)}
+        className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+      >
+        <Plus size={20} />
+        <span>Nuevo Lead</span>
+      </button>
+    )}
+  </div>
+</div>
 
             {/* Estadísticas principales */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
