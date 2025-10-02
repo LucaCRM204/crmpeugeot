@@ -1034,28 +1034,7 @@ const getDashboardStats = (teamFilter?: string) => {
 
     return sourceData;
   };
-    
-    const sourceData = Object.keys(fuentes)
-      .map((source) => {
-        const sourceLeads = filteredLeads.filter((lead) => lead.fuente === source);
-        const vendidos = sourceLeads.filter((lead) => lead.estado === "vendido").length;
-        const conversion = sourceLeads.length > 0
-          ? ((vendidos / sourceLeads.length) * 100).toFixed(1)
-          : "0";
-        return {
-          source,
-          total: sourceLeads.length,
-          vendidos,
-          conversion: parseFloat(conversion),
-          ...fuentes[source],
-        };
-      })
-      .filter((item) => item.total > 0)
-      .sort((a, b) => b.total - a.total);
-
-    return sourceData;
-  };
-
+ 
   // ===== Acciones de Leads (API) =====
   const mapLeadFromApi = (L: any): LeadRow => ({
   id: L.id,
