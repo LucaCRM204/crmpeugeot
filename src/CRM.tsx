@@ -1082,7 +1082,9 @@ export default function PeugeotCRM() {
     useState<LeadRow | null>(null);
   const [viewingLeadHistorial, setViewingLeadHistorial] =
     useState<LeadRow | null>(null);
-
+  const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
+  const [deleteAllPassword, setDeleteAllPassword] = useState("");
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
   const handleUpdateObservaciones = async (
     leadId: number,
     observaciones: string
@@ -1200,7 +1202,37 @@ export default function PeugeotCRM() {
       alert(`Error al crear el lead: ${e?.message || 'Error desconocido'}`);
     }
   };
+const handleDeleteAllLeads = async () => {
+  if (!deleteAllPassword.trim()) {
+    alert("Por favor ingresa tu contraseña para confirmar");
+    return;
+  }
 
+  if (!confirm("⚠️ ADVERTENCIA: Esto eliminará TODOS los leads del sistema de forma permanente. ¿Estás completamente seguro?")) {
+    return;
+  }
+
+  setIsDeletingAll(true);
+
+  try {
+    const response = await api.delete("/api/leads/bulk/delete-all", {
+      data: { confirmPassword: deleteAllPassword }
+    });
+
+    alert(`✅ ${response.data.deletedCount} leads eliminados exitosamente`);
+    
+    const updatedLeads = await listLeads();
+    setLeads(updatedLeads.map(mapLeadFromApi));
+    
+    setShowDeleteAllModal(false);
+    setDeleteAllPassword("");
+  } catch (error: any) {
+    console.error("Error al eliminar leads:", error);
+    alert(`❌ Error: ${error.response?.data?.error || error.message}`);
+  } finally {
+    setIsDeletingAll(false);
+  }
+};
   // ===== Calendario =====
   const [events, setEvents] = useState<any[]>([]);
   const [selectedCalendarUserId, setSelectedCalendarUserId] = useState<number | null>(null);
@@ -2640,9 +2672,26 @@ export default function PeugeotCRM() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-3xl font-bold text-gray-800">Gestión de Usuarios</h2>
-              {canCreateUsers() && (
-                <button
-                  onClick={openCreateUser}
+<div className="flex items-center space-x-3">
+  {isOwner() && (
+    <button
+      onClick={() => setShowDeleteAllModal(true)}
+      className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+    >
+      <Trash2 size={20} />
+      <span>Borrar Todos los Leads</span>
+    </button>
+  )}
+  {canCreateUsers() && (
+    <button
+      onClick={openCreateUser}
+      className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+    >
+      <Plus size={20} />
+      <span>Nuevo Usuario</span>
+    </button>
+  )}
+</div>
                   className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   <Plus size={20} />
@@ -3715,4 +3764,63 @@ export default function PeugeotCRM() {
       </div>
     </div>
   );
+{showDeleteAllModal && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="bg-white rounded-xl p-6 w-full max-w-md">
+      <div className="flex items-center mb-6">
+        <div className="bg-red-100 p-3 rounded-full mr-4">
+          <Trash2 className="h-6 w-6 text-red-600" />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold text-gray-800">Eliminar TODOS los Leads</h3>
+          <p className="text-sm text-gray-600">Esta acción es IRREVERSIBLE</p>
+        </div>
+      </div>
+
+      <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 mb-6">
+        <p className="text-sm text-red-700">
+          Se eliminarán TODOS los leads del sistema. Esta acción NO se puede deshacer.
+        </p>
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Confirma tu contraseña de Owner
+        </label>
+        <input
+          type="password"
+          value={deleteAllPassword}
+          onChange={(e) => setDeleteAllPassword(e.target.value)}
+          placeholder="Tu contraseña actual"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500"
+          disabled={isDeletingAll}
+        />
+      </div>
+
+      <div className="flex space-x-3">
+        <button
+          onClick={handleDeleteAllLeads}
+          disabled={isDeletingAll || !deleteAllPassword.trim()}
+          className={`flex-1 px-4 py-2 rounded-lg font-medium ${
+            isDeletingAll || !deleteAllPassword.trim()
+              ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+              : "bg-red-600 text-white hover:bg-red-700"
+          }`}
+        >
+          {isDeletingAll ? "Eliminando..." : "Sí, Eliminar TODO"}
+        </button>
+        <button
+          onClick={() => {
+            setShowDeleteAllModal(false);
+            setDeleteAllPassword("");
+          }}
+          disabled={isDeletingAll}
+          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 }
