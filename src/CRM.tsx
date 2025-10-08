@@ -110,8 +110,8 @@ const fuentes: Record<
 // Configuración de bots
 const botConfig: Record<string, { targetTeam: string | null; label: string }> =
   {
-    whatsapp_bot_cm1: { targetTeam: "sauer", label: "Bot CM 1" },
-    whatsapp_bot_cm2: { targetTeam: "daniel", label: "Bot CM 2" },
+    whatsapp_bot_cm1: { targetTeam: null, label: "Bot CM 1" },
+    whatsapp_bot_cm2: { targetTeam: null, label: "Bot CM 2" },
     whatsapp_100: { targetTeam: null, label: "Bot 100" }, // null = distribución general
   };
 type LeadRow = {
@@ -396,7 +396,7 @@ const [leadParaPresupuesto, setLeadParaPresupuesto] = useState<LeadRow | null>(n
         entrega: L.entrega,
         fecha: L.fecha || L.created_at || "",
         estado: (L.estado || "nuevo") as LeadRow["estado"],
-        vendedor: L.assigned_to ?? null,
+        vendedor: L.vendedor ?? null,
         notas: L.notas || "",
         fuente: (L.fuente || "otro") as LeadRow["fuente"],
         historial: L.historial || [],
@@ -1205,7 +1205,7 @@ const getDashboardStats = (teamFilter?: string) => {
   entrega: L.entrega,
   fecha: L.fecha || L.created_at || "",
   estado: (L.estado || "nuevo") as LeadRow["estado"],
-  vendedor: L.assigned_to ?? null,
+  vendedor: L.vendedor ?? null,
   notas: L.notas || "",
   fuente: (L.fuente || "otro") as LeadRow["fuente"],
   historial: L.historial || [],
