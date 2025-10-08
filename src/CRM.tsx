@@ -1,250 +1,45 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
-
-// Iconos SVG reemplazando lucide-react
-const Calendar = ({ size = 20, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-    <line x1="16" y1="2" x2="16" y2="6"/>
-    <line x1="8" y1="2" x2="8" y2="6"/>
-    <line x1="3" y1="10" x2="21" y2="10"/>
-  </svg>
-);
-
-const Users = ({ size = 20, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-    <circle cx="9" cy="7" r="4"/>
-    <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
-    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-  </svg>
-);
-
-const Trophy = ({ size = 20, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
-    <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
-    <path d="M4 22h16"/>
-    <path d="M10 14.66V17c0 .55.47.98.97 1.21C12.25 18.75 14 20 14 20s1.75-1.25 3.03-1.79c.5-.23.97-.66.97-1.21v-2.34"/>
-    <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
-  </svg>
-);
-
-const Plus = ({ size = 20, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <line x1="12" y1="5" x2="12" y2="19"/>
-    <line x1="5" y1="12" x2="19" y2="12"/>
-  </svg>
-);
-
-const Phone = ({ size = 20, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-  </svg>
-);
-
-const BarChart3 = ({ size = 20, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M3 3v18h18"/>
-    <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/>
-  </svg>
-);
-
-const Settings = ({ size = 20, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <circle cx="12" cy="12" r="3"/>
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1 1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-  </svg>
-);
-
-const Home = ({ size = 20, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-    <polyline points="9,22 9,12 15,12 15,22"/>
-  </svg>
-);
-
-const X = ({ size = 20, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <line x1="18" y1="6" x2="6" y2="18"/>
-    <line x1="6" y1="6" x2="18" y2="18"/>
-  </svg>
-);
-
-const Trash2 = ({ size = 20, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <polyline points="3,6 5,6 21,6"/>
-    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-    <line x1="10" y1="11" x2="10" y2="17"/>
-    <line x1="14" y1="11" x2="14" y2="17"/>
-  </svg>
-);
-
-const Edit3 = ({ size = 20, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M12 20h9"/>
-    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-  </svg>
-);
-
-const Bell = ({ size = 20, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
-    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
-  </svg>
-);
-
-const UserCheck = ({ size = 20, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-    <circle cx="9" cy="7" r="4"/>
-    <polyline points="16,11 18,13 22,9"/>
-  </svg>
-);
-
-const Download = ({ size = 20, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-    <polyline points="7,10 12,15 17,10"/>
-    <line x1="12" y1="15" x2="12" y2="3"/>
-  </svg>
-);
-
-const Search = ({ size = 20, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <circle cx="11" cy="11" r="8"/>
-    <path d="M21 21l-4.35-4.35"/>
-  </svg>
-);
-
-const Filter = ({ size = 20, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46"/>
-  </svg>
-);
-
-const User = ({ size = 20, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-    <circle cx="12" cy="7" r="4"/>
-  </svg>
-);
-
-// ===== API Configuration =====
-const API_BASE_URL = import.meta.env.VITE_API_URL || "https://peugeotbackend-production.up.railway.app";
-
-const api = {
-  defaults: {
-    headers: {
-      common: {} as Record<string, string>
-    }
-  },
-  async post(endpoint: string, data: any) {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...this.defaults.headers.common
-      },
-      body: JSON.stringify(data)
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `HTTP ${response.status}`);
-    }
-    
-    return { data: await response.json() };
-  },
-  
-  async get(endpoint: string) {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: 'GET',
-      headers: {
-        ...this.defaults.headers.common
-      }
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `HTTP ${response.status}`);
-    }
-    
-    return { data: await response.json() };
-  },
-  
-  async put(endpoint: string, data: any) {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...this.defaults.headers.common
-      },
-      body: JSON.stringify(data)
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `HTTP ${response.status}`);
-    }
-    
-    return { data: await response.json() };
-  },
-  
-  async delete(endpoint: string, config?: { data?: any }) {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    method: 'DELETE',
-    headers: {
-      'Content-Type': 'application/json',
-      ...this.defaults.headers.common
-    },
-    body: config?.data ? JSON.stringify(config.data) : undefined
-  });
-  
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `HTTP ${response.status}`);
-  }
-  
-  return { data: await response.json() };
-}
-};
-
-// ===== API Services =====
-const listUsers = async () => {
-  const response = await api.get("/api/users");
-  return response.data;
-};
-
-const createUser = async (userData: any) => {
-  const response = await api.post("/api/users", userData);
-  return response.data;
-};
-
-const updateUser = async (id: number, userData: any) => {
-  const response = await api.put(`/api/users/${id}`, userData);
-  return response.data;
-};
-
-const deleteUser = async (id: number) => {
-  const response = await api.delete(`/api/users/${id}`);
-  return response.data;
-};
-
-const listLeads = async () => {
-  const response = await api.get("/api/leads");
-  return response.data;
-};
-
-const createLead = async (leadData: any) => {
-  const response = await api.post("/api/leads", leadData);
-  return response.data;
-};
-
-const updateLead = async (id: number, leadData: any) => {
-  const response = await api.put(`/api/leads/${id}`, leadData);
-  return response.data;
-};
-
+import {
+  Calendar,
+  Users,
+  Trophy,
+  Plus,
+  Phone,
+  BarChart3,
+  Settings,
+  Home,
+  X,
+  Trash2,
+  Edit3,
+  Bell,
+  UserCheck,
+  Download,
+  Search,
+  Filter,
+  User,
+  ChevronDown,
+  FileText,
+} from "lucide-react";
+import { api } from "./api";
+import {
+  listUsers,
+  createUser as apiCreateUser,
+  updateUser as apiUpdateUser,
+  deleteUser as apiDeleteUser,
+} from "./services/users";
+import {
+  listLeads,
+  createLead as apiCreateLead,
+  updateLead as apiUpdateLead,
+  deleteLead as apiDeleteLead,
+} from "./services/leads";
+import {
+  listPresupuestos,
+  createPresupuesto as apiCreatePresupuesto,
+  updatePresupuesto as apiUpdatePresupuesto,
+  deletePresupuesto as apiDeletePresupuesto,
+} from "./services/presupuestos";
+import { generarPresupuestoPDF } from "./services/presupuestos";
 // ===== Utilidades de jerarquía =====
 function buildIndex(users: any[]) {
   const byId = new Map(users.map((u: any) => [u.id, u]));
@@ -262,12 +57,15 @@ function getDescendantUserIds(
 ) {
   const out: number[] = [];
   const stack = [...(childrenIndex.get(rootId) || [])];
+  console.log(`=== getDescendantUserIds para ID ${rootId} ===`);
+  console.log('Hijos directos:', childrenIndex.get(rootId));
   while (stack.length) {
     const id = stack.pop()!;
     out.push(id);
     const kids = childrenIndex.get(id) || [];
     for (const k of kids) stack.push(k);
   }
+ console.log('Descendientes totales:', out);
   return out;
 }
 
@@ -312,11 +110,10 @@ const fuentes: Record<
 // Configuración de bots
 const botConfig: Record<string, { targetTeam: string | null; label: string }> =
   {
-    whatsapp_bot_cm1: { targetTeam: "equipo1", label: "Bot CM 1" },
-    whatsapp_bot_cm2: { targetTeam: "equipo2", label: "Bot CM 2" },
-    whatsapp_100: { targetTeam: null, label: "Bot 100" },
+    whatsapp_bot_cm1: { targetTeam: "sauer", label: "Bot CM 1" },
+    whatsapp_bot_cm2: { targetTeam: "daniel", label: "Bot CM 2" },
+    whatsapp_100: { targetTeam: null, label: "Bot 100" }, // null = distribución general
   };
-
 type LeadRow = {
   id: number;
   nombre: string;
@@ -336,8 +133,9 @@ type LeadRow = {
     usuario: string;
   }>;
   created_by?: number;
+  created_at?: string;  // AGREGAR ESTA LÍNEA
+  last_status_change?: string;
 };
-
 type Alert = {
   id: number;
   userId: number;
@@ -345,6 +143,21 @@ type Alert = {
   message: string;
   ts: string;
   read: boolean;
+};
+type Presupuesto = {
+  id: number;
+  modelo: string;
+  marca: string;
+  imagen_url?: string;
+  precio_contado?: string;
+  especificaciones_tecnicas?: string;
+  planes_cuotas?: any;
+  bonificaciones?: string;
+  anticipo?: string;
+  activo: boolean;
+  created_by?: number;
+  created_at?: string;
+  updated_at?: string;
 };
 
 // ===== Funciones de descarga Excel =====
@@ -355,6 +168,7 @@ const formatDate = (dateString: string): string => {
 };
 
 const downloadAllLeadsExcel = (leads: LeadRow[], userById: Map<number, any>, fuentes: any): void => {
+  // Crear datos para Excel
   const excelData = leads.map(lead => {
     const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
     const fuente = fuentes[lead.fuente] || { label: lead.fuente };
@@ -378,17 +192,20 @@ const downloadAllLeadsExcel = (leads: LeadRow[], userById: Map<number, any>, fue
     };
   });
 
+  // Crear contenido CSV
   const headers = Object.keys(excelData[0] || {});
   const csvContent = [
     headers.join(','),
     ...excelData.map(row => 
       headers.map(header => {
         const value = (row as any)[header] || '';
+        // Escapar comillas y comas
         return `"${String(value).replace(/"/g, '""')}"`;
       }).join(',')
     )
   ].join('\n');
 
+  // Crear y descargar archivo
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
@@ -408,6 +225,7 @@ const downloadLeadsByStateExcel = (leads: LeadRow[], estado: string, userById: M
     return;
   }
 
+  // Crear datos para Excel
   const excelData = leadsByState.map(lead => {
     const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
     const fuente = fuentes[lead.fuente] || { label: lead.fuente };
@@ -432,18 +250,20 @@ const downloadLeadsByStateExcel = (leads: LeadRow[], estado: string, userById: M
       ).join(' | ') || ''
     };
   });
-
+     // Crear contenido CSV
   const headers = Object.keys(excelData[0] || {});
   const csvContent = [
     headers.join(','),
     ...excelData.map(row => 
       headers.map(header => {
         const value = (row as any)[header] || '';
+        // Escapar comillas y comas
         return `"${String(value).replace(/"/g, '""')}"`;
       }).join(',')
     )
   ].join('\n');
 
+  // Crear y descargar archivo
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
@@ -455,8 +275,8 @@ const downloadLeadsByStateExcel = (leads: LeadRow[], estado: string, userById: M
   link.click();
   document.body.removeChild(link);
 };
-
-export default function PeugeotCRM() {
+  
+export default function CRM() {
   const [users, setUsers] = useState<any[]>([]);
   const [leads, setLeads] = useState<LeadRow[]>([]);
   const { byId: userById, children: childrenIndex } = useMemo(
@@ -467,8 +287,8 @@ export default function PeugeotCRM() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeSection, setActiveSection] = useState<
-    "dashboard" | "leads" | "calendar" | "ranking" | "users" | "alerts" | "team"
-  >("dashboard");
+  "dashboard" | "leads" | "calendar" | "ranking" | "users" | "alerts" | "team" | "presupuestos"
+>("dashboard");
   const [loginError, setLoginError] = useState("");
   const [selectedEstado, setSelectedEstado] = useState<string | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<string>("todos");
@@ -479,7 +299,18 @@ export default function PeugeotCRM() {
   const [selectedEstadoFilter, setSelectedEstadoFilter] = useState<string>("");
   const [selectedFuenteFilter, setSelectedFuenteFilter] = useState<string>("");
   const [showFilters, setShowFilters] = useState(false);
-
+  const [selectedMonth, setSelectedMonth] = useState<string>("");
+  const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
+  const [dateFilterType, setDateFilterType] = useState<"created" | "status_change">("status_change");
+  // Estados para filtrado de usuarios
+  const [userSearchText, setUserSearchText] = useState("");
+  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("todos");
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("todos");
+  const [userSortBy, setUserSortBy] = useState<"name" | "role" | "team" | "performance">("team");
+  const [showUserFilters, setShowUserFilters] = useState(false);
+  const [selectedLeads, setSelectedLeads] = useState<Set<number>>(new Set());
+  const [showBulkReassignModal, setShowBulkReassignModal] = useState(false);
+  const [bulkReassignVendorId, setBulkReassignVendorId] = useState<number | null>(null);
   // Estados para reasignación
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [leadToReassign, setLeadToReassign] = useState<LeadRow | null>(null);
@@ -490,22 +321,58 @@ export default function PeugeotCRM() {
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState<any>(null);
 
+  // Estados para confirmación de eliminación de leads
+  const [showDeleteLeadConfirmModal, setShowDeleteLeadConfirmModal] = useState(false);
+  const [leadToDelete, setLeadToDelete] = useState<LeadRow | null>(null);
+
+  // Estados para modales
+  const [showNewLeadModal, setShowNewLeadModal] = useState(false);
+  const [showObservacionesModal, setShowObservacionesModal] = useState(false);
+  const [showHistorialModal, setShowHistorialModal] = useState(false);
+  const [editingLeadObservaciones, setEditingLeadObservaciones] =
+    useState<LeadRow | null>(null);
+  const [viewingLeadHistorial, setViewingLeadHistorial] =
+    useState<LeadRow | null>(null);
+
+  // Estados para calendario
+  const [events, setEvents] = useState<any[]>([]);
+  const [selectedCalendarUserId, setSelectedCalendarUserId] = useState<number | null>(null);
+  const [showNewEventModal, setShowNewEventModal] = useState(false);
+
+  // Estados para gestión de usuarios
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [modalRole, setModalRole] = useState<
+    "owner" | "director" | "gerente" | "supervisor" | "vendedor"
+  >("vendedor");
+  const [modalReportsTo, setModalReportsTo] = useState<number | null>(null);
+  // Estados para presupuestos
+const [presupuestos, setPresupuestos] = useState<Presupuesto[]>([]);
+const [showPresupuestoModal, setShowPresupuestoModal] = useState(false);
+const [editingPresupuesto, setEditingPresupuesto] = useState<Presupuesto | null>(null);
+const [showPresupuestoSelectModal, setShowPresupuestoSelectModal] = useState(false);
+const [selectedLeadForPresupuesto, setSelectedLeadForPresupuesto] = useState<LeadRow | null>(null);
+// Estados para modal de presupuesto personalizado
+const [showPresupuestoPersonalizadoModal, setShowPresupuestoPersonalizadoModal] = useState<boolean>(false);
+const [leadParaPresupuesto, setLeadParaPresupuesto] = useState<LeadRow | null>(null);
+
   // ===== Login contra backend =====
   const handleLogin = async (email: string, password: string) => {
-    try {
-      const r = await api.post("/api/auth/login", { 
-        email, 
-        password, 
-        allowInactiveUsers: true
-      });
+  try {
+    const r = await api.post("/auth/login", { 
+      email, 
+      password, 
+      allowInactiveUsers: true
+    });
 
-      if (r.data?.ok && r.data?.token) {
-        localStorage.setItem("token", r.data.token);
-        localStorage.setItem("user", JSON.stringify(r.data.user));
+    if (r.data?.ok && r.data?.token) {
+      localStorage.setItem("token", r.data.token);
+      localStorage.setItem("user", JSON.stringify(r.data.user));
 
-        api.defaults.headers.common["Authorization"] = `Bearer ${r.data.token}`;
+      api.defaults.headers.common["Authorization"] = `Bearer ${r.data.token}`;
 
-        const u = r.data.user || {
+      const u =
+        r.data.user || {
           id: 0,
           name: r.data?.user?.email || email,
           email,
@@ -514,84 +381,68 @@ export default function PeugeotCRM() {
           active: r.data?.user?.active ?? true,
         };
 
-        setCurrentUser(u);
-        setIsAuthenticated(true);
-        setLoginError("");
+      setCurrentUser(u);
+      setIsAuthenticated(true);
+      setLoginError("");
 
-        const [uu, ll] = await Promise.all([listUsers(), listLeads()]);
-        const mappedLeads: LeadRow[] = (ll || []).map((L: any) => ({
-          id: L.id,
-          nombre: L.nombre,
-          telefono: L.telefono,
-          modelo: L.modelo,
-          formaPago: L.formaPago,
-          infoUsado: L.infoUsado,
-          entrega: L.entrega,
-          fecha: L.fecha || L.created_at || "",
-          estado: (L.estado || "nuevo") as LeadRow["estado"],
-          vendedor: L.vendedor ?? null,
-          notas: L.notas || "",
-          fuente: (L.fuente || "otro") as LeadRow["fuente"],
-          historial: L.historial || [],
-          created_by: L.created_by || null,
-        }));
-        setUsers(uu || []);
-        setLeads(mappedLeads);
-      } else {
-        throw new Error("Respuesta inválida del servidor");
-      }
-    } catch (err: any) {
-      setLoginError(err?.response?.data?.error || err.message || "Credenciales incorrectas");
-      setIsAuthenticated(false);
-    }
-  };
+      const [uu, ll] = await Promise.all([listUsers(), listLeads()]);
+      const mappedLeads: LeadRow[] = (ll || []).map((L: any) => ({
+        id: L.id,
+        nombre: L.nombre,
+        telefono: L.telefono,
+        modelo: L.modelo,
+        formaPago: L.formaPago,
+        infoUsado: L.infoUsado,
+        entrega: L.entrega,
+        fecha: L.fecha || L.created_at || "",
+        estado: (L.estado || "nuevo") as LeadRow["estado"],
+        vendedor: L.assigned_to ?? null,
+        notas: L.notas || "",
+        fuente: (L.fuente || "otro") as LeadRow["fuente"],
+        historial: L.historial || [],
+        created_by: L.created_by || null,
+      }));
+      setUsers(uu || []);
+      setLeads(mappedLeads);
 
-  // ===== Verificar token al cargar =====
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    const savedUser = localStorage.getItem("user");
-    
-    if (token && savedUser) {
+      // AGREGAR ESTO AQUÍ DENTRO
       try {
-        const user = JSON.parse(savedUser);
-        api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-        setCurrentUser(user);
-        setIsAuthenticated(true);
-        
-        // Cargar datos
-        Promise.all([listUsers(), listLeads()]).then(([uu, ll]) => {
-          const mappedLeads: LeadRow[] = (ll || []).map((L: any) => ({
-            id: L.id,
-            nombre: L.nombre,
-            telefono: L.telefono,
-            modelo: L.modelo,
-            formaPago: L.formaPago,
-            infoUsado: L.infoUsado,
-            entrega: L.entrega,
-            fecha: L.fecha || L.created_at || "",
-            estado: (L.estado || "nuevo") as LeadRow["estado"],
-            vendedor: L.vendedor ?? null,
-            notas: L.notas || "",
-            fuente: (L.fuente || "otro") as LeadRow["fuente"],
-            historial: L.historial || [],
-            created_by: L.created_by || null,
-          }));
-          setUsers(uu || []);
-          setLeads(mappedLeads);
-        }).catch(console.error);
-      } catch (e) {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
+        const pp = await listPresupuestos();
+        setPresupuestos(pp || []);
+      } catch (error) {
+        console.error('Error cargando presupuestos:', error);
       }
-    }
-  }, []);
+      // FIN DEL CÓDIGO AGREGADO
 
+    } else {
+      throw new Error("Respuesta inválida del servidor");
+    }
+  } catch (err: any) {
+    setLoginError(err?.response?.data?.error || "Credenciales incorrectas");
+    setIsAuthenticated(false);
+  }
+};
+     
   // ===== Acceso por rol =====
   const getAccessibleUserIds = (user: any) => {
     if (!user) return [] as number[];
-    if (["owner", "director"].includes(user.role))
+    if (["owner", "director", "dueño"].includes(user.role))
       return users.map((u: any) => u.id);
     const ids = [user.id, ...getDescendantUserIds(user.id, childrenIndex)];
+    console.log('=== getAccessibleUserIds ===');
+  console.log('Usuario:', user.name, 'ID:', user.id, 'Role:', user.role);
+  console.log('IDs visibles:', ids);
+  console.log('Leads filtrados:', leads.filter(l => l.vendedor && ids.includes(l.vendedor)).length);
+  console.log('Primeros 5 leads:', leads.slice(0, 5).map(l => ({ id: l.id, nombre: l.nombre, vendedor: l.vendedor })));
+console.log('Leads de Molina (ID 38):', leads.filter(l => l.vendedor === 38).length);
+console.log('=== getAccessibleUserIds ===');
+console.log('Usuario:', user.name, 'ID:', user.id, 'Role:', user.role);
+console.log('IDs visibles:', ids);
+console.log('Total leads en sistema:', leads.length);
+console.log('Primeros 3 leads completos:', leads.slice(0, 3));
+console.log('Leads con vendedor === 38:', leads.filter(l => l.vendedor === 38).length);
+console.log('Leads con vendedor tipo:', leads.slice(0, 3).map(l => ({ id: l.id, vendedor: l.vendedor, tipo: typeof l.vendedor })));
+console.log('Leads filtrados:', leads.filter(l => l.vendedor && ids.includes(l.vendedor)).length);
     return ids;
   };
   
@@ -599,11 +450,16 @@ export default function PeugeotCRM() {
     currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
 
   const canManageUsers = () =>
-    currentUser && ["owner", "director", "gerente"].includes(currentUser.role);
-  const isOwner = () => currentUser?.role === "owner";
+    currentUser && ["owner", "director", "gerente", "dueño"].includes(currentUser.role);
+  const isOwner = () => currentUser?.role === "owner" || currentUser?.role === "dueño";
 
   const canCreateLeads = () =>
     currentUser && ["owner", "director", "gerente", "supervisor", "vendedor"].includes(currentUser.role);
+
+  const canDeleteLeads = () => {
+  const canDelete = currentUser && ["owner", "dueño"].includes(currentUser.role);
+  return canDelete;
+};
 
   // ===== Funciones de filtro por equipo =====
   const getTeamManagerById = (teamId: string) => {
@@ -625,21 +481,12 @@ export default function PeugeotCRM() {
   const getFilteredLeadsByTeam = (teamId?: string) => {
     if (!currentUser) return [] as LeadRow[];
 
-    if (
-      teamId &&
-      teamId !== "todos" &&
-      ["owner", "director"].includes(currentUser.role)
-    ) {
+    if (teamId && teamId !== "todos" && ["owner", "director", "dueño"].includes(currentUser.role)) {
       const teamUserIds = getTeamUserIds(teamId);
-      return leads.filter((l) =>
-        l.vendedor ? teamUserIds.includes(l.vendedor) : false
-      );
+      return leads.filter((l) => l.vendedor && teamUserIds.includes(l.vendedor));
     }
 
-    const visibleUserIds = getAccessibleUserIds(currentUser);
-    return leads.filter((l) =>
-      l.vendedor ? visibleUserIds.includes(l.vendedor) : true
-    );
+    return getFilteredLeads();
   };
 
   const getAvailableVendorsForAssignment = () => {
@@ -659,11 +506,14 @@ export default function PeugeotCRM() {
 
     return users.filter((u: any) => {
       if (currentUser.role === "owner") return true;
+
       if (currentUser.role === "director") return u.role !== "owner";
 
       if (currentUser.role === "gerente") {
         if (u.id === currentUser.id) return true;
+
         if (u.reportsTo === currentUser.id) return true;
+
         const userSupervisor = userById.get(u.reportsTo);
         return userSupervisor && userSupervisor.reportsTo === currentUser.id;
       }
@@ -680,27 +530,181 @@ export default function PeugeotCRM() {
       return false;
     });
   };
+const abrirPresupuestoPersonalizado = (lead: LeadRow): void => {
+  setLeadParaPresupuesto(lead);
+  setShowPresupuestoPersonalizadoModal(true);
+};
 
-  const getFilteredAndSearchedLeads = () => {
+const handleGenerarPresupuestoPDF = async (): Promise<void> => {
+  if (!leadParaPresupuesto) return;
+
+  const nombreVehiculo = (document.getElementById('plan-pensado') as HTMLInputElement)?.value;
+  const valorMovil = (document.getElementById('valor-plan') as HTMLInputElement)?.value;
+  const anticipo = (document.getElementById('anticipo') as HTMLInputElement)?.value;
+  const cuota1 = (document.getElementById('cuota-1-valor') as HTMLInputElement)?.value;
+  const cuota2a12 = (document.getElementById('cuota-2-12') as HTMLInputElement)?.value;
+  const cuota13a84 = (document.getElementById('cuota-13-84') as HTMLInputElement)?.value;
+  const adjudicacion = (document.getElementById('adjudicacion') as HTMLInputElement)?.value;
+  const modeloUsado = (document.getElementById('modelo-usado') as HTMLInputElement)?.value;
+  const anioUsado = (document.getElementById('anio-usado') as HTMLInputElement)?.value;
+  const kilometros = (document.getElementById('kilometros') as HTMLInputElement)?.value;
+  const valorEstimado = (document.getElementById('valor-estimado') as HTMLInputElement)?.value;
+  const observaciones = (document.getElementById('observaciones') as HTMLTextAreaElement)?.value;
+
+  if (!nombreVehiculo || !valorMovil) {
+    alert('Por favor completá al menos el nombre del vehículo y el valor móvil');
+    return;
+  }
+
+  // Crear array de cuotas en el formato esperado
+  const cuotasValidas = [];
+  if (cuota2a12) cuotasValidas.push({ cantidad: '2-12', valor: cuota2a12 });
+  if (cuota13a84) cuotasValidas.push({ cantidad: '13-84', valor: cuota13a84 });
+
+  const data = {
+    nombreVehiculo,
+    valorMinimo: valorMovil, // Cambiar de valorMovil a valorMinimo
+    anticipo,
+    bonificacionCuota: cuota1, // Usar cuota1 como bonificación
+    cuotas: cuotasValidas, // Usar el array de cuotas
+    adjudicacion,
+    marcaModelo: modeloUsado,
+    anio: anioUsado,
+    kilometros,
+    valorEstimado,
+    observaciones,
+    vendedor: currentUser?.name || 'Vendedor',
+    cliente: leadParaPresupuesto.nombre,
+    telefono: leadParaPresupuesto.telefono
+  };
+
+  try {
+    await generarPresupuestoPDF(data);
+    
+    const enviarWhatsApp = confirm('PDF generado exitosamente. ¿Querés enviarlo por WhatsApp?');
+    
+    if (enviarWhatsApp) {
+      const phoneNumber = leadParaPresupuesto.telefono.replace(/\D/g, '');
+      const mensaje = `Hola ${leadParaPresupuesto.nombre}! 👋\n\nTe acabo de generar el presupuesto personalizado del ${nombreVehiculo}.\n\nTe lo descargué en PDF para que lo puedas revisar con tranquilidad.\n\n¿Tenés alguna consulta sobre el presupuesto? Estoy para ayudarte! 😊`;
+      
+      const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(mensaje)}`;
+      window.open(whatsappUrl, '_blank');
+    }
+    
+    setShowPresupuestoPersonalizadoModal(false);
+    setLeadParaPresupuesto(null);
+    
+  } catch (error) {
+    console.error('Error al generar PDF:', error);
+    alert('Error al generar el presupuesto. Por favor intentá de nuevo.');
+  }
+};
+  // ===== Funciones para filtrar y ordenar usuarios =====
+  const getFilteredAndSortedUsers = () => {
+    let filteredUsers = getVisibleUsers();
+
+    // Aplicar filtro de búsqueda
+    if (userSearchText.trim()) {
+      const searchLower = userSearchText.toLowerCase().trim();
+      filteredUsers = filteredUsers.filter((u: any) => {
+        const manager = u.reportsTo ? userById.get(u.reportsTo) : null;
+        return (
+          u.name.toLowerCase().includes(searchLower) ||
+          u.email.toLowerCase().includes(searchLower) ||
+          (roles[u.role] || u.role).toLowerCase().includes(searchLower) ||
+          (manager && manager.name.toLowerCase().includes(searchLower))
+        );
+      });
+    }
+
+    // Aplicar filtro por equipo
+    if (selectedTeamFilter !== "todos") {
+      if (selectedTeamFilter === "sin_equipo") {
+        filteredUsers = filteredUsers.filter((u: any) => !u.reportsTo);
+      } else {
+        const teamUserIds = getTeamUserIds(selectedTeamFilter);
+        filteredUsers = filteredUsers.filter((u: any) => 
+          teamUserIds.includes(u.id) || u.id.toString() === selectedTeamFilter
+        );
+      }
+    }
+
+    // Aplicar filtro por rol
+    if (selectedRoleFilter !== "todos") {
+      filteredUsers = filteredUsers.filter((u: any) => u.role === selectedRoleFilter);
+    }
+
+    // Ordenar según criterio seleccionado
+    filteredUsers.sort((a: any, b: any) => {
+      switch (userSortBy) {
+        case "name":
+          return a.name.localeCompare(b.name);
+        case "role":
+          const roleOrder = ["owner", "director", "gerente", "supervisor", "vendedor"];
+          const aRoleIndex = roleOrder.indexOf(a.role);
+          const bRoleIndex = roleOrder.indexOf(b.role);
+          if (aRoleIndex !== bRoleIndex) {
+            return aRoleIndex - bRoleIndex;
+          }
+          return a.name.localeCompare(b.name);
+        case "team":
+          const aManager = a.reportsTo ? userById.get(a.reportsTo) : null;
+          const bManager = b.reportsTo ? userById.get(b.reportsTo) : null;
+          const aTeam = aManager?.name || "Sin equipo";
+          const bTeam = bManager?.name || "Sin equipo";
+          if (aTeam !== bTeam) {
+            return aTeam.localeCompare(bTeam);
+          }
+          return a.name.localeCompare(b.name);
+        case "performance":
+          if (a.role === "vendedor" && b.role === "vendedor") {
+            const aLeads = leads.filter((l) => l.vendedor === a.id);
+            const bLeads = leads.filter((l) => l.vendedor === b.id);
+            const aVentas = aLeads.filter((l) => l.estado === "vendido").length;
+            const bVentas = bLeads.filter((l) => l.estado === "vendido").length;
+            if (aVentas !== bVentas) {
+              return bVentas - aVentas; // Mayor ventas primero
+            }
+            return bLeads.length - aLeads.length; // Más leads primero
+          }
+          // Si no son vendedores, ordenar por nombre
+          return a.name.localeCompare(b.name);
+        default:
+          return a.name.localeCompare(b.name);
+      }
+    });
+
+    return filteredUsers;
+  };
+
+  const clearUserFilters = () => {
+    setUserSearchText("");
+    setSelectedTeamFilter("todos");
+    setSelectedRoleFilter("todos");
+  };
+
+  const getActiveUserFiltersCount = () => {
+    let count = 0;
+    if (userSearchText.trim()) count++;
+    if (selectedTeamFilter !== "todos") count++;
+    if (selectedRoleFilter !== "todos") count++;
+    return count;
+  };
+const getFilteredAndSearchedLeads = () => {
     if (!currentUser) return [] as LeadRow[];
-
     const visibleUserIds = getAccessibleUserIds(currentUser);
     let filteredLeads = leads.filter((l) =>
       l.vendedor ? visibleUserIds.includes(l.vendedor) : true
     );
-
     if (selectedVendedorFilter) {
       filteredLeads = filteredLeads.filter((l) => l.vendedor === selectedVendedorFilter);
     }
-
     if (selectedEstadoFilter) {
       filteredLeads = filteredLeads.filter((l) => l.estado === selectedEstadoFilter);
     }
-
     if (selectedFuenteFilter) {
       filteredLeads = filteredLeads.filter((l) => l.fuente === selectedFuenteFilter);
     }
-
     if (searchText.trim()) {
       const searchLower = searchText.toLowerCase().trim();
       filteredLeads = filteredLeads.filter((l) => {
@@ -718,15 +722,37 @@ export default function PeugeotCRM() {
         );
       });
     }
-
     return filteredLeads;
   };
 
+  const getFilteredLeadsByDate = () => {
+    let filteredLeads = getFilteredAndSearchedLeads();
+    
+    if (selectedMonth && selectedYear) {
+      filteredLeads = filteredLeads.filter((lead) => {
+        const dateToCheck = dateFilterType === "status_change" 
+          ? (lead.last_status_change || lead.fecha || lead.created_at)
+          : (lead.fecha || lead.created_at);
+        
+        if (!dateToCheck) return false;
+        
+        const leadDate = new Date(dateToCheck);
+        const leadMonth = (leadDate.getMonth() + 1).toString().padStart(2, '0');
+        const leadYear = leadDate.getFullYear().toString();
+        
+        return leadMonth === selectedMonth && leadYear === selectedYear;
+      });
+    }
+    
+    return filteredLeads;
+  };
   const clearFilters = () => {
     setSearchText("");
     setSelectedVendedorFilter(null);
     setSelectedEstadoFilter("");
     setSelectedFuenteFilter("");
+    setSelectedMonth("");
+    setSelectedYear(new Date().getFullYear().toString());
   };
 
   const getActiveFiltersCount = () => {
@@ -735,11 +761,13 @@ export default function PeugeotCRM() {
     if (selectedVendedorFilter) count++;
     if (selectedEstadoFilter) count++;
     if (selectedFuenteFilter) count++;
+    if (selectedMonth) count++;
     return count;
   };
 
   const getAvailableVendorsForReassign = () => {
     if (!currentUser) return [];
+
     const visibleUsers = getVisibleUsers();
     return visibleUsers.filter((u: any) => u.role === "vendedor" && u.active);
   };
@@ -754,7 +782,7 @@ export default function PeugeotCRM() {
     if (!leadToReassign) return;
 
     try {
-      await updateLead(
+      await apiUpdateLead(
         leadToReassign.id,
         { vendedor: selectedVendorForReassign } as any
       );
@@ -791,6 +819,110 @@ export default function PeugeotCRM() {
       console.error("No pude reasignar el lead", e);
     }
   };
+
+  // AGREGAR LAS 3 FUNCIONES NUEVAS AQUÍ (FUERA de handleReassignLead)
+  const toggleLeadSelection = (leadId: number) => {
+    setSelectedLeads(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(leadId)) {
+        newSet.delete(leadId);
+      } else {
+        newSet.add(leadId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleAllLeads = () => {
+    const filteredLeads = getFilteredLeadsByDate();
+    if (selectedLeads.size === filteredLeads.length) {
+      setSelectedLeads(new Set());
+    } else {
+      setSelectedLeads(new Set(filteredLeads.map(l => l.id)));
+    }
+  };
+
+  const handleBulkReassign = async () => {
+    if (bulkReassignVendorId === undefined) {
+      alert("Selecciona un vendedor");
+      return;
+    }
+
+    const leadsToReassign = Array.from(selectedLeads);
+    
+    if (leadsToReassign.length === 0) {
+      alert("No hay leads seleccionados");
+      return;
+    }
+
+    const confirmMsg = `¿Reasignar ${leadsToReassign.length} leads a ${
+      bulkReassignVendorId ? userById.get(bulkReassignVendorId)?.name : "Sin asignar"
+    }?`;
+    
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      const promises = leadsToReassign.map(leadId =>
+        apiUpdateLead(leadId, { vendedor: bulkReassignVendorId } as any)
+      );
+      
+      await Promise.all(promises);
+
+      setLeads(prev =>
+        prev.map(l =>
+          selectedLeads.has(l.id)
+            ? { ...l, vendedor: bulkReassignVendorId }
+            : l
+        )
+      );
+
+      if (bulkReassignVendorId) {
+        pushAlert(
+          bulkReassignVendorId,
+          "lead_assigned",
+          `${leadsToReassign.length} leads asignados masivamente`
+        );
+      }
+
+      leadsToReassign.forEach(leadId => {
+        addHistorialEntry(
+          leadId,
+          `Reasignación masiva a ${
+            bulkReassignVendorId
+              ? userById.get(bulkReassignVendorId)?.name
+              : "Sin asignar"
+          }`
+        );
+      });
+
+      alert(`${leadsToReassign.length} leads reasignados exitosamente`);
+      setShowBulkReassignModal(false);
+      setSelectedLeads(new Set());
+      setBulkReassignVendorId(null);
+    } catch (error) {
+      console.error("Error en reasignación masiva:", error);
+      alert("Error al reasignar los leads");
+    }
+  };
+
+  const openDeleteLeadConfirm = (lead: LeadRow) => {
+    setLeadToDelete(lead);
+    setShowDeleteLeadConfirmModal(true);
+  };
+
+ const confirmDeleteLead = async () => {
+  if (!leadToDelete) return;
+
+  try {
+    await apiDeleteLead(leadToDelete.id);
+    setLeads((prev) => prev.filter((l) => l.id !== leadToDelete.id));
+    setShowDeleteLeadConfirmModal(false);
+    setLeadToDelete(null);
+  } catch (e) {
+    console.error("No pude eliminar el lead", e);
+    alert("Error al eliminar el lead. Por favor, intenta nuevamente.");
+  }
+};
 
   // ===== Round-robin con soporte para bots específicos =====
   const [rrIndex, setRrIndex] = useState(0);
@@ -843,34 +975,34 @@ export default function PeugeotCRM() {
     return id;
   };
 
-  // ===== Alertas =====
-  const [alerts, setAlerts] = useState<Alert[]>([]);
+  // ===== Alertas (locales de UI) =====
+   const [alerts, setAlerts] = useState<Alert[]>([]);
   const nextAlertId = useRef(1);
-  const pushAlert = (userId: number, type: Alert["type"], message: string) => {
-    setAlerts((prev) => [
-      ...prev,
-      {
-        id: nextAlertId.current++,
-        userId,
-        type,
-        message,
-        ts: new Date().toISOString(),
-        read: false,
-      },
-    ]);
-  };
-  const pushAlertToChain = (
-    vendorId: number,
-    type: Alert["type"],
-    message: string
-  ) => {
-    pushAlert(vendorId, type, message);
-    const sup = users.find((u: any) => u.id === userById.get(vendorId)?.reportsTo);
-    if (sup) pushAlert(sup.id, type, message);
-    const gerente = sup ? users.find((u: any) => u.id === sup.reportsTo) : null;
-    if (gerente) pushAlert(gerente.id, type, message);
-  };
-
+const pushAlert = (userId: number, type: Alert["type"], message: string) => {
+  setAlerts((prev) => [
+    ...prev,
+    {
+      id: nextAlertId.current++,
+      userId,
+      type,
+      message,
+      ts: new Date().toISOString(),
+      read: false,
+    },
+  ]);
+};
+const pushAlertToChain = (
+  vendorId: number,
+  type: Alert["type"],
+  message: string
+) => {
+  pushAlert(vendorId, type, message);
+  const sup = users.find((u: any) => u.id === userById.get(vendorId)?.reportsTo);
+  if (sup) pushAlert(sup.id, type, message);
+  const gerente = sup ? users.find((u: any) => u.id === sup.reportsTo) : null;
+  if (gerente) pushAlert(gerente.id, type, message);
+};// Usar las alertas en el navbar para mostrar contador
+  const unreadAlerts = alerts.filter(a => a.userId === currentUser?.id && !a.read).length;
   // ===== Filtrados y ranking =====
   const visibleUserIds = useMemo(
     () => getAccessibleUserIds(currentUser),
@@ -879,8 +1011,10 @@ export default function PeugeotCRM() {
 
   const getFilteredLeads = () => {
     if (!currentUser) return [] as LeadRow[];
+    
+    const visibleUserIds = getAccessibleUserIds(currentUser);
     return leads.filter((l) =>
-      l.vendedor ? visibleUserIds.includes(l.vendedor) : true
+      l.vendedor && visibleUserIds.includes(l.vendedor)
     );
   };
 
@@ -978,38 +1112,74 @@ export default function PeugeotCRM() {
     });
     prevRankingRef.current = curr;
   }, [leads, users, userById]);
-
-  const getDashboardStats = (teamFilter?: string) => {
-    const filteredLeads =
-      teamFilter && teamFilter !== "todos"
-        ? getFilteredLeadsByTeam(teamFilter)
-        : getFilteredLeads();
-    const vendidos = filteredLeads.filter((lead) => lead.estado === "vendido")
-      .length;
-    const conversion =
-      filteredLeads.length > 0
-        ? ((vendidos / filteredLeads.length) * 100).toFixed(1)
-        : "0";
+const getDashboardStats = (teamFilter?: string) => {
+    let filteredLeads: LeadRow[];
+    
+    if (teamFilter && teamFilter !== "todos" && ["owner", "director", "dueño"].includes(currentUser?.role)) {
+      const teamUserIds = getTeamUserIds(teamFilter);
+      filteredLeads = leads.filter((l) => l.vendedor && teamUserIds.includes(l.vendedor));
+    } else {
+      filteredLeads = getFilteredLeads();
+    }
+    
+    // AGREGAR FILTRO POR FECHA
+    if (selectedMonth && selectedYear) {
+      filteredLeads = filteredLeads.filter((lead) => {
+        const dateToCheck = dateFilterType === "status_change" 
+          ? (lead.last_status_change || lead.fecha || lead.created_at)
+          : (lead.fecha || lead.created_at);
+        
+        if (!dateToCheck) return false;
+        
+        const leadDate = new Date(dateToCheck);
+        const leadMonth = (leadDate.getMonth() + 1).toString().padStart(2, '0');
+        const leadYear = leadDate.getFullYear().toString();
+        
+        return leadMonth === selectedMonth && leadYear === selectedYear;
+      });
+    }
+    
+    const vendidos = filteredLeads.filter((lead) => lead.estado === "vendido").length;
+    const conversion = filteredLeads.length > 0
+      ? ((vendidos / filteredLeads.length) * 100).toFixed(1)
+      : "0";
+    
     return { totalLeads: filteredLeads.length, vendidos, conversion };
   };
-
   const getSourceMetrics = (teamFilter?: string) => {
-    const filteredLeads =
-      teamFilter && teamFilter !== "todos"
-        ? getFilteredLeadsByTeam(teamFilter)
-        : getFilteredLeads();
+    let filteredLeads: LeadRow[];
+    
+    if (teamFilter && teamFilter !== "todos" && ["owner", "director", "dueño"].includes(currentUser?.role)) {
+      const teamUserIds = getTeamUserIds(teamFilter);
+      filteredLeads = leads.filter((l) => l.vendedor && teamUserIds.includes(l.vendedor));
+    } else {
+      filteredLeads = getFilteredLeads();
+    }
+    
+    // AGREGAR FILTRO POR FECHA
+    if (selectedMonth && selectedYear) {
+      filteredLeads = filteredLeads.filter((lead) => {
+        const dateToCheck = dateFilterType === "status_change" 
+          ? (lead.last_status_change || lead.fecha || lead.created_at)
+          : (lead.fecha || lead.created_at);
+        
+        if (!dateToCheck) return false;
+        
+        const leadDate = new Date(dateToCheck);
+        const leadMonth = (leadDate.getMonth() + 1).toString().padStart(2, '0');
+        const leadYear = leadDate.getFullYear().toString();
+        
+        return leadMonth === selectedMonth && leadYear === selectedYear;
+      });
+    }
+    
     const sourceData = Object.keys(fuentes)
       .map((source) => {
-        const sourceLeads = filteredLeads.filter(
-          (lead) => lead.fuente === source
-        );
-        const vendidos = sourceLeads.filter(
-          (lead) => lead.estado === "vendido"
-        ).length;
-        const conversion =
-          sourceLeads.length > 0
-            ? ((vendidos / sourceLeads.length) * 100).toFixed(1)
-            : "0";
+        const sourceLeads = filteredLeads.filter((lead) => lead.fuente === source);
+        const vendidos = sourceLeads.filter((lead) => lead.estado === "vendido").length;
+        const conversion = sourceLeads.length > 0
+          ? ((vendidos / sourceLeads.length) * 100).toFixed(1)
+          : "0";
         return {
           source,
           total: sourceLeads.length,
@@ -1023,24 +1193,26 @@ export default function PeugeotCRM() {
 
     return sourceData;
   };
-
-  // ===== Acciones de Leads =====
+ 
+  // ===== Acciones de Leads (API) =====
   const mapLeadFromApi = (L: any): LeadRow => ({
-    id: L.id,
-    nombre: L.nombre,
-    telefono: L.telefono,
-    modelo: L.modelo,
-    formaPago: L.formaPago,
-    infoUsado: L.infoUsado,
-    entrega: L.entrega,
-    fecha: L.fecha || L.createdAt || "",
-    estado: (L.estado || "nuevo") as LeadRow["estado"],
-    vendedor: L.vendedor ?? null, // Backend usa 'vendedor' no 'assigned_to'
-    notas: L.notas || "",
-    fuente: (L.fuente || "otro") as LeadRow["fuente"],
-    historial: L.historial || [],
-    created_by: L.created_by || null,
-  });
+  id: L.id,
+  nombre: L.nombre,
+  telefono: L.telefono,
+  modelo: L.modelo,
+  formaPago: L.formaPago,
+  infoUsado: L.infoUsado,
+  entrega: L.entrega,
+  fecha: L.fecha || L.created_at || "",
+  estado: (L.estado || "nuevo") as LeadRow["estado"],
+  vendedor: L.assigned_to ?? null,
+  notas: L.notas || "",
+  fuente: (L.fuente || "otro") as LeadRow["fuente"],
+  historial: L.historial || [],
+  created_by: L.created_by || null,
+  created_at: L.created_at || null,  // AGREGAR ESTA LÍNEA
+  last_status_change: L.last_status_change || null,
+});
 
   const addHistorialEntry = (leadId: number, estado: string) => {
     if (!currentUser) return;
@@ -1065,7 +1237,7 @@ export default function PeugeotCRM() {
 
   const handleUpdateLeadStatus = async (leadId: number, newStatus: string) => {
     try {
-      const updated = await updateLead(leadId, { estado: newStatus } as any);
+      const updated = await apiUpdateLead(leadId, { estado: newStatus } as any);
       setLeads((prev) =>
         prev.map((l) => (l.id === leadId ? { ...l, ...mapLeadFromApi(updated) } : l))
       );
@@ -1076,23 +1248,12 @@ export default function PeugeotCRM() {
     }
   };
 
-  // ===== Crear Lead y Modales =====
-  const [showNewLeadModal, setShowNewLeadModal] = useState(false);
-  const [showObservacionesModal, setShowObservacionesModal] = useState(false);
-  const [showHistorialModal, setShowHistorialModal] = useState(false);
-  const [editingLeadObservaciones, setEditingLeadObservaciones] =
-    useState<LeadRow | null>(null);
-  const [viewingLeadHistorial, setViewingLeadHistorial] =
-    useState<LeadRow | null>(null);
-  const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
-  const [deleteAllPassword, setDeleteAllPassword] = useState("");
-  const [isDeletingAll, setIsDeletingAll] = useState(false);
   const handleUpdateObservaciones = async (
     leadId: number,
     observaciones: string
   ) => {
     try {
-      const updated = await updateLead(leadId, { notas: observaciones } as any);
+      const updated = await apiUpdateLead(leadId, { notas: observaciones } as any);
       setLeads((prev) =>
         prev.map((l) => (l.id === leadId ? { ...l, ...mapLeadFromApi(updated) } : l))
       );
@@ -1159,21 +1320,59 @@ export default function PeugeotCRM() {
         }
       }
 
-      // Datos que espera tu backend
+      let equipo = 'roberto';
+      
+      if (vendedorId) {
+        const vendedorAsignado = users.find(u => u.id === vendedorId);
+        if (vendedorAsignado) {
+          let currentUserForTeam = vendedorAsignado;
+          while (currentUserForTeam && currentUserForTeam.reportsTo) {
+            const manager = userById.get(currentUserForTeam.reportsTo);
+            if (!manager) break;
+            
+            if (manager.role === 'gerente') {
+              if (manager.name === 'Daniel Mottino') {
+                equipo = 'daniel';
+              } else if (manager.name === 'Roberto Sauer') {
+                equipo = 'roberto';
+              }
+              break;
+            }
+            currentUserForTeam = manager;
+          }
+        }
+      } else {
+        let currentUserForTeam = currentUser;
+        while (currentUserForTeam && currentUserForTeam.reportsTo) {
+          const manager = userById.get(currentUserForTeam.reportsTo);
+          if (!manager) break;
+          
+          if (manager.role === 'gerente') {
+            if (manager.name === 'Daniel Mottino') {
+              equipo = 'daniel';
+            } else if (manager.name === 'Roberto Sauer') {
+              equipo = 'roberto';
+            }
+            break;
+          }
+          currentUserForTeam = manager;
+        }
+      }
+
       const leadData = {
         nombre,
         telefono,
         modelo,
         formaPago: formaPago || "Contado",
-        infoUsado: infoUsado || null,
-        entrega: entrega ? 1 : 0, // Backend espera 1/0
-        fecha: fecha || new Date().toISOString().split('T')[0],
-        vendedor: vendedorId, // Backend usa 'vendedor'
-        fuente,
         notas: `Creado por: ${currentUser?.name}${infoUsado ? `\nInfo usado: ${infoUsado}` : ''}${entrega ? '\nEntrega usado: Sí' : ''}`,
+        estado: "nuevo",
+        fuente,
+        fecha: fecha || new Date().toISOString().split('T')[0],
+        vendedor: vendedorId,
+        equipo: equipo,
       };
 
-      const created = await createLead(leadData as any);
+      const created = await apiCreateLead(leadData as any);
       const mapped = mapLeadFromApi(created);
       
       if (mapped.vendedor) {
@@ -1187,7 +1386,6 @@ export default function PeugeotCRM() {
       setLeads((prev) => [mapped, ...prev]);
       setShowNewLeadModal(false);
 
-      // Limpiar formulario
       (document.getElementById("new-nombre") as HTMLInputElement).value = "";
       (document.getElementById("new-telefono") as HTMLInputElement).value = "";
       (document.getElementById("new-modelo") as HTMLInputElement).value = "";
@@ -1196,49 +1394,15 @@ export default function PeugeotCRM() {
       (document.getElementById("new-entrega") as HTMLInputElement).checked = false;
 
       addHistorialEntry(mapped.id, `Creado por ${currentUser?.name}`);
-      
       alert("Lead creado exitosamente");
       
     } catch (e: any) {
-      console.error("Error al crear el lead:", e);
-      alert(`Error al crear el lead: ${e?.message || 'Error desconocido'}`);
+      console.error("Error completo al crear el lead:", e);
+      alert(`Error al crear el lead: ${e?.response?.data?.error || e?.message || 'Error desconocido'}`);
     }
   };
-const handleDeleteAllLeads = async () => {
-  if (!deleteAllPassword.trim()) {
-    alert("Por favor ingresa tu contraseña para confirmar");
-    return;
-  }
 
-  if (!confirm("⚠️ ADVERTENCIA: Esto eliminará TODOS los leads del sistema de forma permanente. ¿Estás completamente seguro?")) {
-    return;
-  }
-
-  setIsDeletingAll(true);
-
-  try {
-    const response = await api.delete("/api/leads/bulk/delete-all", {
-      data: { confirmPassword: deleteAllPassword }
-    });
-
-    alert(`✅ ${response.data.deletedCount} leads eliminados exitosamente`);
-    
-    const updatedLeads = await listLeads();
-    setLeads(updatedLeads.map(mapLeadFromApi));
-    
-    setShowDeleteAllModal(false);
-    setDeleteAllPassword("");
-  } catch (error: any) {
-    console.error("Error al eliminar leads:", error);
-    alert(`❌ Error: ${error.response?.data?.error || error.message}`);
-  } finally {
-    setIsDeletingAll(false);
-  }
-};
-  // ===== Calendario =====
-  const [events, setEvents] = useState<any[]>([]);
-  const [selectedCalendarUserId, setSelectedCalendarUserId] = useState<number | null>(null);
-  const [showNewEventModal, setShowNewEventModal] = useState(false);
+  // ===== Calendario (UI local) =====
   const visibleUsers = useMemo(() => (currentUser ? getVisibleUsers() : []), [currentUser, users]);
   const eventsForSelectedUser = useMemo(() => {
     const uid = selectedCalendarUserId || currentUser?.id;
@@ -1274,14 +1438,7 @@ const handleDeleteAllLeads = async () => {
   const deleteEvent = (id: number) =>
     setEvents((prev) => prev.filter((e: any) => e.id !== id));
 
-  // ===== Gestión de Usuarios =====
-  const [showUserModal, setShowUserModal] = useState(false);
-  const [editingUser, setEditingUser] = useState<any>(null);
-  const [modalRole, setModalRole] = useState<
-    "owner" | "director" | "gerente" | "supervisor" | "vendedor"
-  >("vendedor");
-  const [modalReportsTo, setModalReportsTo] = useState<number | null>(null);
-
+  // ===== Gestión de Usuarios (API) =====
   const validRolesByUser = (user: any) => {
     if (!user) return [];
     switch (user.role) {
@@ -1326,7 +1483,7 @@ const handleDeleteAllLeads = async () => {
     setEditingUser(u);
     const roleCurrent = u.role as typeof modalRole;
     const availableRoles: string[] =
-      currentUser.role === "owner" && u.id === currentUser.id
+      currentUser.role === "owner" && u.id === currentUser?.id
         ? ["owner", ...validRolesByUser(currentUser)]
         : validRolesByUser(currentUser);
     const roleToSet = availableRoles.includes(roleCurrent)
@@ -1372,7 +1529,7 @@ const handleDeleteAllLeads = async () => {
           updateData.password = password.trim();
         }
 
-        const updated = await updateUser(editingUser.id, updateData);
+        const updated = await apiUpdateUser(editingUser.id, updateData);
         setUsers((prev) => prev.map((u: any) => (u.id === editingUser.id ? updated : u)));
       } else {
         const createData = {
@@ -1384,7 +1541,7 @@ const handleDeleteAllLeads = async () => {
           active: active ? 1 : 0,
         };
         
-        const created = await createUser(createData as any);
+        const created = await apiCreateUser(createData as any);
         setUsers((prev) => [...prev, created]);
       }
       setShowUserModal(false);
@@ -1420,7 +1577,7 @@ const handleDeleteAllLeads = async () => {
     if (!userToDelete) return;
 
     try {
-      await deleteUser(userToDelete.id);
+      await apiDeleteUser(userToDelete.id);
       setUsers((prev) => prev.filter((u: any) => u.id !== userToDelete.id));
       setShowDeleteConfirmModal(false);
       setUserToDelete(null);
@@ -1430,16 +1587,6 @@ const handleDeleteAllLeads = async () => {
     }
   };
 
-  // ===== Logout =====
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    setCurrentUser(null);
-    setIsAuthenticated(false);
-    setUsers([]);
-    setLeads([]);
-  };
-
   // ===== UI: Login =====
   if (!isAuthenticated) {
     return (
@@ -1447,15 +1594,24 @@ const handleDeleteAllLeads = async () => {
         <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
           <div className="text-center mb-8">
             <div className="flex items-center justify-center mb-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-                <span className="text-white font-bold text-2xl">P</span>
-              </div>
+              <svg width="48" height="42" viewBox="0 0 40 36" fill="none">
+                <path d="M10 2L30 2L35 12L30 22L10 22L5 12Z" fill="url(#gradient2)" />
+                <defs>
+                  <linearGradient id="gradient2" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#FFB800" />
+                    <stop offset="25%" stopColor="#FF6B9D" />
+                    <stop offset="50%" stopColor="#8B5CF6" />
+                    <stop offset="75%" stopColor="#06B6D4" />
+                    <stop offset="100%" stopColor="#10B981" />
+                  </linearGradient>
+                </defs>
+              </svg>
               <div className="ml-3">
-                <h1 className="text-2xl font-bold text-gray-800">Peugeot</h1>
-                <p className="text-sm text-gray-600">CRM System</p>
+                <h1 className="text-2xl font-bold text-gray-800">Alluma</h1>
+                <p className="text-sm text-gray-600">Publicidad</p>
               </div>
             </div>
-            <p className="text-gray-600">Sistema de gestión de leads</p>
+            <p className="text-gray-600">Sistema de gestión CRM</p>
           </div>
 
           <div className="space-y-6">
@@ -1465,7 +1621,7 @@ const handleDeleteAllLeads = async () => {
                 type="email"
                 id="email"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                placeholder="tu@peugeot.com"
+                placeholder="tu@alluma.com"
               />
             </div>
             <div>
@@ -1475,14 +1631,6 @@ const handleDeleteAllLeads = async () => {
                 id="password"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 placeholder="••••••••"
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter') {
-                    handleLogin(
-                      (document.getElementById("email") as HTMLInputElement).value,
-                      (document.getElementById("password") as HTMLInputElement).value
-                    );
-                  }
-                }}
               />
             </div>
             {loginError && (
@@ -1515,12 +1663,26 @@ const handleDeleteAllLeads = async () => {
       <div className="bg-slate-900 text-white w-64 min-h-screen p-4">
         <div className="mb-8">
           <div className="flex items-center mb-4">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">P</span>
+            <div className="relative">
+              <svg width="40" height="36" viewBox="0 0 40 36" fill="none">
+                <path d="M10 2L30 2L35 12L30 22L10 22L5 12Z" fill="url(#gradient1)" />
+                <defs>
+                  <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#FFB800" />
+                    <stop offset="25%" stopColor="#FF6B9D" />
+                    <stop offset="50%" stopColor="#8B5CF6" />
+                    <stop offset="75%" stopColor="#06B6D4" />
+                    <stop offset="100%" stopColor="#10B981" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-2 h-2 bg-white rounded-full"></div>
+              </div>
             </div>
             <div className="ml-3">
-              <h1 className="text-xl font-bold text-white">Peugeot</h1>
-              <p className="text-xs text-gray-400">CRM System</p>
+              <h1 className="text-xl font-bold text-white">Alluma</h1>
+              <p className="text-xs text-gray-400">Publicidad</p>
             </div>
           </div>
 
@@ -1541,94 +1703,160 @@ const handleDeleteAllLeads = async () => {
             { key: "dashboard", label: "Dashboard", Icon: Home },
             { key: "leads", label: "Leads", Icon: Users },
             { key: "calendar", label: "Calendario", Icon: Calendar },
+            { key: "presupuestos", label: "Presupuestos", Icon: FileText },
             { key: "ranking", label: "Ranking", Icon: Trophy },
             ...(["supervisor", "gerente", "director", "owner"].includes(currentUser?.role)
               ? [{ key: "team", label: "Mi Equipo", Icon: UserCheck }]
               : []),
+            { key: "alerts", label: "Alertas", Icon: Bell, badge: unreadAlerts },
             ...(canManageUsers()
               ? [{ key: "users", label: "Usuarios", Icon: Settings }]
               : []),
-          ].map(({ key, label, Icon }) => (
+          ].map(({ key, label, Icon, badge }) => (
             <button
               key={key}
               onClick={() => setActiveSection(key as any)}
-              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+              className={`w-full flex items-center justify-between space-x-3 px-3 py-2 rounded-lg transition-colors ${
                 activeSection === (key as any)
                   ? "bg-blue-600 text-white"
                   : "text-gray-300 hover:bg-slate-800"
               }`}
             >
-              <Icon size={20} />
-              <span>{label}</span>
+              <div className="flex items-center space-x-3">
+                <Icon size={20} />
+                <span>{label}</span>
+              </div>
+              {badge !== undefined && badge > 0 && (
+                <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 min-w-[20px] text-center">
+                  {badge}
+                </span>
+              )}
             </button>
           ))}
-          
+        </nav>
+      {/* Botón de Cerrar Sesión */}
+        <div className="mt-auto pt-4 border-t border-slate-700">
           <button
-            onClick={handleLogout}
-            className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-300 hover:bg-red-600 hover:text-white transition-colors mt-4"
+            onClick={async () => {
+              try {
+                // Llamar al endpoint de logout
+                await api.post('/auth/logout');
+              } catch (error) {
+                console.error('Error al cerrar sesión:', error);
+              } finally {
+                // Limpiar todo el storage local
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                localStorage.clear();
+                sessionStorage.clear();
+                
+                // Limpiar el header de autorización
+                delete api.defaults.headers.common['Authorization'];
+                
+                // Cambiar estado a no autenticado
+                setIsAuthenticated(false);
+                setCurrentUser(null);
+                setUsers([]);
+                setLeads([]);
+                
+                // Opcional: recargar la página para limpiar todo
+                window.location.reload();
+              }
+            }}
+            className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-red-300 hover:bg-red-900/20 transition-colors"
           >
-            <span>🚪</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
             <span>Cerrar Sesión</span>
           </button>
-        </nav>
+        </div>
       </div>
+     
 
-      {/* Main Content */}
+      {/* Main */}
       <div className="flex-1 p-6">
         {/* Dashboard */}
         {activeSection === "dashboard" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-bold text-gray-800">Dashboard</h2>
-              <div className="flex items-center space-x-3">
-                {["owner", "director"].includes(currentUser?.role) && (
-                  <select
-                    value={selectedTeam}
-                    onChange={(e) => setSelectedTeam(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
-                  >
-                    <option value="todos">Todos los equipos</option>
-                    {users
-                      .filter((u: any) => u.role === "gerente")
-                      .map((gerente: any) => (
-                        <option key={gerente.id} value={gerente.id.toString()}>
-                          Equipo {gerente.name}
-                        </option>
-                      ))}
-                  </select>
-                )}
-                {canCreateLeads() && (
-                  <button
-                    onClick={() => setShowNewLeadModal(true)}
-                    className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                  >
-                    <Plus size={20} />
-                    <span>Nuevo Lead</span>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {!currentUser?.active && (
-              <div className="bg-orange-50 border-l-4 border-orange-400 p-4">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <Bell className="h-5 w-5 text-orange-400" />
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm text-orange-700">
-                      <strong>Usuario Desactivado:</strong> No recibirás nuevos leads automáticamente. 
-                      Solo podrás gestionar los leads que ya tienes asignados.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
+  <h2 className="text-3xl font-bold text-gray-800">Dashboard</h2>
+  <div className="flex items-center space-x-3">
+    {["owner", "director", "dueño"].includes(currentUser?.role) && (
+      <select
+        value={selectedTeam}
+        onChange={(e) => setSelectedTeam(e.target.value)}
+        className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+      >
+        <option value="todos">Todos los equipos</option>
+        {users
+          .filter((u: any) => u.role === "gerente")
+          .map((gerente: any) => (
+            <option key={gerente.id} value={gerente.id.toString()}>
+              Equipo {gerente.name}
+            </option>
+          ))}
+      </select>
+    )}
+    
+    {/* AGREGAR ESTOS SELECTORES DE FECHA */}
+    <select
+      value={dateFilterType}
+      onChange={(e) => setDateFilterType(e.target.value as "created" | "status_change")}
+      className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"
+    >
+      <option value="status_change">Por cambio de estado</option>
+      <option value="created">Por fecha de creación</option>
+    </select>
+    
+    <select
+      value={selectedMonth}
+      onChange={(e) => setSelectedMonth(e.target.value)}
+      className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+    >
+      <option value="">Todos los meses</option>
+      <option value="01">Enero</option>
+      <option value="02">Febrero</option>
+      <option value="03">Marzo</option>
+      <option value="04">Abril</option>
+      <option value="05">Mayo</option>
+      <option value="06">Junio</option>
+      <option value="07">Julio</option>
+      <option value="08">Agosto</option>
+      <option value="09">Septiembre</option>
+      <option value="10">Octubre</option>
+      <option value="11">Noviembre</option>
+      <option value="12">Diciembre</option>
+    </select>
+    
+    <select
+      value={selectedYear}
+      onChange={(e) => setSelectedYear(e.target.value)}
+      className="px-3 py-2 border border-gray-300 rounded-lg bg-white"
+    >
+      <option value="2024">2024</option>
+      <option value="2025">2025</option>
+      <option value="2026">2026</option>
+    </select>
+    
+    {canCreateLeads() && (
+      <button
+        onClick={() => setShowNewLeadModal(true)}
+        className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+      >
+        <Plus size={20} />
+        <span>Nuevo Lead</span>
+      </button>
+    )}
+  </div>
+</div>
 
             {/* Estadísticas principales */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {(() => {
-                const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                const teamFilter = ["owner", "director", "dueño"].includes(currentUser?.role)
                   ? selectedTeam
                   : undefined;
                 const stats = getDashboardStats(teamFilter);
@@ -1680,7 +1908,7 @@ const handleDeleteAllLeads = async () => {
               })()}
             </div>
 
-            {/* Estados de Leads */}
+            {/* Estados de Leads con posibilidad de editar estados */}
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-semibold text-gray-800">Estados de Leads</h3>
@@ -1743,7 +1971,7 @@ const handleDeleteAllLeads = async () => {
                           <div className="text-2xl font-bold">{count}</div>
                           <div className="text-xs opacity-75">{percentage}%</div>
                           
-                          {["owner", "director"].includes(currentUser?.role) && count > 0 && (
+                          {["owner", "dueño"].includes(currentUser?.role) && count > 0 && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1771,7 +1999,7 @@ const handleDeleteAllLeads = async () => {
                 })}
               </div>
 
-              {/* Lista filtrada */}
+              {/* Lista filtrada con edición de estados y botón de eliminar */}
               {selectedEstado && (
                 <div className="mt-6 border-t pt-6">
                   <h4 className="text-lg font-semibold text-gray-800 mb-4">
@@ -1919,7 +2147,7 @@ const handleDeleteAllLeads = async () => {
                                         onClick={() => {
                                           const phoneNumber = lead.telefono.replace(/\D/g, '');
                                           const message = encodeURIComponent(
-                                            `Hola ${lead.nombre}, me contacto desde Peugeot por su consulta sobre el ${lead.modelo}. ¿Cómo está? ¿Tiene un minuto?`
+                                            `Hola ${lead.nombre}, me contacto desde PEUGEOT por su consulta sobre el vehiculo ${lead.modelo}. ¿Cómo está? ¿Tiene un minuto?`
                                           );
                                           const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
                                           window.open(whatsappUrl, '_blank');
@@ -1931,7 +2159,17 @@ const handleDeleteAllLeads = async () => {
                                           <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.89 3.587"/>
                                         </svg>
                                       </button>
-                                      
+                                      <button
+  onClick={(e) => {
+    e.stopPropagation();
+    abrirPresupuestoPersonalizado(lead);
+  }}
+  className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200 flex items-center space-x-1"
+  title="Generar presupuesto personalizado"
+>
+  <FileText size={12} />
+  <span>Presup</span>
+</button>
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -1953,6 +2191,18 @@ const handleDeleteAllLeads = async () => {
                                           title="Reasignar lead"
                                         >
                                           Reasignar
+                                        </button>
+                                      )}
+                                      {canDeleteLeads() && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            openDeleteLeadConfirm(lead);
+                                          }}
+                                          className="px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200"
+                                          title="Eliminar lead permanentemente"
+                                        >
+                                          <Trash2 size={12} />
                                         </button>
                                       )}
                                       <button
@@ -2019,321 +2269,432 @@ const handleDeleteAllLeads = async () => {
           </div>
         )}
 
-        {/* Leads */}
-        {activeSection === "leads" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-bold text-gray-800">Gestión de Leads</h2>
-              {canCreateLeads() && (
-                <button
-                  onClick={() => setShowNewLeadModal(true)}
-                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  <Plus size={20} />
-                  <span>Nuevo Lead</span>
-                </button>
-              )}
+        {/* Sección Leads */}
+{activeSection === "leads" && (
+  <div className="space-y-6">
+    <div className="flex items-center justify-between">
+      <h2 className="text-3xl font-bold text-gray-800">Gestión de Leads</h2>
+      <div className="flex items-center space-x-3">
+        {selectedLeads.size > 0 && (canManageUsers() || currentUser?.role === "supervisor") && (
+          <button
+            onClick={() => {
+              setBulkReassignVendorId(null);
+              setShowBulkReassignModal(true);
+            }}
+            className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+          >
+            <UserCheck size={20} />
+            <span>Reasignar {selectedLeads.size} seleccionados</span>
+          </button>
+        )}
+        {canCreateLeads() && (
+          <button
+            onClick={() => setShowNewLeadModal(true)}
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            <Plus size={20} />
+            <span>Nuevo Lead</span>
+          </button>
+        )}
+      </div>
+    </div>
+
+    {/* Barra de búsqueda y filtros */}
+    <div className="bg-white rounded-xl shadow-lg p-6">
+      <div className="flex flex-col lg:flex-row gap-4">
+        {/* Búsqueda de texto */}
+        <div className="flex-1">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="text"
+              placeholder="Buscar por cliente, teléfono, modelo, vendedor, observaciones..."
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+        </div>
+
+        {/* Botón para mostrar/ocultar filtros */}
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-lg border transition-colors ${
+              showFilters || getActiveFiltersCount() > 0
+                ? "bg-blue-100 border-blue-300 text-blue-700"
+                : "bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100"
+            }`}
+          >
+            <Filter size={20} />
+            <span>Filtros</span>
+            {getActiveFiltersCount() > 0 && (
+              <span className="bg-blue-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
+                {getActiveFiltersCount()}
+              </span>
+            )}
+          </button>
+
+          {getActiveFiltersCount() > 0 && (
+            <button
+              onClick={clearFilters}
+              className="flex items-center space-x-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+            >
+              <X size={16} />
+              <span>Limpiar</span>
+            </button>
+          )}
+
+          <div className="text-sm text-gray-600">
+            <span className="font-medium">{getFilteredLeadsByDate().length}</span> leads encontrados
+          </div>
+        </div>
+      </div>
+
+      {/* Panel de filtros expandible */}
+      {showFilters && (
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Filtro por vendedor */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <User size={16} className="inline mr-1" />
+                Vendedor
+              </label>
+              <select
+                value={selectedVendedorFilter || ""}
+                onChange={(e) => setSelectedVendedorFilter(e.target.value ? parseInt(e.target.value, 10) : null)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Todos los vendedores</option>
+                <option value="0">Sin asignar</option>
+                {getVisibleUsers()
+                  .filter((u: any) => u.role === "vendedor")
+                  .map((vendedor: any) => {
+                    const leadsCount = leads.filter(l => l.vendedor === vendedor.id).length;
+                    return (
+                      <option key={vendedor.id} value={vendedor.id}>
+                        {vendedor.name} ({leadsCount} leads) {!vendedor.active ? " - Inactivo" : ""}
+                      </option>
+                    );
+                  })}
+              </select>
             </div>
 
-            {/* Barra de búsqueda y filtros */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex flex-col lg:flex-row gap-4">
-                <div className="flex-1">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                    <input
-                      type="text"
-                      placeholder="Buscar por cliente, teléfono, modelo, vendedor, observaciones..."
-                      value={searchText}
-                      onChange={(e) => setSearchText(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                </div>
+            {/* Filtro por estado */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Estado
+              </label>
+              <select
+                value={selectedEstadoFilter}
+                onChange={(e) => setSelectedEstadoFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Todos los estados</option>
+                {Object.entries(estados).map(([key, estado]) => (
+                  <option key={key} value={key}>
+                    {estado.label}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-                <div className="flex items-center space-x-3">
-                  <button
-                    onClick={() => setShowFilters(!showFilters)}
-                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg border transition-colors ${
-                      showFilters || getActiveFiltersCount() > 0
-                        ? "bg-blue-100 border-blue-300 text-blue-700"
-                        : "bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100"
-                    }`}
-                  >
-                    <Filter size={20} />
-                    <span>Filtros</span>
-                    {getActiveFiltersCount() > 0 && (
-                      <span className="bg-blue-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
-                        {getActiveFiltersCount()}
-                      </span>
+            {/* Filtro por fuente */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Fuente
+              </label>
+              <select
+                value={selectedFuenteFilter}
+                onChange={(e) => setSelectedFuenteFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Todas las fuentes</option>
+                {Object.entries(fuentes).map(([key, fuente]) => (
+                  <option key={key} value={key}>
+                    {fuente.icon} {fuente.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        Filtrar por fecha
+      </label>
+      <div className="space-y-2">
+        <select
+          value={dateFilterType}
+          onChange={(e) => setDateFilterType(e.target.value as "created" | "status_change")}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+        >
+          <option value="status_change">Último cambio de estado</option>
+          <option value="created">Fecha de creación</option>
+        </select>
+        
+        <div className="flex space-x-2">
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+          >
+            <option value="">Todos los meses</option>
+            <option value="01">Enero</option>
+            <option value="02">Febrero</option>
+            <option value="03">Marzo</option>
+            <option value="04">Abril</option>
+            <option value="05">Mayo</option>
+            <option value="06">Junio</option>
+            <option value="07">Julio</option>
+            <option value="08">Agosto</option>
+            <option value="09">Septiembre</option>
+            <option value="10">Octubre</option>
+            <option value="11">Noviembre</option>
+            <option value="12">Diciembre</option>
+          </select>
+          
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(e.target.value)}
+            className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+          >
+            <option value="2024">2024</option>
+            <option value="2025">2025</option>
+            <option value="2026">2026</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    {/* Tabla de leads con checkboxes */}
+    <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50">
+            <tr>
+              {(canManageUsers() || currentUser?.role === "supervisor") && (
+                <th className="px-4 py-3 text-left">
+                  <input
+                    type="checkbox"
+                    checked={selectedLeads.size === getFilteredLeadsByDate().length && getFilteredLeadsByDate().length > 0}
+                    onChange={toggleAllLeads}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                  />
+                </th>
+              )}
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Cliente
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Contacto
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Vehículo
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Estado
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Fuente
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Vendedor
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                Fecha
+              </th>
+              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                Acciones
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {getFilteredLeadsByDate().length === 0 ? (
+              <tr>
+                <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                  {searchText.trim() || selectedVendedorFilter || selectedEstadoFilter || selectedFuenteFilter
+                    ? "No se encontraron leads que coincidan con los filtros aplicados"
+                    : "No hay leads para mostrar"}
+                </td>
+              </tr>
+            ) : (
+              getFilteredLeadsByDate().map((lead) => {
+                const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
+                const canReassign =
+                  canManageUsers() ||
+                  (currentUser?.role === "supervisor" &&
+                    lead.vendedor &&
+                    getVisibleUsers().some((u: any) => u.id === lead.vendedor));
+
+                return (
+                  <tr key={lead.id} className={`hover:bg-gray-50 ${selectedLeads.has(lead.id) ? 'bg-blue-50' : ''}`}>
+                    {canReassign && (
+                      <td className="px-4 py-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedLeads.has(lead.id)}
+                          onChange={() => toggleLeadSelection(lead.id)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                        />
+                      </td>
                     )}
-                  </button>
-
-                  {getActiveFiltersCount() > 0 && (
-                    <button
-                      onClick={clearFilters}
-                      className="flex items-center space-x-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
-                    >
-                      <X size={16} />
-                      <span>Limpiar</span>
-                    </button>
-                  )}
-
-                  <div className="text-sm text-gray-600">
-                    <span className="font-medium">{getFilteredAndSearchedLeads().length}</span> leads encontrados
-                  </div>
-                </div>
-              </div>
-
-              {/* Panel de filtros expandible */}
-              {showFilters && (
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        <User size={16} className="inline mr-1" />
-                        Vendedor
-                      </label>
+                    <td className="px-4 py-4">
+                      <div className="font-medium text-gray-900">{lead.nombre}</div>
+                      {lead.created_by && (
+                        <div className="text-xs text-gray-500">
+                          Creado por: {userById.get(lead.created_by)?.name || 'Usuario eliminado'}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center space-x-1">
+                        <Phone size={12} className="text-gray-400" />
+                        <span className="text-gray-700">{lead.telefono}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div>
+                        <div className="font-medium text-gray-900">{lead.modelo}</div>
+                        <div className="text-xs text-gray-500">{lead.formaPago}</div>
+                        {lead.infoUsado && (
+                          <div className="text-xs text-orange-600">
+                            Usado: {lead.infoUsado}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
                       <select
-                        value={selectedVendedorFilter || ""}
-                        onChange={(e) => setSelectedVendedorFilter(e.target.value ? parseInt(e.target.value, 10) : null)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        value={lead.estado}
+                        onChange={(e) =>
+                          handleUpdateLeadStatus(lead.id, e.target.value)
+                        }
+                        className={`text-xs font-medium rounded-full px-2 py-1 border-0 text-white ${estados[lead.estado].color}`}
                       >
-                        <option value="">Todos los vendedores</option>
-                        <option value="0">Sin asignar</option>
-                        {getVisibleUsers()
-                          .filter((u: any) => u.role === "vendedor")
-                          .map((vendedor: any) => {
-                            const leadsCount = leads.filter(l => l.vendedor === vendedor.id).length;
-                            return (
-                              <option key={vendedor.id} value={vendedor.id}>
-                                {vendedor.name} ({leadsCount} leads) {!vendedor.active ? " - Inactivo" : ""}
-                              </option>
-                            );
-                          })}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Estado
-                      </label>
-                      <select
-                        value={selectedEstadoFilter}
-                        onChange={(e) => setSelectedEstadoFilter(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="">Todos los estados</option>
                         {Object.entries(estados).map(([key, estado]) => (
-                          <option key={key} value={key}>
+                          <option key={key} value={key} className="text-black">
                             {estado.label}
                           </option>
                         ))}
                       </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Fuente
-                      </label>
-                      <select
-                        value={selectedFuenteFilter}
-                        onChange={(e) => setSelectedFuenteFilter(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="">Todas las fuentes</option>
-                        {Object.entries(fuentes).map(([key, fuente]) => (
-                          <option key={key} value={key}>
-                            {fuente.icon} {fuente.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Tabla de leads */}
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Cliente
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Contacto
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Vehículo
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Estado
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Fuente
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Vendedor
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Fecha
-                      </th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
-                        Acciones
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {getFilteredAndSearchedLeads().length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                          {searchText.trim() || selectedVendedorFilter || selectedEstadoFilter || selectedFuenteFilter
-                            ? "No se encontraron leads que coincidan con los filtros aplicados"
-                            : "No hay leads para mostrar"}
-                        </td>
-                      </tr>
-                    ) : (
-                      getFilteredAndSearchedLeads().map((lead) => {
-                        const vendedor = lead.vendedor ? userById.get(lead.vendedor) : null;
-                        const canReassign =
-                          canManageUsers() ||
-                          (currentUser?.role === "supervisor" &&
-                            lead.vendedor &&
-                            getVisibleUsers().some((u: any) => u.id === lead.vendedor));
-
-                        return (
-                          <tr key={lead.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-4">
-                              <div className="font-medium text-gray-900">{lead.nombre}</div>
-                              {lead.created_by && (
-                                <div className="text-xs text-gray-500">
-                                  Creado por: {userById.get(lead.created_by)?.name || 'Usuario eliminado'}
-                                </div>
-                              )}
-                            </td>
-                            <td className="px-4 py-4">
-                              <div className="flex items-center space-x-1">
-                                <Phone size={12} className="text-gray-400" />
-                                <span className="text-gray-700">{lead.telefono}</span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-4">
-                              <div>
-                                <div className="font-medium text-gray-900">{lead.modelo}</div>
-                                <div className="text-xs text-gray-500">{lead.formaPago}</div>
-                                {lead.infoUsado && (
-                                  <div className="text-xs text-orange-600">
-                                    Usado: {lead.infoUsado}
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-4 py-4">
-                              <select
-                                value={lead.estado}
-                                onChange={(e) =>
-                                  handleUpdateLeadStatus(lead.id, e.target.value)
-                                }
-                                className={`text-xs font-medium rounded-full px-2 py-1 border-0 text-white ${estados[lead.estado].color}`}
-                              >
-                                {Object.entries(estados).map(([key, estado]) => (
-                                  <option key={key} value={key} className="text-black">
-                                    {estado.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </td>
-                            <td className="px-4 py-4">
-                              <div className="flex items-center space-x-1">
-                                <span className="text-sm">
-                                  {fuentes[lead.fuente as string]?.icon || "❓"}
-                                </span>
-                                <span className="text-xs text-gray-600">
-                                  {fuentes[lead.fuente as string]?.label || String(lead.fuente)}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-4 text-gray-700">
-                              <div>
-                                {vendedor?.name || "Sin asignar"}
-                                {vendedor && !vendedor.active && (
-                                  <div className="text-xs text-red-600">
-                                    (Desactivado)
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-4 py-4 text-gray-500 text-xs">
-                              {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
-                            </td>
-                            <td className="px-4 py-4 text-center">
-                              <div className="flex items-center justify-center space-x-1">
-                                <button
-                                  onClick={() => {
-                                    const phoneNumber = lead.telefono.replace(/\D/g, '');
-                                    const message = encodeURIComponent(
-                                      `Hola ${lead.nombre}, me contacto desde Peugeot por su consulta sobre el ${lead.modelo}. ¿Cómo está?`
-                                    );
-                                    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
-                                    window.open(whatsappUrl, '_blank');
-                                  }}
-                                  className="px-2 py-1 text-xs rounded bg-green-100 text-green-700 hover:bg-green-200 flex items-center space-x-1"
-                                  title="Chatear por WhatsApp"
-                                >
-                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.89 3.587"/>
-                                  </svg>
-                                </button>
-                                
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingLeadObservaciones(lead);
-                                    setShowObservacionesModal(true);
-                                  }}
-                                  className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                  title="Ver/Editar observaciones"
-                                >
-                                  {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
-                                </button>
-                                {canReassign && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openReassignModal(lead);
-                                    }}
-                                    className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
-                                    title="Reasignar lead"
-                                  >
-                                    Reasignar
-                                  </button>
-                                )}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setViewingLeadHistorial(lead);
-                                    setShowHistorialModal(true);
-                                  }}
-                                  className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                  title="Ver historial"
-                                >
-                                  Historial
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center space-x-1">
+                        <span className="text-sm">
+                          {fuentes[lead.fuente as string]?.icon || "❓"}
+                        </span>
+                        <span className="text-xs text-gray-600">
+                          {fuentes[lead.fuente as string]?.label || String(lead.fuente)}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-gray-700">
+                      <div>
+                        {vendedor?.name || "Sin asignar"}
+                        {vendedor && !vendedor.active && (
+                          <div className="text-xs text-red-600">
+                            (Desactivado)
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-gray-500 text-xs">
+                      {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      <div className="flex items-center justify-center space-x-1">
+                        <button
+  onClick={() => {
+    const phoneNumber = lead.telefono.replace(/\D/g, '');
+    const message = encodeURIComponent(
+      `Hola ${lead.nombre}, me contacto desde PEUGEOT por su consulta sobre el ${lead.modelo}. ¿Cómo está?`
+    );
+    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
+    window.open(whatsappUrl, '_blank');
+  }}
+  className="px-2 py-1 text-xs rounded bg-green-100 text-green-700 hover:bg-green-200 inline-flex items-center"
+  title="Chatear por WhatsApp"
+>
+  <span className="w-4 h-4">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.89 3.587"/>
+    </svg>
+  </span>
+</button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            abrirPresupuestoPersonalizado(lead);
+                          }}
+                          className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200 flex items-center space-x-1"
+                          title="Generar presupuesto personalizado"
+                        >
+                          <FileText size={12} />
+                          <span>Presup</span>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingLeadObservaciones(lead);
+                            setShowObservacionesModal(true);
+                          }}
+                          className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                          title="Ver/Editar observaciones"
+                        >
+                          {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
+                        </button>
+                        {canReassign && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openReassignModal(lead);
+                            }}
+                            className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
+                            title="Reasignar lead"
+                          >
+                            Reasignar
+                          </button>
+                        )}
+                        {canDeleteLeads() && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openDeleteLeadConfirm(lead);
+                            }}
+                            className="px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200"
+                            title="Eliminar lead permanentemente"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setViewingLeadHistorial(lead);
+                            setShowHistorialModal(true);
+                          }}
+                          className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          title="Ver historial"
+                        >
+                          Historial
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+)}
 
         {/* Sección Calendario */}
         {activeSection === "calendar" && (
@@ -2420,6 +2781,7 @@ const handleDeleteAllLeads = async () => {
             <h2 className="text-3xl font-bold text-gray-800">Ranking de Vendedores</h2>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Ranking General - Solo para Owner */}
               {isOwner() && (
                 <div className="bg-white rounded-xl shadow-lg p-6">
                   <h3 className="text-xl font-semibold text-gray-800 mb-4">
@@ -2471,6 +2833,7 @@ const handleDeleteAllLeads = async () => {
                 </div>
               )}
 
+              {/* Ranking en Mi Scope / Vendedores de la misma gerencia */}
               <div className="bg-white rounded-xl shadow-lg p-6">
                 <h3 className="text-xl font-semibold text-gray-800 mb-4">
                   {currentUser?.role === "vendedor" 
@@ -2570,6 +2933,56 @@ const handleDeleteAllLeads = async () => {
                 )}
               </div>
 
+              {/* Panel de Debug solo para Owner/Director */}
+              {["owner", "director"].includes(currentUser?.role) && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <details>
+                    <summary className="cursor-pointer font-semibold text-yellow-800 mb-2">
+                      🔧 Panel de Depuración - Jerarquía
+                    </summary>
+                    <div className="text-xs space-y-2 mt-3">
+                      <div>
+                        <strong>Tu información:</strong>
+                        <div className="ml-4">Nombre: {currentUser?.name}</div>
+                        <div className="ml-4">Rol: {currentUser?.role}</div>
+                        <div className="ml-4">IDs visibles: {visibleUserIds.join(', ')}</div>
+                      </div>
+                      <div className="border-t pt-2 mt-2">
+                        <strong>Jerarquía completa:</strong>
+                        {users.filter((u: any) => u.role === "gerente").map((gerente: any) => {
+                          const gerenteChildren = childrenIndex.get(gerente.id) || [];
+                          return (
+                            <div key={gerente.id} className="ml-4 mt-2">
+                              <div className="font-semibold">👔 {gerente.name} (Gerente)</div>
+                              {gerenteChildren.map((supId: number) => {
+                                const supervisor = userById.get(supId);
+                                const supChildren = childrenIndex.get(supId) || [];
+                                const supLeads = leads.filter(l => l.vendedor === supId || supChildren.includes(l.vendedor || 0));
+                                return (
+                                  <div key={supId} className="ml-4">
+                                    <div>👨‍💼 {supervisor?.name} ({supervisor?.role}) - {supLeads.length} leads</div>
+                                    {supChildren.map((vendId: number) => {
+                                      const vendedor = userById.get(vendId);
+                                      const vendLeads = leads.filter(l => l.vendedor === vendId);
+                                      return (
+                                        <div key={vendId} className="ml-4">
+                                          👤 {vendedor?.name} ({vendedor?.role}) - {vendLeads.length} leads
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </details>
+                </div>
+              )}
+
+              {/* Estadísticas por estado tipo dashboard */}
               <div className="bg-white rounded-xl shadow-lg p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xl font-semibold text-gray-800">
@@ -2587,14 +3000,29 @@ const handleDeleteAllLeads = async () => {
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                   {Object.entries(estados).map(([key, estado]) => {
-                    const teamFilter = ["owner", "director"].includes(currentUser?.role)
-                      ? selectedTeam
-                      : undefined;
-                    const filteredLeads =
-                      teamFilter && teamFilter !== "todos"
-                        ? getFilteredLeadsByTeam(teamFilter)
-                        : getFilteredLeads();
-                    const count = filteredLeads.filter((l) => l.estado === key).length;
+  const teamFilter = ["owner", "director"].includes(currentUser?.role)
+    ? selectedTeam
+    : undefined;
+  let filteredLeads = getFilteredLeadsByTeam(teamFilter);
+  
+  // Aplicar filtro de fecha
+  if (selectedMonth && selectedYear) {
+    filteredLeads = filteredLeads.filter((lead) => {
+      const dateToCheck = dateFilterType === "status_change" 
+        ? (lead.last_status_change || lead.fecha || lead.created_at)
+        : (lead.fecha || lead.created_at);
+      
+      if (!dateToCheck) return false;
+      
+      const leadDate = new Date(dateToCheck);
+      const leadMonth = (leadDate.getMonth() + 1).toString().padStart(2, '0');
+      const leadYear = leadDate.getFullYear().toString();
+      
+      return leadMonth === selectedMonth && leadYear === selectedYear;
+    });
+  }
+  
+  const count = filteredLeads.filter((l) => l.estado === key).length;
                     return (
                       <button
                         key={key}
@@ -2612,89 +3040,460 @@ const handleDeleteAllLeads = async () => {
                     );
                   })}
                 </div>
+
+                {/* Lista filtrada de leads por estado en Mi Equipo */}
+                {selectedEstado && (
+                  <div className="mt-6 border-t pt-6">
+                    <h4 className="text-lg font-semibold text-gray-800 mb-4">
+                      Leads de mi equipo en estado:{" "}
+                      <span
+                        className={`px-3 py-1 rounded-full text-white text-sm ${
+                          estados[selectedEstado].color
+                        }`}
+                      >
+                        {estados[selectedEstado].label}
+                      </span>
+                    </h4>
+
+                    {(() => {
+                      const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                        ? selectedTeam
+                        : undefined;
+                      const filteredLeads = getFilteredLeadsByTeam(teamFilter);
+                      const leadsFiltrados = filteredLeads.filter(
+                        (l) => l.estado === selectedEstado
+                      );
+
+                      if (leadsFiltrados.length === 0) {
+                        return (
+                          <p className="text-gray-500 text-center py-8">
+                            No hay leads de tu equipo en estado "
+                            {estados[selectedEstado].label}"
+                          </p>
+                        );
+                      }
+
+                      return (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                  Cliente
+                                </th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                  Contacto
+                                </th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                  Vehículo
+                                </th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                  Estado
+                                </th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                  Fuente
+                                </th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                  Vendedor
+                                </th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                  Fecha
+                                </th>
+                                <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">
+                                  Acciones
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {leadsFiltrados.map((lead) => {
+                                const vendedor = lead.vendedor
+                                  ? userById.get(lead.vendedor)
+                                  : null;
+                                return (
+                                  <tr key={lead.id} className="hover:bg-gray-50">
+                                    <td className="px-4 py-2">
+                                      <div className="font-medium text-gray-900">
+                                        {lead.nombre}
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-2">
+                                      <div className="flex items-center space-x-1">
+                                        <Phone size={12} className="text-gray-400" />
+                                        <span className="text-gray-700">{lead.telefono}</span>
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-2">
+                                      <div>
+                                        <div className="font-medium text-gray-900">
+                                          {lead.modelo}
+                                        </div>
+                                        <div className="text-xs text-gray-500">
+                                          {lead.formaPago}
+                                        </div>
+                                        {lead.infoUsado && (
+                                          <div className="text-xs text-orange-600">
+                                            Usado: {lead.infoUsado}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-2">
+                                      <select
+                                        value={lead.estado}
+                                        onChange={(e) =>
+                                          handleUpdateLeadStatus(lead.id, e.target.value)
+                                        }
+                                        className={`text-xs font-medium rounded-full px-2 py-1 border-0 text-white ${estados[lead.estado].color}`}
+                                      >
+                                        {Object.entries(estados).map(([key, estado]) => (
+                                          <option key={key} value={key} className="text-black">
+                                            {estado.label}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </td>
+                                    <td className="px-4 py-2">
+                                      <div className="flex items-center space-x-1">
+                                        <span className="text-sm">
+                                          {fuentes[lead.fuente as string]?.icon || "❓"}
+                                        </span>
+                                        <span className="text-xs text-gray-600">
+                                          {fuentes[lead.fuente as string]?.label ||
+                                            String(lead.fuente)}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-2 text-gray-700">
+                                      {vendedor?.name || "Sin asignar"}
+                                    </td>
+                                    <td className="px-4 py-2 text-gray-500 text-xs">
+                                      {lead.fecha ? String(lead.fecha).slice(0, 10) : "—"}
+                                    </td>
+                                    <td className="px-4 py-2 text-center">
+                                      <div className="flex items-center justify-center space-x-1">
+                                        <button
+                                          onClick={() => {
+                                            const phoneNumber = lead.telefono.replace(/\D/g, '');
+                                            const message = encodeURIComponent(
+                                              `Hola ${lead.nombre}, me contacto desde Alluma por su consulta sobre el ${lead.modelo}. ¿Cómo está?`
+                                            );
+                                            const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
+                                            window.open(whatsappUrl, '_blank');
+                                          }}
+                                          className="px-2 py-1 text-xs rounded bg-green-100 text-green-700 hover:bg-green-200 flex items-center space-x-1"
+                                          title="Chatear por WhatsApp"
+                                        >
+                                          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.89 3.587"/>
+                                          </svg>
+                                        </button>
+                                        <button
+  onClick={(e) => {
+    e.stopPropagation();
+    abrirPresupuestoPersonalizado(lead);
+  }}
+  className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200 flex items-center space-x-1"
+  title="Generar presupuesto personalizado"
+>
+  <FileText size={12} />
+  <span>Presup</span>
+</button>
+
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setEditingLeadObservaciones(lead);
+                                            setShowObservacionesModal(true);
+                                          }}
+                                          className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                          title="Ver/Editar observaciones"
+                                        >
+                                          {lead.notas && lead.notas.length > 0 ? "Ver" : "Obs"}
+                                        </button>
+                                        {(canManageUsers() ||
+                                          (currentUser?.role === "supervisor" &&
+                                            lead.vendedor &&
+                                            getVisibleUsers().some(
+                                              (u: any) => u.id === lead.vendedor
+                                            ))) && (
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              openReassignModal(lead);
+                                            }}
+                                            className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
+                                            title="Reasignar lead"
+                                          >
+                                            Reasignar
+                                          </button>
+                                        )}
+                                        {canDeleteLeads() && (
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              openDeleteLeadConfirm(lead);
+                                            }}
+                                            className="px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200"
+                                            title="Eliminar lead permanentemente"
+                                          >
+                                            <Trash2 size={12} />
+                                          </button>
+                                        )}
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveSection("leads");
+                                          }}
+                                          className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                          title="Ver en tabla completa"
+                                        >
+                                          Ver
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
 
+              {/* Top vendedores en mi organización */}
               <div className="bg-white rounded-xl shadow-lg p-6">
                 <h3 className="text-xl font-semibold text-gray-800 mb-4">
                   Top Vendedores en Mi Organización
                 </h3>
                 <div className="space-y-3">
-                  {getRankingInScope().map((vendedor, index) => (
-                    <div
-                      key={vendedor.id}
-                      className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
-                            index === 0
-                              ? "bg-yellow-500"
-                              : index === 1
-                              ? "bg-gray-400"
-                              : index === 2
-                              ? "bg-orange-600"
-                              : "bg-gray-300"
-                          }`}
-                        >
-                          {index + 1}
+                  {(() => {
+                    const teamFilter = ["owner", "director"].includes(currentUser?.role)
+                      ? selectedTeam
+                      : undefined;
+                    const filteredLeads = getFilteredLeadsByTeam(teamFilter);
+                    
+                    const vendedoresEnScope = users.filter(
+                      (u: any) => u.role === "vendedor" && visibleUserIds.includes(u.id)
+                    );
+                    
+                    const ranking = vendedoresEnScope
+                      .map((v: any) => {
+                        const vendedorLeads = filteredLeads.filter((l) => l.vendedor === v.id);
+                        const ventas = vendedorLeads.filter((l) => l.estado === "vendido").length;
+                        return {
+                          id: v.id,
+                          nombre: v.name,
+                          ventas,
+                          leadsAsignados: vendedorLeads.length,
+                          team: `Equipo de ${userById.get(v.reportsTo)?.name || "—"}`,
+                        };
+                      })
+                      .sort((a, b) => b.ventas - a.ventas);
+                    
+                    return ranking.map((vendedor, index) => (
+                      <div
+                        key={vendedor.id}
+                        className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${
+                              index === 0
+                                ? "bg-yellow-500"
+                                : index === 1
+                                ? "bg-gray-400"
+                                : index === 2
+                                ? "bg-orange-600"
+                                : "bg-gray-300"
+                            }`}
+                          >
+                            {index + 1}
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">
+                              {vendedor.nombre}
+                            </p>
+                            <p className="text-xs text-gray-500">{vendedor.team}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            {vendedor.nombre}
+                        <div className="text-right">
+                          <p className="font-bold text-green-600">
+                            {vendedor.ventas} ventas
                           </p>
-                          <p className="text-xs text-gray-500">{vendedor.team}</p>
+                          <p className="text-xs text-gray-500">
+                            {vendedor.leadsAsignados} leads •{" "}
+                            {vendedor.leadsAsignados > 0
+                              ? ((vendedor.ventas / vendedor.leadsAsignados) * 100).toFixed(0)
+                              : 0}
+                            %
+                          </p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-green-600">
-                          {vendedor.ventas} ventas
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {vendedor.leadsAsignados} leads •{" "}
-                          {vendedor.leadsAsignados > 0
-                            ? ((vendedor.ventas / vendedor.leadsAsignados) * 100).toFixed(0)
-                            : 0}
-                          %
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                    ));
+                  })()}
                 </div>
-                {getRankingInScope().length === 0 && (
-                  <p className="text-gray-500 text-center py-8">
-                    No hay vendedores en tu equipo
-                  </p>
-                )}
+                {(() => {
+                  const vendedoresEnScope = users.filter(
+                    (u: any) => u.role === "vendedor" && visibleUserIds.includes(u.id)
+                  );
+                  return vendedoresEnScope.length === 0 && (
+                    <p className="text-gray-500 text-center py-8">
+                      No hay vendedores en tu equipo
+                    </p>
+                  );
+                })()}
               </div>
             </div>
           )}
-
-        {/* Sección Usuarios */}
+        
+        {/* Sección Usuarios con filtros mejorados */}
         {activeSection === "users" && canManageUsers() && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-3xl font-bold text-gray-800">Gestión de Usuarios</h2>
-              <div className="flex items-center space-x-3">
-                {isOwner() && (
-                   <button
-                    onClick={() => setShowDeleteAllModal(true)}
-                     className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                        >
-                           <Trash2 size={20} />
-                          <span>Borrar Todos los Leads</span>
-                             </button>
-                                   )}
-  {canCreateUsers() && (
-    <button
-      onClick={openCreateUser}
-      className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-    >
-      <Plus size={20} />
-      <span>Nuevo Usuario</span>
-    </button>
-  )}
-</div>
-</div>
+              {canCreateUsers() && (
+                <button
+                  onClick={openCreateUser}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <Plus size={20} />
+                  <span>Nuevo Usuario</span>
+                </button>
+              )}
+            </div>
+
+            {/* Barra de búsqueda y filtros para usuarios */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="flex flex-col lg:flex-row gap-4">
+                {/* Búsqueda de texto */}
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                    <input
+                      type="text"
+                      placeholder="Buscar por nombre, email, rol o equipo..."
+                      value={userSearchText}
+                      onChange={(e) => setUserSearchText(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Controles de ordenamiento y filtros */}
+                <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-gray-600">Ordenar por:</span>
+                    <select
+                      value={userSortBy}
+                      onChange={(e) => setUserSortBy(e.target.value as any)}
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="team">Equipo</option>
+                      <option value="name">Nombre</option>
+                      <option value="role">Rol</option>
+                      <option value="performance">Performance</option>
+                    </select>
+                  </div>
+
+                  <button
+                    onClick={() => setShowUserFilters(!showUserFilters)}
+                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg border transition-colors ${
+                      showUserFilters || getActiveUserFiltersCount() > 0
+                        ? "bg-blue-100 border-blue-300 text-blue-700"
+                        : "bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100"
+                    }`}
+                  >
+                    <Filter size={20} />
+                    <span>Filtros</span>
+                    {getActiveUserFiltersCount() > 0 && (
+                      <span className="bg-blue-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
+                        {getActiveUserFiltersCount()}
+                      </span>
+                    )}
+                    <ChevronDown size={16} className={`transition-transform ${showUserFilters ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {getActiveUserFiltersCount() > 0 && (
+                    <button
+                      onClick={clearUserFilters}
+                      className="flex items-center space-x-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+                    >
+                      <X size={16} />
+                      <span>Limpiar</span>
+                    </button>
+                  )}
+
+                  <div className="text-sm text-gray-600">
+                    <span className="font-medium">{getFilteredAndSortedUsers().length}</span> usuarios
+                  </div>
+                </div>
+              </div>
+
+              {/* Panel de filtros expandible */}
+              {showUserFilters && (
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Filtro por equipo/gerente */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <Users size={16} className="inline mr-1" />
+                        Equipo
+                      </label>
+                      <select
+                        value={selectedTeamFilter}
+                        onChange={(e) => setSelectedTeamFilter(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="todos">Todos los equipos</option>
+                        <option value="sin_equipo">Sin equipo asignado</option>
+                        {users
+                          .filter((u: any) => u.role === "gerente" && getVisibleUsers().some((vu: any) => vu.id === u.id))
+                          .map((gerente: any) => {
+                            const teamCount = users.filter((u: any) => {
+                              const teamUserIds = getTeamUserIds(gerente.id.toString());
+                              return teamUserIds.includes(u.id) || u.id === gerente.id;
+                            }).length;
+                            return (
+                              <option key={gerente.id} value={gerente.id.toString()}>
+                                Equipo {gerente.name} ({teamCount} miembros)
+                              </option>
+                            );
+                          })}
+                      </select>
+                    </div>
+
+                    {/* Filtro por rol */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <User size={16} className="inline mr-1" />
+                        Rol
+                      </label>
+                      <select
+                        value={selectedRoleFilter}
+                        onChange={(e) => setSelectedRoleFilter(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="todos">Todos los roles</option>
+                        {Object.entries(roles).map(([key, label]) => {
+                          const roleCount = getVisibleUsers().filter((u: any) => u.role === key).length;
+                          if (roleCount === 0) return null;
+                          return (
+                            <option key={key} value={key}>
+                              {label} ({roleCount})
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Tabla de usuarios con filtros y ordenamiento */}
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -2707,7 +3506,7 @@ const handleDeleteAllLeads = async () => {
                         Rol
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Reporta a
+                        Equipo
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                         Estado
@@ -2721,359 +3520,334 @@ const handleDeleteAllLeads = async () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {getVisibleUsers().map((user: any) => {
-                      const userLeads = leads.filter((l) => l.vendedor === user.id);
-                      const userSales = userLeads.filter((l) => l.estado === "vendido").length;
-                      const manager = user.reportsTo ? userById.get(user.reportsTo) : null;
+                    {getFilteredAndSortedUsers().length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                          {userSearchText.trim() || selectedTeamFilter !== "todos" || selectedRoleFilter !== "todos"
+                            ? "No se encontraron usuarios que coincidan con los filtros aplicados"
+                            : "No hay usuarios para mostrar"}
+                        </td>
+                      </tr>
+                    ) : (
+                      getFilteredAndSortedUsers().map((user: any) => {
+                        const userLeads = leads.filter((l) => l.vendedor === user.id);
+                        const userSales = userLeads.filter((l) => l.estado === "vendido").length;
+                        const manager = user.reportsTo ? userById.get(user.reportsTo) : null;
 
-                      return (
-                        <tr key={user.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-4">
-                            <div>
-                              <div className="font-medium text-gray-900">{user.name}</div>
-                              <div className="text-sm text-gray-500">{user.email}</div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                              {roles[user.role] || user.role}
-                            </span>
-                          </td>
-                          <td className="px-4 py-4 text-sm text-gray-700">
-                            {manager?.name || "—"}
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="flex items-center space-x-2">
-                              <span
-                                className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                  user.active
-                                    ? "bg-green-100 text-green-800"
-                                    : "bg-red-100 text-red-800"
-                                }`}
-                              >
-                                {user.active ? "Activo" : "Inactivo"}
+                        return (
+                          <tr key={user.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-4">
+                              <div>
+                                <div className="font-medium text-gray-900">{user.name}</div>
+                                <div className="text-sm text-gray-500">{user.email}</div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                {roles[user.role] || user.role}
                               </span>
-                              {user.role === "vendedor" && (
-                                <button
-                                  onClick={async () => {
-                                    try {
-                                      const updated = await updateUser(user.id, {
-                                        ...user,
-                                        active: user.active ? 0 : 1,
-                                      });
-                                      setUsers((prev) =>
-                                        prev.map((u: any) => (u.id === user.id ? updated : u))
-                                      );
-                                    } catch (e) {
-                                      console.error("No pude cambiar estado del usuario", e);
-                                    }
-                                  }}
-                                  className={`px-2 py-1 text-xs rounded ${
-                                    user.active
-                                      ? "bg-red-100 text-red-700 hover:bg-red-200"
-                                      : "bg-green-100 text-green-700 hover:bg-green-200"
-                                  }`}
-                                  title={user.active ? "Desactivar vendedor" : "Activar vendedor"}
-                                >
-                                  {user.active ? "Desactivar" : "Activar"}
-                                </button>
-                              )}
-                            </div>
-                            {user.role === "vendedor" && !user.active && (
-                              <div className="text-xs text-orange-600 mt-1">
-                                No recibe leads nuevos
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-4 py-4">
-                            {user.role === "vendedor" ? (
+                            </td>
+                            <td className="px-4 py-4">
                               <div className="text-sm">
-                                <div>{userLeads.length} leads</div>
-                                <div className="text-green-600 font-medium">
-                                  {userSales} ventas
-                                </div>
+                                {manager ? (
+                                  <div>
+                                    <span className="font-medium text-gray-900">
+                                      Equipo {manager.name}
+                                    </span>
+                                    <div className="text-xs text-gray-500">
+                                      Reporta a: {manager.name} ({roles[manager.role] || manager.role})
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-500">Sin equipo</span>
+                                )}
                               </div>
-                            ) : (
-                              <span className="text-gray-400">—</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="flex items-center justify-center space-x-2">
-                              <button
-                                onClick={() => openEditUser(user)}
-                                className="p-1 text-blue-600 hover:text-blue-800"
-                                title="Editar usuario"
-                              >
-                                <Edit3 size={16} />
-                              </button>
-                              {isOwner() && user.id !== currentUser?.id && (
-                                <button
-                                  onClick={() => openDeleteConfirm(user)}
-                                  className="p-1 text-red-600 hover:text-red-800"
-                                  title="Eliminar usuario"
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center space-x-2">
+                                <span
+                                  className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                    user.active
+                                      ? "bg-green-100 text-green-800"
+                                      : "bg-red-100 text-red-800"
+                                  }`}
                                 >
-                                  <Trash2 size={16} />
-                                </button>
+                                  {user.active ? "Activo" : "Inactivo"}
+                                </span>
+                                {user.role === "vendedor" && (
+                                  <button
+                                    onClick={async () => {
+                                      try {
+                                        const updated = await apiUpdateUser(user.id, {
+                                          ...user,
+                                          active: user.active ? 0 : 1,
+                                        });
+                                        setUsers((prev) =>
+                                          prev.map((u: any) => (u.id === user.id ? updated : u))
+                                        );
+                                      } catch (e) {
+                                        console.error("No pude cambiar estado del usuario", e);
+                                      }
+                                    }}
+                                    className={`px-2 py-1 text-xs rounded ${
+                                      user.active
+                                        ? "bg-red-100 text-red-700 hover:bg-red-200"
+                                        : "bg-green-100 text-green-700 hover:bg-green-200"
+                                    }`}
+                                    title={user.active ? "Desactivar vendedor" : "Activar vendedor"}
+                                  >
+                                    {user.active ? "Desactivar" : "Activar"}
+                                  </button>
+                                )}
+                              </div>
+                              {user.role === "vendedor" && !user.active && (
+                                <div className="text-xs text-orange-600 mt-1">
+                                  No recibe leads nuevos
+                                </div>
                               )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                            </td>
+                            <td className="px-4 py-4">
+                              {user.role === "vendedor" ? (
+                                <div className="text-sm">
+                                  <div className="flex items-center space-x-2">
+                                    <span>{userLeads.length} leads</span>
+                                    <span className="text-gray-400">•</span>
+                                    <span className="text-green-600 font-medium">
+                                      {userSales} ventas
+                                    </span>
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {userLeads.length > 0
+                                      ? `${((userSales / userLeads.length) * 100).toFixed(0)}% conversión`
+                                      : "Sin conversión"}
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center justify-center space-x-2">
+                                <button
+                                  onClick={() => openEditUser(user)}
+                                  className="p-1 text-blue-600 hover:text-blue-800"
+                                  title="Editar usuario"
+                                >
+                                  <Edit3 size={16} />
+                                </button>
+                                {isOwner() && user.id !== currentUser?.id && (
+                                  <button
+                                    onClick={() => openDeleteConfirm(user)}
+                                    className="p-1 text-red-600 hover:text-red-800"
+                                    title="Eliminar usuario"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
             </div>
           </div>
         )}
+    {/* Sección Presupuestos */}
+{activeSection === "presupuestos" && (
+  <div className="space-y-6">
+    <div className="flex items-center justify-between">
+      <h2 className="text-3xl font-bold text-gray-800">Plantillas de Presupuesto</h2>
+      {isOwner() && (
+        <button
+          onClick={() => {
+            setEditingPresupuesto(null);
+            setShowPresupuestoModal(true);
+          }}
+          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          <Plus size={20} />
+          <span>Nueva Plantilla</span>
+        </button>
+      )}
+    </div>
 
-        {/* Sección Alertas */}
-        {activeSection === "alerts" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-bold text-gray-800">Alertas y Notificaciones</h2>
-              <button
-                onClick={() => {
-                  setAlerts((prev) =>
-                    prev.map((a) =>
-                      a.userId === currentUser?.id ? { ...a, read: true } : a
-                    )
-                  );
-                }}
-                className="px-4 py-2 text-sm text-blue-600 hover:text-blue-800"
-              >
-                Marcar todas como leídas
-              </button>
-            </div>
+    {!isOwner() && (
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <p className="text-sm text-blue-700">
+          <strong>Nota:</strong> Solo puedes ver las plantillas de presupuesto. 
+          Para enviar un presupuesto a un cliente, usa el botón de WhatsApp en la tabla de leads.
+        </p>
+      </div>
+    )}
 
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              {alerts.filter((a) => a.userId === currentUser?.id).length === 0 ? (
-                <div className="text-center py-12">
-                  <Bell size={48} className="mx-auto text-gray-300 mb-4" />
-                  <p className="text-gray-500">No tienes alertas pendientes</p>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {presupuestos.length === 0 ? (
+        <div className="col-span-full text-center py-12">
+          <FileText size={48} className="mx-auto text-gray-300 mb-4" />
+          <p className="text-gray-500">No hay plantillas de presupuesto creadas</p>
+          {isOwner() && (
+            <button
+              onClick={() => {
+                setEditingPresupuesto(null);
+                setShowPresupuestoModal(true);
+              }}
+              className="mt-4 text-blue-600 hover:text-blue-800"
+            >
+              Crear la primera plantilla
+            </button>
+          )}
+        </div>
+      ) : (
+        presupuestos.map((presupuesto) => (
+          <div
+            key={presupuesto.id}
+            className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow"
+          >
+            {presupuesto.imagen_url && (
+              <div className="h-48 bg-gray-200 overflow-hidden">
+                <img
+                  src={presupuesto.imagen_url}
+                  alt={presupuesto.modelo}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x300?text=Sin+Imagen';
+                  }}
+                />
+              </div>
+            )}
+            <div className="p-4">
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">
+                    {presupuesto.modelo}
+                  </h3>
+                  <p className="text-sm text-gray-600">{presupuesto.marca}</p>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {alerts
-                    .filter((a) => a.userId === currentUser?.id)
-                    .sort(
-                      (a, b) =>
-                        new Date(b.ts).getTime() - new Date(a.ts).getTime()
-                    )
-                    .map((alert) => (
-                      <div
-                        key={alert.id}
-                        className={`p-4 border rounded-lg ${
-                          alert.read
-                            ? "border-gray-200 bg-gray-50"
-                            : "border-blue-200 bg-blue-50"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-start space-x-3">
-                            <div
-                              className={`mt-1 w-2 h-2 rounded-full ${
-                                alert.read ? "bg-gray-400" : "bg-blue-500"
-                              }`}
-                            />
-                            <div>
-                              <p
-                                className={`font-medium ${
-                                  alert.read ? "text-gray-700" : "text-gray-900"
-                                }`}
-                              >
-                                {alert.type === "lead_assigned"
-                                  ? "Nuevo Lead Asignado"
-                                  : "Cambio en Ranking"}
-                              </p>
-                              <p
-                                className={`text-sm ${
-                                  alert.read ? "text-gray-500" : "text-gray-700"
-                                }`}
-                              >
-                                {alert.message}
-                              </p>
-                              <p className="text-xs text-gray-400 mt-1">
-                                {new Date(alert.ts).toLocaleDateString("es-AR")}{" "}
-                                {new Date(alert.ts).toLocaleTimeString("es-AR")}
-                              </p>
-                            </div>
-                          </div>
-                          {!alert.read && (
-                            <button
-                              onClick={() => {
-                                setAlerts((prev) =>
-                                  prev.map((a) =>
-                                    a.id === alert.id ? { ...a, read: true } : a
-                                  )
-                                );
-                              }}
-                              className="text-blue-600 hover:text-blue-800 text-sm"
-                            >
-                              Marcar como leída
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+              </div>
+              
+              {presupuesto.precio_contado && (
+                <div className="mt-3 p-3 bg-green-50 rounded-lg">
+                  <p className="text-sm text-gray-600">Precio Contado</p>
+                  <p className="text-xl font-bold text-green-600">
+                    {presupuesto.precio_contado}
+                  </p>
+                </div>
+              )}
+
+              {presupuesto.anticipo && (
+                <div className="mt-2 text-sm text-gray-600">
+                  <strong>Anticipo:</strong> {presupuesto.anticipo}
+                </div>
+              )}
+
+              {isOwner() && (
+                <div className="mt-4 flex space-x-2">
+                  <button
+                    onClick={() => {
+                      setEditingPresupuesto(presupuesto);
+                      setShowPresupuestoModal(true);
+                    }}
+                    className="flex-1 px-3 py-2 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
+                  >
+                    <Edit3 size={14} className="inline mr-1" />
+                    Editar
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (confirm(`¿Eliminar plantilla de ${presupuesto.modelo}?`)) {
+                        try {
+                          await apiDeletePresupuesto(presupuesto.id);
+                          setPresupuestos(prev => prev.filter(p => p.id !== presupuesto.id));
+                        } catch (error) {
+                          console.error('Error al eliminar:', error);
+                          alert('Error al eliminar la plantilla');
+                        }
+                      }
+                    }}
+                    className="px-3 py-2 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
               )}
             </div>
           </div>
-        )}
-
-        {/* MODALES */}
+        ))
+      )}
+    </div>
+  </div>
+)}
+         {/* MODALES */}
         
-        {/* Modal: Nuevo Lead */}
-        {showNewLeadModal && (
+        {/* Modal de Confirmación para Eliminar Lead */}
+        {showDeleteLeadConfirmModal && leadToDelete && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-3xl">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">Nuevo Lead</h3>
-                <button onClick={() => setShowNewLeadModal(false)}>
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nombre *
-                  </label>
-                  <input
-                    type="text"
-                    id="new-nombre"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
+            <div className="bg-white rounded-xl p-6 w-full max-w-md">
+              <div className="flex items-center mb-6">
+                <div className="bg-red-100 p-3 rounded-full mr-4">
+                  <Trash2 className="h-6 w-6 text-red-600" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Teléfono *
-                  </label>
-                  <input
-                    type="text"
-                    id="new-telefono"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Modelo *
-                  </label>
-                  <input
-                    type="text"
-                    id="new-modelo"
-                    placeholder="208, 308, 408, 2008, 3008, etc."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Forma de Pago
-                  </label>
-                  <select
-                    id="new-formaPago"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="Contado">Contado</option>
-                    <option value="Financiado">Financiado</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Info Usado
-                  </label>
-                  <input
-                    type="text"
-                    id="new-infoUsado"
-                    placeholder="Marca Modelo Año"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fecha
-                  </label>
-                  <input
-                    type="date"
-                    id="new-fecha"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div className="col-span-2 flex items-center space-x-3">
-                  <input
-                    type="checkbox"
-                    id="new-entrega"
-                    className="rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-gray-700">
-                    Entrega de vehículo usado
-                  </span>
-                </div>
-                <div className="col-span-2 flex items-center space-x-3">
-                  <input
-                    type="checkbox"
-                    id="new-autoassign"
-                    defaultChecked
-                    className="rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-gray-700">
-                    Asignación automática y equitativa a vendedores activos de mi equipo
-                  </span>
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Asignar a vendedor específico (opcional)
-                  </label>
-                  <select
-                    id="new-vendedor"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Sin asignar</option>
-                    {getAvailableVendorsForAssignment().map((u: any) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name} - {userById.get(u.reportsTo)?.name ? `Equipo ${userById.get(u.reportsTo)?.name}` : 'Sin equipo'} ✓ Activo
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Si está activada la "Asignación automática", se ignorará esta selección.
-                    Solo puedes asignar a vendedores activos de tu equipo.
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    Eliminar Lead
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Esta acción no se puede deshacer
                   </p>
                 </div>
+              </div>
 
-                {getAvailableVendorsForAssignment().length === 0 && (
-                  <div className="col-span-2 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                    <p className="text-sm text-yellow-700">
-                      <strong>Atención:</strong> No hay vendedores activos disponibles en tu equipo. 
-                      El lead se creará sin asignar.
-                    </p>
-                  </div>
-                )}
-
-                <div className="col-span-2 bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <h4 className="text-sm font-medium text-blue-800 mb-2">
-                    Información sobre la creación de leads:
-                  </h4>
-                  <ul className="text-xs text-blue-700 space-y-1">
-                    <li>• Este lead aparecerá marcado como "Creado por {currentUser?.name}"</li>
-                    <li>• La fuente se establecerá automáticamente como "Creado por"</li>
-                    <li>• Solo puedes asignar a vendedores activos de tu scope/equipo</li>
-                    {currentUser?.role === "vendedor" && (
-                      <li>• Como vendedor, puedes crear leads pero solo asignártelos a ti mismo</li>
-                    )}
-                  </ul>
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <h4 className="font-medium text-gray-800 mb-2">Lead a eliminar:</h4>
+                <div className="text-sm space-y-1">
+                  <div><strong>Cliente:</strong> {leadToDelete.nombre}</div>
+                  <div><strong>Teléfono:</strong> {leadToDelete.telefono}</div>
+                  <div><strong>Modelo:</strong> {leadToDelete.modelo}</div>
+                  <div><strong>Estado:</strong> {estados[leadToDelete.estado]?.label || leadToDelete.estado}</div>
+                  <div><strong>Vendedor:</strong> {leadToDelete.vendedor ? userById.get(leadToDelete.vendedor)?.name : 'Sin asignar'}</div>
+                  {leadToDelete.created_by && (
+                    <div><strong>Creado por:</strong> {userById.get(leadToDelete.created_by)?.name || 'Usuario eliminado'}</div>
+                  )}
                 </div>
               </div>
 
-              <div className="flex space-x-3 pt-6">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <Bell className="h-5 w-5 text-red-400" />
+                  </div>
+                  <div className="ml-3">
+                    <h4 className="text-sm font-medium text-red-800">
+                      Atención - Eliminación Permanente
+                    </h4>
+                    <div className="mt-2 text-sm text-red-700">
+                      <ul className="list-disc pl-5 space-y-1">
+                        <li>El lead se eliminará permanentemente del sistema</li>
+                        <li>Se perderán todos los datos y el historial</li>
+                        <li>Esta acción no se puede revertir</li>
+                        <li>El vendedor asignado perderá el acceso al lead</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex space-x-3">
                 <button
-                  onClick={handleCreateLead}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                  onClick={confirmDeleteLead}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
                 >
-                  Crear Lead
+                  Sí, Eliminar Lead
                 </button>
                 <button
-                  onClick={() => setShowNewLeadModal(false)}
+                  onClick={() => {
+                    setShowDeleteLeadConfirmModal(false);
+                    setLeadToDelete(null);
+                  }}
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
                 >
                   Cancelar
@@ -3083,6 +3857,452 @@ const handleDeleteAllLeads = async () => {
           </div>
         )}
 
+        {/* Modal de Confirmación para Eliminar Usuario */}
+        {showDeleteConfirmModal && userToDelete && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-md">
+              <div className="flex items-center mb-6">
+                <div className="bg-red-100 p-3 rounded-full mr-4">
+                  <Trash2 className="h-6 w-6 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    Confirmar Eliminación
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Esta acción no se puede deshacer
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <h4 className="font-medium text-gray-800 mb-2">Usuario a eliminar:</h4>
+                <div className="text-sm space-y-1">
+                  <div><strong>Nombre:</strong> {userToDelete.name}</div>
+                  <div><strong>Email:</strong> {userToDelete.email}</div>
+                  <div><strong>Rol:</strong> {roles[userToDelete.role] || userToDelete.role}</div>
+                </div>
+              </div>
+
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <Bell className="h-5 w-5 text-red-400" />
+                  </div>
+                  <div className="ml-3">
+                    <h4 className="text-sm font-medium text-red-800">
+                      Atención - Eliminación Permanente
+                    </h4>
+                    <div className="mt-2 text-sm text-red-700">
+                      <ul className="list-disc pl-5 space-y-1">
+                        <li>Se eliminará permanentemente del sistema</li>
+                        <li>Se perderá acceso a todas las funcionalidades</li>
+                        <li>No podrá recuperar su cuenta</li>
+                        <li>Los datos históricos se mantendrán para auditoría</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={confirmDeleteUser}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
+                >
+                  Sí, Eliminar Usuario
+                </button>
+                <button
+                  onClick={() => {
+                    setShowDeleteConfirmModal(false);
+                    setUserToDelete(null);
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Reasignación de Lead */}
+        {showReassignModal && leadToReassign && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-800">
+                  Reasignar Lead - {leadToReassign.nombre}
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowReassignModal(false);
+                    setLeadToReassign(null);
+                    setSelectedVendorForReassign(null);
+                  }}
+                >
+                  <X size={24} className="text-gray-600" />
+                </button>
+              </div>
+
+              <div className="mb-6">
+                <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                  <h4 className="font-medium text-gray-800 mb-2">Información del Lead</h4>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium text-gray-600">Cliente:</span>{" "}
+                      {leadToReassign.nombre}
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Teléfono:</span>{" "}
+                      {leadToReassign.telefono}
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Vehículo:</span>{" "}
+                      {leadToReassign.modelo}
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Estado:</span>
+                      <span
+                        className={`ml-2 px-2 py-1 rounded-full text-xs font-medium text-white ${estados[leadToReassign.estado].color}`}
+                      >
+                        {estados[leadToReassign.estado].label}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Fuente:</span>
+                      <span className="ml-2">
+                        {fuentes[leadToReassign.fuente as string]?.icon || "❓"}{" "}
+                        {fuentes[leadToReassign.fuente as string]?.label ||
+                          String(leadToReassign.fuente)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-600">Vendedor actual:</span>{" "}
+                      {leadToReassign.vendedor
+                        ? userById.get(leadToReassign.vendedor)?.name
+                        : "Sin asignar"}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    Seleccionar nuevo vendedor (solo vendedores activos)
+                  </label>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {/* Opción para no asignar */}
+                    <div
+                      onClick={() => setSelectedVendorForReassign(null)}
+                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                        selectedVendorForReassign === null
+                          ? "border-blue-500 bg-blue-50"
+                          : "border-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-gray-400 rounded-full flex items-center justify-center">
+                            <span className="text-white font-medium text-sm">--</span>
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">Sin asignar</p>
+                            <p className="text-sm text-gray-500">
+                              Dejar el lead sin vendedor asignado
+                            </p>
+                          </div>
+                        </div>
+                        {selectedVendorForReassign === null && (
+                          <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                            <div className="w-2 h-2 bg-white rounded-full"></div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Lista de vendedores disponibles */}
+                    {getAvailableVendorsForReassign().map((vendedor: any) => {
+                      const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
+                      const vendedorVentas = vendedorLeads.filter(
+                        (l) => l.estado === "vendido"
+                      ).length;
+                      const conversion =
+                        vendedorLeads.length > 0
+                          ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0)
+                          : "0";
+
+                      return (
+                        <div
+                          key={vendedor.id}
+                          onClick={() => setSelectedVendorForReassign(vendedor.id)}
+                          className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                            selectedVendorForReassign === vendedor.id
+                              ? "border-blue-500 bg-blue-50"
+                              : "border-gray-200 hover:bg-gray-50"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                                <span className="text-white font-medium text-sm">
+                                  {vendedor.name
+                                    .split(" ")
+                                    .map((n: string) => n[0])
+                                    .join("")
+                                    .toUpperCase()
+                                    .substring(0, 2)}
+                                </span>
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900">{vendedor.name}</p>
+                                <p className="text-sm text-gray-500">
+                                  {vendedorLeads.length} leads • {vendedorVentas} ventas •{" "}
+                                  {conversion}% conversión
+                                </p>
+                                <p className="text-xs text-gray-400">
+                                  Equipo de {userById.get(vendedor.reportsTo)?.name || "—"}
+                                </p>
+                                <p className="text-xs text-green-600 font-medium">
+                                  ✓ Activo - Recibe leads nuevos
+                                </p>
+                              </div>
+                            </div>
+                            {selectedVendorForReassign === vendedor.id && (
+                              <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                                <div className="w-2 h-2 bg-white rounded-full"></div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {getAvailableVendorsForReassign().length === 0 && (
+                    <div className="text-center py-8 bg-gray-50 rounded-lg border">
+                      <p className="text-gray-500">
+                        No hay vendedores activos disponibles en tu scope para reasignar
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleReassignLead}
+                  disabled={selectedVendorForReassign === leadToReassign.vendedor}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium ${
+                    selectedVendorForReassign === leadToReassign.vendedor
+                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      : "bg-blue-600 text-white hover:bg-blue-700"
+                  }`}
+                >
+                  {selectedVendorForReassign === leadToReassign.vendedor
+                    ? "Ya está asignado a este vendedor"
+                    : "Reasignar Lead"}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowReassignModal(false);
+                    setLeadToReassign(null);
+                    setSelectedVendorForReassign(null);
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+{/* Modal: Reasignación Masiva */}
+{showBulkReassignModal && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="text-xl font-semibold text-gray-800">
+          Reasignación Masiva de Leads
+        </h3>
+        <button
+          onClick={() => {
+            setShowBulkReassignModal(false);
+            setBulkReassignVendorId(null);
+          }}
+        >
+          <X size={24} className="text-gray-600" />
+        </button>
+      </div>
+
+      <div className="mb-6">
+        <div className="bg-blue-50 rounded-lg p-4 mb-4">
+          <h4 className="font-medium text-blue-900 mb-2">
+            📊 Resumen de la operación
+          </h4>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <span className="font-medium text-gray-600">Leads seleccionados:</span>{" "}
+              <span className="font-bold text-blue-700">{selectedLeads.size}</span>
+            </div>
+            <div>
+              <span className="font-medium text-gray-600">Vendedores únicos afectados:</span>{" "}
+              <span className="font-bold text-blue-700">
+                {new Set(
+                  Array.from(selectedLeads)
+                    .map(id => leads.find(l => l.id === id)?.vendedor)
+                    .filter(Boolean)
+                ).size}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Preview de leads seleccionados */}
+        <div className="bg-gray-50 rounded-lg p-4 mb-4 max-h-40 overflow-y-auto">
+          <h4 className="font-medium text-gray-800 mb-2 text-sm">Leads a reasignar:</h4>
+          <div className="space-y-1">
+            {Array.from(selectedLeads).slice(0, 5).map(leadId => {
+              const lead = leads.find(l => l.id === leadId);
+              if (!lead) return null;
+              return (
+                <div key={leadId} className="text-xs text-gray-600 flex items-center justify-between">
+                  <span>{lead.nombre} - {lead.modelo}</span>
+                  <span className="text-gray-400">
+                    {lead.vendedor ? userById.get(lead.vendedor)?.name : 'Sin asignar'}
+                  </span>
+                </div>
+              );
+            })}
+            {selectedLeads.size > 5 && (
+              <div className="text-xs text-gray-500 italic">
+                ... y {selectedLeads.size - 5} más
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-3">
+            Seleccionar nuevo vendedor para todos los leads seleccionados
+          </label>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {/* Opción para desasignar */}
+            <div
+              onClick={() => setBulkReassignVendorId(null)}
+              className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                bulkReassignVendorId === null
+                  ? "border-blue-500 bg-blue-50"
+                  : "border-gray-200 hover:bg-gray-50"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-gray-400 rounded-full flex items-center justify-center">
+                    <span className="text-white font-medium text-sm">--</span>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">Sin asignar</p>
+                    <p className="text-sm text-gray-500">
+                      Quitar asignación de todos los leads seleccionados
+                    </p>
+                  </div>
+                </div>
+                {bulkReassignVendorId === null && (
+                  <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Lista de vendedores disponibles */}
+            {getAvailableVendorsForReassign().map((vendedor: any) => {
+              const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
+              const vendedorVentas = vendedorLeads.filter(
+                (l) => l.estado === "vendido"
+              ).length;
+              const conversion =
+                vendedorLeads.length > 0
+                  ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0)
+                  : "0";
+
+              return (
+                <div
+                  key={vendedor.id}
+                  onClick={() => setBulkReassignVendorId(vendedor.id)}
+                  className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                    bulkReassignVendorId === vendedor.id
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-gray-200 hover:bg-gray-50"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                        <span className="text-white font-medium text-sm">
+                          {vendedor.name
+                            .split(" ")
+                            .map((n: string) => n[0])
+                            .join("")
+                            .toUpperCase()
+                            .substring(0, 2)}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{vendedor.name}</p>
+                        <p className="text-sm text-gray-500">
+                          {vendedorLeads.length} leads • {vendedorVentas} ventas •{" "}
+                          {conversion}% conversión
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          Equipo de {userById.get(vendedor.reportsTo)?.name || "—"}
+                        </p>
+                        <p className="text-xs text-green-600 font-medium">
+                          ✓ Activo - Recibe leads nuevos
+                        </p>
+                      </div>
+                    </div>
+                    {bulkReassignVendorId === vendedor.id && (
+                      <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                        <div className="w-2 h-2 bg-white rounded-full"></div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {getAvailableVendorsForReassign().length === 0 && (
+            <div className="text-center py-8 bg-gray-50 rounded-lg border">
+              <p className="text-gray-500">
+                No hay vendedores activos disponibles en tu scope para reasignar
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="flex space-x-3">
+        <button
+          onClick={handleBulkReassign}
+          className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+        >
+          Reasignar {selectedLeads.size} Leads
+        </button>
+        <button
+          onClick={() => {
+            setShowBulkReassignModal(false);
+            setBulkReassignVendorId(null);
+          }}
+          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  </div>
+)}
         {/* Modal: Observaciones del Lead */}
         {showObservacionesModal && editingLeadObservaciones && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -3238,255 +4458,155 @@ const handleDeleteAllLeads = async () => {
           </div>
         )}
 
-        {/* Modal de Confirmación para Eliminar Usuario */}
-        {showDeleteConfirmModal && userToDelete && (
+        {/* Modal: Nuevo Lead */}
+        {showNewLeadModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-md">
-              <div className="flex items-center mb-6">
-                <div className="bg-red-100 p-3 rounded-full mr-4">
-                  <Trash2 className="h-6 w-6 text-red-600" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-800">
-                    Confirmar Eliminación
-                  </h3>
-                  <p className="text-sm text-gray-600">
-                    Esta acción no se puede deshacer
-                  </p>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                <h4 className="font-medium text-gray-800 mb-2">Usuario a eliminar:</h4>
-                <div className="text-sm space-y-1">
-                  <div><strong>Nombre:</strong> {userToDelete.name}</div>
-                  <div><strong>Email:</strong> {userToDelete.email}</div>
-                  <div><strong>Rol:</strong> {roles[userToDelete.role] || userToDelete.role}</div>
-                </div>
-              </div>
-
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <Bell className="h-5 w-5 text-red-400" />
-                  </div>
-                  <div className="ml-3">
-                    <h4 className="text-sm font-medium text-red-800">
-                      Atención - Eliminación Permanente
-                    </h4>
-                    <div className="mt-2 text-sm text-red-700">
-                      <ul className="list-disc pl-5 space-y-1">
-                        <li>Se eliminará permanentemente del sistema</li>
-                        <li>Se perderá acceso a todas las funcionalidades</li>
-                        <li>No podrá recuperar su cuenta</li>
-                        <li>Los datos históricos se mantendrán para auditoría</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex space-x-3">
-                <button
-                  onClick={confirmDeleteUser}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
-                >
-                  Sí, Eliminar Usuario
-                </button>
-                <button
-                  onClick={() => {
-                    setShowDeleteConfirmModal(false);
-                    setUserToDelete(null);
-                  }}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: Reasignación de Lead */}
-        {showReassignModal && leadToReassign && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
+            <div className="bg-white rounded-xl p-6 w-full max-w-3xl">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-800">
-                  Reasignar Lead - {leadToReassign.nombre}
-                </h3>
-                <button
-                  onClick={() => {
-                    setShowReassignModal(false);
-                    setLeadToReassign(null);
-                    setSelectedVendorForReassign(null);
-                  }}
-                >
+                <h3 className="text-xl font-semibold text-gray-800">Nuevo Lead</h3>
+                <button onClick={() => setShowNewLeadModal(false)}>
                   <X size={24} className="text-gray-600" />
                 </button>
               </div>
-
-              <div className="mb-6">
-                <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                  <h4 className="font-medium text-gray-800 mb-2">Información del Lead</h4>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="font-medium text-gray-600">Cliente:</span>{" "}
-                      {leadToReassign.nombre}
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Teléfono:</span>{" "}
-                      {leadToReassign.telefono}
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Vehículo:</span>{" "}
-                      {leadToReassign.modelo}
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Estado:</span>
-                      <span
-                        className={`ml-2 px-2 py-1 rounded-full text-xs font-medium text-white ${estados[leadToReassign.estado].color}`}
-                      >
-                        {estados[leadToReassign.estado].label}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Fuente:</span>
-                      <span className="ml-2">
-                        {fuentes[leadToReassign.fuente as string]?.icon || "❓"}{" "}
-                        {fuentes[leadToReassign.fuente as string]?.label ||
-                          String(leadToReassign.fuente)}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-600">Vendedor actual:</span>{" "}
-                      {leadToReassign.vendedor
-                        ? userById.get(leadToReassign.vendedor)?.name
-                        : "Sin asignar"}
-                    </div>
-                  </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nombre *
+                  </label>
+                  <input
+                    type="text"
+                    id="new-nombre"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Teléfono *
+                  </label>
+                  <input
+                    type="text"
+                    id="new-telefono"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Modelo *
+                  </label>
+                  <input
+                    type="text"
+                    id="new-modelo"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Forma de Pago
+                  </label>
+                  <select
+                    id="new-formaPago"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="Contado">Contado</option>
+                    <option value="Financiado">Financiado</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Info Usado
+                  </label>
+                  <input
+                    type="text"
+                    id="new-infoUsado"
+                    placeholder="Marca Modelo Año"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Fecha
+                  </label>
+                  <input
+                    type="date"
+                    id="new-fecha"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="col-span-2 flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    id="new-entrega"
+                    className="rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">
+                    Entrega de vehículo usado
+                  </span>
+                </div>
+                <div className="col-span-2 flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    id="new-autoassign"
+                    defaultChecked
+                    className="rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">
+                    Asignación automática y equitativa a vendedores activos de mi equipo
+                  </span>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Asignar a vendedor específico (opcional)
+                  </label>
+                  <select
+                    id="new-vendedor"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Sin asignar</option>
+                    {getAvailableVendorsForAssignment().map((u: any) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} - {userById.get(u.reportsTo)?.name ? `Equipo ${userById.get(u.reportsTo)?.name}` : 'Sin equipo'} ✓ Activo
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Si está activada la "Asignación automática", se ignorará esta selección.
+                    Solo puedes asignar a vendedores activos de tu equipo.
+                  </p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
-                    Seleccionar nuevo vendedor (solo vendedores activos)
-                  </label>
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    <div
-                      onClick={() => setSelectedVendorForReassign(null)}
-                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                        selectedVendorForReassign === null
-                          ? "border-blue-500 bg-blue-50"
-                          : "border-gray-200 hover:bg-gray-50"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-gray-400 rounded-full flex items-center justify-center">
-                            <span className="text-white font-medium text-sm">--</span>
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900">Sin asignar</p>
-                            <p className="text-sm text-gray-500">
-                              Dejar el lead sin vendedor asignado
-                            </p>
-                          </div>
-                        </div>
-                        {selectedVendorForReassign === null && (
-                          <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
-                            <div className="w-2 h-2 bg-white rounded-full"></div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {getAvailableVendorsForReassign().map((vendedor: any) => {
-                      const vendedorLeads = leads.filter((l) => l.vendedor === vendedor.id);
-                      const vendedorVentas = vendedorLeads.filter(
-                        (l) => l.estado === "vendido"
-                      ).length;
-                      const conversion =
-                        vendedorLeads.length > 0
-                          ? ((vendedorVentas / vendedorLeads.length) * 100).toFixed(0)
-                          : "0";
-
-                      return (
-                        <div
-                          key={vendedor.id}
-                          onClick={() => setSelectedVendorForReassign(vendedor.id)}
-                          className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                            selectedVendorForReassign === vendedor.id
-                              ? "border-blue-500 bg-blue-50"
-                              : "border-gray-200 hover:bg-gray-50"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-                                <span className="text-white font-medium text-sm">
-                                  {vendedor.name
-                                    .split(" ")
-                                    .map((n: string) => n[0])
-                                    .join("")
-                                    .toUpperCase()
-                                    .substring(0, 2)}
-                                </span>
-                              </div>
-                              <div>
-                                <p className="font-medium text-gray-900">{vendedor.name}</p>
-                                <p className="text-sm text-gray-500">
-                                  {vendedorLeads.length} leads • {vendedorVentas} ventas •{" "}
-                                  {conversion}% conversión
-                                </p>
-                                <p className="text-xs text-gray-400">
-                                  Equipo de {userById.get(vendedor.reportsTo)?.name || "—"}
-                                </p>
-                                <p className="text-xs text-green-600 font-medium">
-                                  ✓ Activo - Recibe leads nuevos
-                                </p>
-                              </div>
-                            </div>
-                            {selectedVendorForReassign === vendedor.id && (
-                              <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
-                                <div className="w-2 h-2 bg-white rounded-full"></div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                {getAvailableVendorsForAssignment().length === 0 && (
+                  <div className="col-span-2 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                    <p className="text-sm text-yellow-700">
+                      <strong>Atención:</strong> No hay vendedores activos disponibles en tu equipo. 
+                      El lead se creará sin asignar.
+                    </p>
                   </div>
+                )}
 
-                  {getAvailableVendorsForReassign().length === 0 && (
-                    <div className="text-center py-8 bg-gray-50 rounded-lg border">
-                      <p className="text-gray-500">
-                        No hay vendedores activos disponibles en tu scope para reasignar
-                      </p>
-                    </div>
-                  )}
+                <div className="col-span-2 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <h4 className="text-sm font-medium text-blue-800 mb-2">
+                    Información sobre la creación de leads:
+                  </h4>
+                  <ul className="text-xs text-blue-700 space-y-1">
+                    <li>• Este lead aparecerá marcado como "Creado por {currentUser?.name}"</li>
+                    <li>• La fuente se establecerá automáticamente como "Creado por"</li>
+                    <li>• Solo puedes asignar a vendedores activos de tu scope/equipo</li>
+                    {currentUser?.role === "vendedor" && (
+                      <li>• Como vendedor, puedes crear leads pero solo asignártelos a ti mismo</li>
+                    )}
+                  </ul>
                 </div>
               </div>
 
-              <div className="flex space-x-3">
+              <div className="flex space-x-3 pt-6">
                 <button
-                  onClick={handleReassignLead}
-                  disabled={selectedVendorForReassign === leadToReassign.vendedor}
-                  className={`flex-1 px-4 py-2 rounded-lg font-medium ${
-                    selectedVendorForReassign === leadToReassign.vendedor
-                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      : "bg-blue-600 text-white hover:bg-blue-700"
-                  }`}
+                  onClick={handleCreateLead}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
                 >
-                  {selectedVendorForReassign === leadToReassign.vendedor
-                    ? "Ya está asignado a este vendedor"
-                    : "Reasignar Lead"}
+                  Crear Lead
                 </button>
                 <button
-                  onClick={() => {
-                    setShowReassignModal(false);
-                    setLeadToReassign(null);
-                    setSelectedVendorForReassign(null);
-                  }}
+                  onClick={() => setShowNewLeadModal(false)}
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
                 >
                   Cancelar
@@ -3705,6 +4825,7 @@ const handleDeleteAllLeads = async () => {
                         <li>• Acceso completo al sistema</li>
                         <li>• Gestión total de usuarios y equipos</li>
                         <li>• Visualización de todos los datos</li>
+                        <li>• Puede eliminar leads</li>
                       </>
                     )}
                     {modalRole === "director" && (
@@ -3712,6 +4833,7 @@ const handleDeleteAllLeads = async () => {
                         <li>• Gestión de gerentes, supervisores y vendedores</li>
                         <li>• Visualización de todos los equipos</li>
                         <li>• Creación y asignación de leads</li>
+                        <li>• Puede eliminar leads</li>
                       </>
                     )}
                     {modalRole === "gerente" && (
@@ -3756,67 +4878,713 @@ const handleDeleteAllLeads = async () => {
             </div>
           </div>
         )}
+{/* Modal: Seleccionar Presupuesto para enviar por WhatsApp */}
+{showPresupuestoSelectModal && selectedLeadForPresupuesto && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="bg-white rounded-xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h3 className="text-xl font-semibold text-gray-800">
+            Enviar Presupuesto a {selectedLeadForPresupuesto.nombre}
+          </h3>
+          <p className="text-sm text-gray-600">
+            Selecciona una plantilla para enviar por WhatsApp
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            setShowPresupuestoSelectModal(false);
+            setSelectedLeadForPresupuesto(null);
+          }}
+        >
+          <X size={24} className="text-gray-600" />
+        </button>
+      </div>
 
-        {/* Modal: Borrado Masivo */}
-        {showDeleteAllModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-6 w-full max-w-md">
-              <div className="flex items-center mb-6">
-                <div className="bg-red-100 p-3 rounded-full mr-4">
-                  <Trash2 className="h-6 w-6 text-red-600" />
+      {presupuestos.length === 0 ? (
+        <div className="text-center py-12">
+          <FileText size={48} className="mx-auto text-gray-300 mb-4" />
+          <p className="text-gray-500">No hay plantillas de presupuesto disponibles</p>
+          <p className="text-sm text-gray-400 mt-2">
+            Contacta al administrador para crear plantillas
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {presupuestos.map((presupuesto) => (
+            <div
+              key={presupuesto.id}
+              onClick={() => {
+                // Generar mensaje de WhatsApp
+                const lead = selectedLeadForPresupuesto;
+                
+                let mensaje = `Hola ${lead.nombre}! 👋\n\n`;
+                mensaje += `Te envío la cotización del *${presupuesto.marca} ${presupuesto.modelo}*\n\n`;
+                
+                if (presupuesto.precio_contado) {
+                  mensaje += `💰 *PRECIO CONTADO:* ${presupuesto.precio_contado}\n`;
+                }
+                
+                if (presupuesto.anticipo) {
+                  mensaje += `📊 *ANTICIPO:* ${presupuesto.anticipo}\n`;
+                }
+                
+                if (presupuesto.planes_cuotas) {
+                  mensaje += `\n💳 *PLANES DE FINANCIACIÓN:*\n`;
+                  const planes = typeof presupuesto.planes_cuotas === 'string' 
+                    ? JSON.parse(presupuesto.planes_cuotas) 
+                    : presupuesto.planes_cuotas;
+                  
+                  Object.entries(planes).forEach(([cuotas, valor]) => {
+                    mensaje += `   • ${cuotas} cuotas: ${valor}\n`;
+                  });
+                }
+                
+                if (presupuesto.bonificaciones) {
+                  mensaje += `\n🎁 *BONIFICACIONES:*\n${presupuesto.bonificaciones}\n`;
+                }
+                
+                if (presupuesto.especificaciones_tecnicas) {
+                  mensaje += `\n📋 *CARACTERÍSTICAS:*\n${presupuesto.especificaciones_tecnicas}\n`;
+                }
+                
+                if (lead.infoUsado) {
+                  mensaje += `\n🚗 *TU VEHÍCULO USADO:* ${lead.infoUsado}\n`;
+                  mensaje += `(Se considera como parte de pago)\n`;
+                }
+                
+                mensaje += `\n¿Te gustaría coordinar una visita al showroom para verlo personalmente?\n\n`;
+                mensaje += `Saludos! 😊`;
+                
+                // Abrir WhatsApp
+                const phoneNumber = lead.telefono.replace(/\D/g, '');
+                const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(mensaje)}`;
+                window.open(whatsappUrl, '_blank');
+                
+                // Cerrar modal
+                setShowPresupuestoSelectModal(false);
+                setSelectedLeadForPresupuesto(null);
+              }}
+              className="cursor-pointer border-2 border-gray-200 rounded-xl overflow-hidden hover:border-purple-500 hover:shadow-lg transition-all"
+            >
+              {presupuesto.imagen_url && (
+                <div className="h-40 bg-gray-200 overflow-hidden">
+                  <img
+                    src={presupuesto.imagen_url}
+                    alt={presupuesto.modelo}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x300?text=Sin+Imagen';
+                    }}
+                  />
                 </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-800">Eliminar TODOS los Leads</h3>
-                  <p className="text-sm text-gray-600">Esta acción es IRREVERSIBLE</p>
+              )}
+              <div className="p-4">
+                <h4 className="text-lg font-bold text-gray-900">
+                  {presupuesto.marca} {presupuesto.modelo}
+                </h4>
+                
+                {presupuesto.precio_contado && (
+                  <div className="mt-2 p-2 bg-green-50 rounded">
+                    <p className="text-xs text-gray-600">Precio Contado</p>
+                    <p className="text-lg font-bold text-green-600">
+                      {presupuesto.precio_contado}
+                    </p>
+                  </div>
+                )}
+                
+                {presupuesto.anticipo && (
+                  <p className="mt-2 text-sm text-gray-600">
+                    <strong>Anticipo:</strong> {presupuesto.anticipo}
+                  </p>
+                )}
+                
+                <div className="mt-3 flex items-center justify-between">
+                  <span className="text-xs text-gray-500">
+                    Click para enviar por WhatsApp
+                  </span>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-green-600">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.89 3.587"/>
+                  </svg>
                 </div>
               </div>
+            </div>
+          ))}
+        </div>
+      )}
 
-              <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 mb-6">
-                <p className="text-sm text-red-700">
-                  Se eliminarán TODOS los leads del sistema. Esta acción NO se puede deshacer.
-                </p>
-              </div>
+      <div className="mt-6 flex justify-end">
+        <button
+          onClick={() => {
+            setShowPresupuestoSelectModal(false);
+            setSelectedLeadForPresupuesto(null);
+          }}
+          className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+       {/* Modal: Presupuesto */}
+{showPresupuestoModal && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="text-xl font-semibold text-gray-800">
+          {editingPresupuesto ? "Editar Plantilla" : "Nueva Plantilla de Presupuesto"}
+        </h3>
+        <button onClick={() => {
+          setShowPresupuestoModal(false);
+          setEditingPresupuesto(null);
+        }}>
+          <X size={24} className="text-gray-600" />
+        </button>
+      </div>
 
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Confirma tu contraseña de Owner
-                </label>
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Marca *
+            </label>
+            <input
+              type="text"
+              id="pres-marca"
+              defaultValue={editingPresupuesto?.marca || ""}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="ej: Chevrolet"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Modelo *
+            </label>
+            <input
+              type="text"
+              id="pres-modelo"
+              defaultValue={editingPresupuesto?.modelo || ""}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="ej: Cruze LT"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            URL de Imagen
+          </label>
+          <input
+            type="url"
+            id="pres-imagen"
+            defaultValue={editingPresupuesto?.imagen_url || ""}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            placeholder="https://ejemplo.com/imagen.jpg"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Precio Contado
+          </label>
+          <input
+            type="text"
+            id="pres-precio"
+            defaultValue={editingPresupuesto?.precio_contado || ""}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            placeholder="ej: $25.000.000"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Anticipo
+          </label>
+          <input
+            type="text"
+            id="pres-anticipo"
+            defaultValue={editingPresupuesto?.anticipo || ""}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            placeholder="ej: 30% - $7.500.000"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Bonificaciones
+          </label>
+          <textarea
+            id="pres-bonificaciones"
+            defaultValue={editingPresupuesto?.bonificaciones || ""}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 h-20 resize-none"
+            placeholder="ej: Bonificación por pago contado: $500.000"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Especificaciones Técnicas
+          </label>
+          <textarea
+            id="pres-specs"
+            defaultValue={editingPresupuesto?.especificaciones_tecnicas || ""}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 h-24 resize-none"
+            placeholder="Motor, transmisión, equipamiento, etc."
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Planes de Cuotas (JSON)
+          </label>
+          <textarea
+            id="pres-cuotas"
+            defaultValue={editingPresupuesto?.planes_cuotas ? JSON.stringify(editingPresupuesto.planes_cuotas, null, 2) : ""}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 h-24 resize-none font-mono text-xs"
+            placeholder='{"12": "cuota de $2.000.000", "24": "cuota de $1.100.000"}'
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Formato JSON opcional. Ejemplo: {`{"12": "cuota $X", "24": "cuota $Y"}`}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex space-x-3 pt-6">
+        <button
+          onClick={async () => {
+            const marca = (document.getElementById("pres-marca") as HTMLInputElement)?.value?.trim();
+            const modelo = (document.getElementById("pres-modelo") as HTMLInputElement)?.value?.trim();
+            const imagen_url = (document.getElementById("pres-imagen") as HTMLInputElement)?.value?.trim();
+            const precio_contado = (document.getElementById("pres-precio") as HTMLInputElement)?.value?.trim();
+            const anticipo = (document.getElementById("pres-anticipo") as HTMLInputElement)?.value?.trim();
+            const bonificaciones = (document.getElementById("pres-bonificaciones") as HTMLTextAreaElement)?.value?.trim();
+            const especificaciones_tecnicas = (document.getElementById("pres-specs") as HTMLTextAreaElement)?.value?.trim();
+            const cuotasStr = (document.getElementById("pres-cuotas") as HTMLTextAreaElement)?.value?.trim();
+
+            if (!marca || !modelo) {
+              alert("Marca y Modelo son obligatorios");
+              return;
+            }
+
+            let planes_cuotas = null;
+            if (cuotasStr) {
+              try {
+                planes_cuotas = JSON.parse(cuotasStr);
+              } catch (e) {
+                alert("El formato de Planes de Cuotas no es JSON válido");
+                return;
+              }
+            }
+
+            const data: any = {
+              marca,
+              modelo,
+              imagen_url: imagen_url || null,
+              precio_contado: precio_contado || null,
+              anticipo: anticipo || null,
+              bonificaciones: bonificaciones || null,
+              especificaciones_tecnicas: especificaciones_tecnicas || null,
+              planes_cuotas,
+              activo: true,
+            };
+
+            try {
+              if (editingPresupuesto) {
+                const updated = await apiUpdatePresupuesto(editingPresupuesto.id, data);
+                setPresupuestos(prev => prev.map(p => p.id === editingPresupuesto.id ? updated : p));
+              } else {
+                const created = await apiCreatePresupuesto(data);
+                setPresupuestos(prev => [created, ...prev]);
+              }
+              setShowPresupuestoModal(false);
+              setEditingPresupuesto(null);
+            } catch (e: any) {
+              console.error("Error al guardar presupuesto:", e);
+              alert(`Error: ${e?.response?.data?.error || e.message}`);
+            }
+          }}
+          className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+        >
+          {editingPresupuesto ? "Actualizar" : "Crear"} Plantilla
+        </button>
+        <button
+          onClick={() => {
+            setShowPresupuestoModal(false);
+            setEditingPresupuesto(null);
+          }}
+          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+{/* Modal: Presupuesto Personalizado */}
+{showPresupuestoPersonalizadoModal && leadParaPresupuesto && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="bg-white rounded-xl w-full max-w-5xl max-h-[95vh] overflow-y-auto m-4">
+      {/* Header con fondo rosa/rojo */}
+      <div className="bg-gradient-to-r from-pink-500 to-red-500 text-white text-center py-4 rounded-t-xl">
+        <p className="font-bold text-base px-4">
+          ESTÁS A UN SOLO PASO DE TENER TU PRÓXIMO 0KM!!! FELICITACIONES!!!
+        </p>
+      </div>
+
+      <div className="p-6">
+        {/* Header del modal */}
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-800">
+              Generar Presupuesto para {leadParaPresupuesto.nombre}
+            </h3>
+            <p className="text-sm text-gray-600">
+              Tel: {leadParaPresupuesto.telefono}
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setShowPresupuestoPersonalizadoModal(false);
+              setLeadParaPresupuesto(null);
+            }}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <X size={24} />
+          </button>
+        </div>
+
+        {/* Grid de 3 columnas */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* COLUMNA 1: Sube tus Imágenes (0KM) */}
+          <div className="space-y-4">
+            <div className="bg-blue-100 rounded-lg p-3">
+              <h4 className="font-bold text-blue-900 text-center text-sm">
+                📸 Sube tus Imágenes (0KM)
+              </h4>
+            </div>
+            
+            {[1, 2, 3].map((num) => (
+              <div key={num} className="relative">
                 <input
-                  type="password"
-                  value={deleteAllPassword}
-                  onChange={(e) => setDeleteAllPassword(e.target.value)}
-                  placeholder="Tu contraseña actual"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500"
-                  disabled={isDeletingAll}
-                />
-              </div>
-
-              <div className="flex space-x-3">
-                <button
-                  onClick={handleDeleteAllLeads}
-                  disabled={isDeletingAll || !deleteAllPassword.trim()}
-                  className={`flex-1 px-4 py-2 rounded-lg font-medium ${
-                    isDeletingAll || !deleteAllPassword.trim()
-                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      : "bg-red-600 text-white hover:bg-red-700"
-                  }`}
-                >
-                  {isDeletingAll ? "Eliminando..." : "Sí, Eliminar TODO"}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowDeleteAllModal(false);
-                    setDeleteAllPassword("");
+                  type="file"
+                  id={`imagen-${num}`}
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        const container = document.getElementById(`upload-container-${num}`);
+                        const img = document.getElementById(`preview-${num}`) as HTMLImageElement;
+                        if (img && event.target?.result && container) {
+                          img.src = event.target.result as string;
+                          container.classList.add('hidden');
+                          img.classList.remove('hidden');
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    }
                   }}
-                  disabled={isDeletingAll}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                />
+                <label 
+                  htmlFor={`imagen-${num}`} 
+                  className="block border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 cursor-pointer bg-gray-50 transition-colors min-h-[150px] flex items-center justify-center"
                 >
-                  Cancelar
-                </button>
+                  <div id={`upload-container-${num}`} className="text-center">
+                    <p className="text-gray-400 text-sm mb-1">Click para subir</p>
+                    <p className="text-gray-400 text-xs">Imagen {num}</p>
+                  </div>
+                  <img
+                    id={`preview-${num}`}
+                    className="hidden w-full h-full object-cover rounded"
+                    alt={`Preview ${num}`}
+                  />
+                </label>
+              </div>
+            ))}
+          </div>
+
+          {/* COLUMNA 2: Financiación Exclusiva */}
+          <div className="space-y-4">
+            <div className="bg-blue-100 rounded-lg p-3 border-l-4 border-blue-500">
+              <h4 className="font-bold text-blue-900 text-center text-sm flex items-center justify-center">
+                <span className="mr-2">💰</span>
+                Financiación Exclusiva
+              </h4>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">
+                Nombre del Vehículo:
+              </label>
+              <input
+                type="text"
+                id="plan-pensado"
+                defaultValue={leadParaPresupuesto.modelo}
+                placeholder="Ej: Fiat Cronos 1.3 GSE"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">
+                Valor Móvil:
+              </label>
+              <input
+                type="text"
+                id="valor-plan"
+                placeholder="$ 0.000.000"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">
+                Anticipo / Alicuota Extraordinaria:
+              </label>
+              <input
+                type="text"
+                id="anticipo"
+                placeholder="$ 0.000.000"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">
+                Suscripción y Cuota 1:
+              </label>
+              <input
+                type="text"
+                id="cuota-1-valor"
+                placeholder="$ 0.000"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            {/* Cuotas dinámicas con formato correcto */}
+            
+<div>
+  <label className="block text-sm font-bold text-gray-700 mb-1">
+    Cuota 2 a la 12:
+  </label>
+  <input
+    type="text"
+    id="cuota-2-12"
+    placeholder="$ 0.000"
+    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500"
+  />
+</div>
+
+<div>
+  <label className="block text-sm font-bold text-gray-700 mb-1">
+    Cuota 13 a la 84:
+  </label>
+  <input
+    type="text"
+    id="cuota-13-84"
+    placeholder="$ 0.000"
+    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500"
+  />
+</div>
+            <button
+              onClick={() => {
+                // Lógica para agregar otra cuota
+              }}
+              className="w-full py-2 text-sm border-2 border-dashed border-gray-300 rounded-md text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors"
+            >
+              + Agregar cuota
+            </button>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">
+                Adjudicación Asegurada:
+              </label>
+              <input
+                type="text"
+                id="adjudicacion"
+                defaultValue="De la 2 a la 24"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          {/* COLUMNA 3: Cotización del Usado */}
+          <div className="space-y-4">
+            <div className="bg-purple-100 rounded-lg p-3 border-l-4 border-purple-500">
+              <h4 className="font-bold text-purple-900 text-center text-sm flex items-center justify-center">
+                <span className="mr-2">📊</span>
+                Cotizador de Usados
+              </h4>
+            </div>
+
+            <div className="relative">
+              <input
+                type="file"
+                id="imagen-cotizador"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                      const container = document.getElementById('upload-container-cotizador');
+                      const img = document.getElementById('preview-cotizador') as HTMLImageElement;
+                      if (img && event.target?.result && container) {
+                        img.src = event.target.result as string;
+                        container.classList.add('hidden');
+                        img.classList.remove('hidden');
+                      }
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                }}
+              />
+              <label 
+                htmlFor="imagen-cotizador" 
+                className="block border-2 border-dashed border-purple-300 rounded-lg p-12 text-center hover:border-purple-400 cursor-pointer bg-purple-50 transition-colors min-h-[200px] flex items-center justify-center"
+              >
+                <div id="upload-container-cotizador" className="text-center">
+                  <p className="text-purple-600 text-base mb-2 font-semibold">Click para subir cotizador</p>
+                  <p className="text-purple-500 text-sm">Captura de pantalla del cotizador</p>
+                </div>
+                <img
+                  id="preview-cotizador"
+                  className="hidden w-full h-full object-contain rounded"
+                  alt="Preview cotizador"
+                />
+              </label>
+            </div>
+
+            <div className="bg-blue-100 rounded-lg p-3 border-l-4 border-blue-500 mt-6">
+              <h4 className="font-bold text-blue-900 text-center text-sm flex items-center justify-center">
+                <span className="mr-2">🚗</span>
+                Cotización del Usado
+              </h4>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">
+                Marca y Modelo:
+              </label>
+              <input
+                type="text"
+                id="modelo-usado"
+                defaultValue={leadParaPresupuesto.infoUsado || ''}
+                placeholder="Ej: Fiat Cronos"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">
+                Año:
+              </label>
+              <input
+                type="text"
+                id="anio-usado"
+                placeholder="2020"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">
+                Kilómetros:
+              </label>
+              <input
+                type="text"
+                id="kilometros"
+                placeholder="50.000 km"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-1">
+                Valor Estimado:
+              </label>
+              <input
+                type="text"
+                id="valor-estimado"
+                placeholder="$ 0.000.000"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Observaciones */}
+        <div className="mt-6">
+          <label className="block text-sm font-bold text-gray-700 mb-2">
+            Observaciones / Notas adicionales:
+          </label>
+          <textarea
+            id="observaciones"
+            rows={3}
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md resize-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Información adicional..."
+          />
+        </div>
+
+        {/* Advertencias amarillas */}
+        <div className="mt-4 space-y-3">
+          <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded">
+            <div className="flex items-start">
+              <span className="text-yellow-600 mr-2">⚠️</span>
+              <div>
+                <p className="text-sm font-bold text-yellow-900">
+                  PROMOCIÓN VÁLIDA POR 72HS:
+                </p>
+                <p className="text-sm text-yellow-800 mt-1">
+                  Todas las bonificaciones especiales tendrán una vigencia de 72 horas a partir de que te haya llegado este presupuesto.
+                </p>
               </div>
             </div>
           </div>
-        )}
+          
+          <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded">
+            <div className="flex items-start">
+              <span className="text-purple-600 mr-2">🚗</span>
+              <div>
+                <p className="text-sm font-bold text-yellow-900">
+                  IMPORTANTE:
+                </p>
+                <p className="text-sm text-yellow-800 mt-1">
+                  Si tenés un usado, por favor pedí que te lo coticen y lo incluyan en este presupuesto, ya que si no está incluido NO se tomará para la entrega del 0KM.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Botones */}
+        <div className="mt-6 flex gap-3">
+          <button
+            onClick={() => {
+              setShowPresupuestoPersonalizadoModal(false);
+              setLeadParaPresupuesto(null);
+            }}
+            className="flex-1 px-4 py-3 text-sm font-medium border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleGenerarPresupuestoPDF}
+            className="flex-1 px-4 py-3 text-sm font-bold bg-gradient-to-r from-green-500 to-blue-500 text-white rounded-lg hover:from-green-600 hover:to-blue-600 transition-all shadow-md hover:shadow-lg"
+          >
+            ✅ Generar este PDF
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
       </div>
     </div>
   );

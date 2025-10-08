@@ -1,6 +1,7 @@
-﻿// src/App.tsx
-import CRM from "./CRM";
+﻿import CRM from "./CRM";
 
-export default function App() {
+function App() {
   return <CRM />;
 }
+
+export default App;
