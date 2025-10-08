@@ -386,6 +386,7 @@ const [leadParaPresupuesto, setLeadParaPresupuesto] = useState<LeadRow | null>(n
       setLoginError("");
 
       const [uu, ll] = await Promise.all([listUsers(), listLeads()]);
+      
       const mappedLeads: LeadRow[] = (ll || []).map((L: any) => ({
         id: L.id,
         nombre: L.nombre,
@@ -394,7 +395,7 @@ const [leadParaPresupuesto, setLeadParaPresupuesto] = useState<LeadRow | null>(n
         formaPago: L.formaPago,
         infoUsado: L.infoUsado,
         entrega: L.entrega,
-        fecha: L.fecha || L.created_at || "",
+        fecha: L.fecha || L.createdAt || "",
         estado: (L.estado || "nuevo") as LeadRow["estado"],
         vendedor: L.vendedor ?? null,
         notas: L.notas || "",
@@ -402,17 +403,19 @@ const [leadParaPresupuesto, setLeadParaPresupuesto] = useState<LeadRow | null>(n
         historial: L.historial || [],
         created_by: L.created_by || null,
       }));
+      
+      console.log('🔥 LEADS CARGADOS:', mappedLeads.length);
+      
       setUsers(uu || []);
       setLeads(mappedLeads);
 
-      // AGREGAR ESTO AQUÍ DENTRO
+      // Cargar presupuestos
       try {
         const pp = await listPresupuestos();
         setPresupuestos(pp || []);
       } catch (error) {
         console.error('Error cargando presupuestos:', error);
       }
-      // FIN DEL CÓDIGO AGREGADO
 
     } else {
       throw new Error("Respuesta inválida del servidor");
