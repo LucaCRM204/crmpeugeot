@@ -68,10 +68,28 @@ interface ApiError {
 // Obtener todos los leads
 export const listLeads = async (): Promise<Lead[]> => {
   try {
-    const response = await api.get<LeadsListResponse>('/leads');
-    return response.data.leads || [];
+    const response = await api.get('/leads');
+    
+    // 🔍 DEBUG: Ver qué está llegando del backend
+    console.log('📥 Respuesta completa del backend:', response.data);
+    console.log('📥 Tipo de response.data:', typeof response.data, 'Es array?', Array.isArray(response.data));
+    
+    // ✅ Manejar ambos formatos posibles:
+    // 1. Array directo: [lead1, lead2, lead3]
+    // 2. Objeto con propiedad: { leads: [lead1, lead2], total: 150 }
+    const leads = Array.isArray(response.data) 
+      ? response.data 
+      : (response.data.leads || []);
+    
+    console.log('📥 listLeads procesó:', leads.length, 'leads');
+    
+    if (leads.length > 0) {
+      console.log('📥 Primer lead de ejemplo:', leads[0]);
+    }
+    
+    return leads;
   } catch (error) {
-    console.error('Error al obtener leads:', error);
+    console.error('❌ Error al obtener leads:', error);
     throw error;
   }
 };
@@ -79,8 +97,8 @@ export const listLeads = async (): Promise<Lead[]> => {
 // Obtener un lead específico
 export const getLead = async (id: number): Promise<Lead> => {
   try {
-    const response = await api.get<LeadResponse>(`/leads/${id}`);
-    return response.data.lead;
+    const response = await api.get<Lead>(`/leads/${id}`);
+    return response.data;
   } catch (error) {
     console.error('Error al obtener lead:', error);
     throw error;
@@ -90,8 +108,8 @@ export const getLead = async (id: number): Promise<Lead> => {
 // Crear un nuevo lead
 export const createLead = async (leadData: LeadData): Promise<Lead> => {
   try {
-    const response = await api.post<LeadResponse>('/leads', leadData);
-    return response.data.lead;
+    const response = await api.post<Lead>('/leads', leadData);
+    return response.data;
   } catch (error) {
     console.error('Error al crear lead:', error);
     throw error;
@@ -101,8 +119,8 @@ export const createLead = async (leadData: LeadData): Promise<Lead> => {
 // Actualizar un lead existente
 export const updateLead = async (id: number, updateData: Partial<LeadData>): Promise<Lead> => {
   try {
-    const response = await api.put<LeadResponse>(`/leads/${id}`, updateData);
-    return response.data.lead;
+    const response = await api.put<Lead>(`/leads/${id}`, updateData);
+    return response.data;
   } catch (error) {
     console.error('Error al actualizar lead:', error);
     throw error;
@@ -133,8 +151,8 @@ export const deleteLead = async (id: number): Promise<DeleteResponse> => {
 // Crear lead desde webhook (para bots)
 export const createLeadFromWebhook = async (equipo: string, leadData: LeadData): Promise<Lead> => {
   try {
-    const response = await api.post<LeadResponse>(`/leads/webhook/${equipo}`, leadData);
-    return response.data.lead;
+    const response = await api.post<Lead>(`/leads/webhook/${equipo}`, leadData);
+    return response.data;
   } catch (error) {
     console.error('Error al crear lead desde webhook:', error);
     throw error;
